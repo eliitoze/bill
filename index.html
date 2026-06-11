@@ -1556,107 +1556,32 @@ async function doLogin(){
   if(!username||!password){
     errEl.textContent='Username ane password nakho!'; errEl.style.display='block'; return;
   }
-
-  // Loading state
-  if(btn){ btn.disabled=true; btn.textContent='⏳ Verifying...'; }
-
+  if(!WORKER_URL){
+    errEl.textContent='Worker URL set karo pehla!';
+    errEl.style.display='block'; return;
+  }
+  if(btn){ btn.disabled=true; btn.textContent='Verifying...'; }
   try{
-    const hashed = await hashPass(password);
-
-    // 1. Try Supabase first
-    let user = null;
-    try{
-      const rows = await api('app_users?username=eq.'+encodeURIComponent(username));
-      if(rows && rows.length > 0) user = rows[0];
-    } catch(e){
-      // Offline — use cache
-      const cached = localStorage.getItem('sb_users_cache');
-      if(cached){
-        const arr = JSON.parse(cached);
-        user = arr.find(u=>u.username===username)||null;
-      }
-    }
-
-    // 2. Fallback: check old localStorage (migration period)
-    if(!user){
-      const raw = localStorage.getItem('sb_users');
-      if(raw){
-        const arr = JSON.parse(raw);
-        const lu = arr.find(u=>u.username===username);
-        if(lu){
-          // Old format ma chhe — password check karo
-          const oldHash = lu.passwordHash || (lu.password ? await hashPass(lu.password) : '');
-          const oldPlain = lu.password;
-          const oldOk = (hashed === oldHash) || (password === oldPlain);
-          if(oldOk && lu.approved){
-            // Server par save karo + login
-            try{
-              await api('app_users','POST',{
-                username: lu.username, password_hash: hashed,
-                role: lu.role||'staff', approved: true
-              });
-            } catch(e2){}
-            currentUser = {username: lu.username, role: lu.role||'staff'};
-            sessionStorage.setItem('sb_session', JSON.stringify(currentUser));
-            document.getElementById('loginScreen').style.display='none';
-            document.getElementById('mainApp').style.display='block';
-            if(btn){ btn.disabled=false; btn.textContent='🔑 Sign In'; }
-            applyRoleRestrictions();
-            await init();
-            return;
-          } else {
-            errEl.textContent = lu.approved===false ? 'Account approved nathi!' : 'Password wrong chhe!';
-            errEl.style.display='block';
-            if(btn){ btn.disabled=false; btn.textContent='🔑 Sign In'; }
-            return;
-          }
-        }
-      }
-    }
-
-    if(!user){
-      errEl.textContent='User maldo nahi. Master pase request karo.'; errEl.style.display='block';
-      if(btn){ btn.disabled=false; btn.textContent='🔑 Sign In'; }
-      return;
-    }
-    if(!user.approved){
-      errEl.textContent='Tamaro account approved nathi. Master ne janavjo.'; errEl.style.display='block';
-      if(btn){ btn.disabled=false; btn.textContent='🔑 Sign In'; }
-      return;
-    }
-
-    // Password verify
-    // Support: new hash (v2 salt), old hash (v1 salt), plain text (migration)
-    const newHash = hashed;
-    const oldHash = await (async()=>{
-      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password+'shopbill_salt'));
-      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-    })();
-    const passOk = (user.password_hash === newHash) || (user.password_hash === oldHash);
-
-    if(!passOk){
-      errEl.textContent='Password wrong chhe!'; errEl.style.display='block';
-      if(btn){ btn.disabled=false; btn.textContent='🔑 Sign In'; }
-      return;
-    }
-
-    // If old hash matched — upgrade to new hash
-    if(user.password_hash === oldHash && user.password_hash !== newHash){
-      try{ await api('app_users?id=eq.'+user.id,'PATCH',{password_hash: newHash}); } catch(e){}
-    }
-
-    // ✅ Login success
-    currentUser = {id: user.id, username: user.username, role: user.role};
+    const res = await fetch(WORKER_URL.replace(/\/$/, '') + '/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || 'Login failed');
+    _workerToken = data.token;
+    sessionStorage.setItem('sb_token', data.token);
+    currentUser = { username: data.username, role: data.role };
     sessionStorage.setItem('sb_session', JSON.stringify(currentUser));
     document.getElementById('loginScreen').style.display='none';
     document.getElementById('mainApp').style.display='block';
-    if(btn){ btn.disabled=false; btn.textContent='🔑 Sign In'; }
+    if(btn){ btn.disabled=false; btn.textContent='Sign In'; }
     applyRoleRestrictions();
     await init();
-
   } catch(e){
-    errEl.textContent='Connection error: '+e.message; errEl.style.display='block';
-    if(btn){ btn.disabled=false; btn.textContent='🔑 Sign In'; }
+    errEl.textContent = e.message || 'Login failed';
+    errEl.style.display='block';
+    if(btn){ btn.disabled=false; btn.textContent='Sign In'; }
   }
 }
 
