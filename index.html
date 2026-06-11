@@ -1081,10 +1081,16 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
       <div id="rpanel-daily">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
           <div class="form-group" style="flex:0 0 auto">
-            <label style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px">Select Date</label>
-            <input type="date" id="dailyDate" style="padding:8px 11px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;" onchange="renderDailyReport()">
+            <label style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px">From Date</label>
+            <input type="date" id="dailyDateFrom" style="padding:8px 11px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;" onchange="renderDailyReport()">
+          </div>
+          <div class="form-group" style="flex:0 0 auto">
+            <label style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px">To Date</label>
+            <input type="date" id="dailyDateTo" style="padding:8px 11px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;" onchange="renderDailyReport()">
           </div>
           <button class="btn btn-ghost btn-sm" onclick="setDailyToday()" style="margin-top:18px">Today</button>
+          <button class="btn btn-ghost btn-sm" onclick="setThisWeek()" style="margin-top:18px">This Week</button>
+          <button class="btn btn-ghost btn-sm" onclick="setThisMonth2()" style="margin-top:18px">This Month</button>
           <button class="btn btn-print btn-sm" onclick="printDailyReport()" style="margin-top:18px">🖨 Print</button>
           <button class="btn btn-blue btn-sm" onclick="exportDailyPDF()" style="margin-top:18px">📄 PDF</button>
           <button class="btn btn-green btn-sm" onclick="exportBillsExcel()" style="margin-top:18px">📊 Bills Excel</button>
@@ -3069,10 +3075,17 @@ function exportBillPDF(invoiceId){
 
 // 2. Export Daily Report as PDF
 async function exportDailyPDF(){
-  const val = document.getElementById('dailyDate').value;
-  if(!val){ toast('Date select karo!','error'); return; }
-  const dateStr = normDate(val);
-  const dayInvs = S.invoices.filter(i=>normDate(i.bill_date)===dateStr);
+  const fromVal = document.getElementById('dailyDateFrom').value;
+  const toVal   = document.getElementById('dailyDateTo').value;
+  if(!fromVal){ toast('Date select karo!','error'); return; }
+  const fromDate = normDate(fromVal);
+  const toDate   = normDate(toVal||fromVal);
+  const dayInvs = S.invoices.filter(i=>{
+    if(!i.bill_date) return false;
+    const bd = dateFromNorm(normDate(i.bill_date));
+    return bd >= dateFromNorm(fromDate) && bd <= dateFromNorm(toDate);
+  });
+  const dateStr = fromDate === toDate ? fromDate : fromDate+' to '+toDate;
   if(!dayInvs.length){ toast('Aa date na koi bills nathi!','error'); return; }
 
   const s = S.settings;
@@ -3743,44 +3756,82 @@ function switchRTab(tab){
   if(tab==='products') renderProductsReport();
 }
 
-function setDailyToday(){
+function todayStr(){
   const d = new Date();
-  // Use local date, not UTC (toISOString gives UTC which can be wrong date)
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth()+1).padStart(2,'0');
-  const dd = String(d.getDate()).padStart(2,'0');
-  document.getElementById('dailyDate').value = yyyy+'-'+mm+'-'+dd;
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+function setDailyToday(){
+  const t = todayStr();
+  document.getElementById('dailyDateFrom').value = t;
+  document.getElementById('dailyDateTo').value = t;
+  renderDailyReport();
+}
+
+function setThisWeek(){
+  const now = new Date();
+  const day = now.getDay(); // 0=Sun
+  const mon = new Date(now); mon.setDate(now.getDate() - (day===0?6:day-1));
+  const fmt = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  document.getElementById('dailyDateFrom').value = fmt(mon);
+  document.getElementById('dailyDateTo').value = todayStr();
+  renderDailyReport();
+}
+
+function setThisMonth2(){
+  const now = new Date();
+  const first = new Date(now.getFullYear(), now.getMonth(), 1);
+  const fmt = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  document.getElementById('dailyDateFrom').value = fmt(first);
+  document.getElementById('dailyDateTo').value = todayStr();
   renderDailyReport();
 }
 
 function normDate(ds){
-  // Normalize any date string: remove leading zeros from d/m/yyyy or dd/mm/yyyy
   if(!ds) return '';
-  // Handle yyyy-mm-dd from date input
   if(ds.includes('-') && ds.indexOf('-')===4){
     const [y,m,d] = ds.split('-');
     return parseInt(d)+'/'+parseInt(m)+'/'+y;
   }
-  // Handle d/m/yyyy or dd/mm/yyyy
   const parts = ds.split('/');
   if(parts.length===3) return parseInt(parts[0])+'/'+parseInt(parts[1])+'/'+parts[2];
   return ds;
 }
 
+function dateFromNorm(nd){
+  // nd = d/m/yyyy
+  if(!nd) return new Date(0);
+  const p = nd.split('/');
+  if(p.length===3) return new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]));
+  return new Date(0);
+}
+
 function renderDailyReport(){
-  const val = document.getElementById('dailyDate').value;
-  // Date nahi hoy to aajni date directly set karo — renderDailyReport dobari call na karo
-  if(!val){
-    const d = new Date();
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth()+1).padStart(2,'0');
-    const dd = String(d.getDate()).padStart(2,'0');
-    document.getElementById('dailyDate').value = yyyy+'-'+mm+'-'+dd;
+  // Set default dates if empty
+  const fromEl = document.getElementById('dailyDateFrom');
+  const toEl   = document.getElementById('dailyDateTo');
+  if(!fromEl.value || !toEl.value){
+    const t = todayStr();
+    if(!fromEl.value) fromEl.value = t;
+    if(!toEl.value)   toEl.value   = t;
   }
-  const val2 = document.getElementById('dailyDate').value;
-  if(!val2) return;
-  const dateStr = normDate(val2);
-  const dayInvs = S.invoices.filter(i=>normDate(i.bill_date)===dateStr);
+  const fromDate = normDate(fromEl.value);
+  const toDate   = normDate(toEl.value);
+
+  // Date range filter
+  function inRange(billDate){
+    if(!billDate) return false;
+    const nd = normDate(billDate);
+    const toDateObj   = dateFromNorm(toDate);
+    const fromDateObj = dateFromNorm(fromDate);
+    const billDateObj = dateFromNorm(nd);
+    return billDateObj >= fromDateObj && billDateObj <= toDateObj;
+  }
+
+  // Range label for display
+  const isSingleDay = fromDate === toDate;
+  const dateStr = isSingleDay ? fromDate : fromDate + ' → ' + toDate;
+  const dayInvs = S.invoices.filter(i => inRange(i.bill_date));
 
   const sale   = dayInvs.reduce((s,i)=>s+parseFloat(i.total||0),0);
   const profit = dayInvs.reduce((s,i)=>s+parseFloat(i.profit||0),0);
@@ -4062,10 +4113,17 @@ function updateReports(){
 
 // ===== PRINT DAILY REPORT (58mm) =====
 function printDailyReport(){
-  const val = document.getElementById('dailyDate').value;
-  if(!val){ toast('Select a date first!','error'); return; }
-  const dateStr = normDate(val);
-  const dayInvs = S.invoices.filter(i=>normDate(i.bill_date)===dateStr);
+  const fromVal = document.getElementById('dailyDateFrom').value;
+  const toVal   = document.getElementById('dailyDateTo').value;
+  if(!fromVal){ toast('Date select karo!','error'); return; }
+  const fromDate = normDate(fromVal);
+  const toDate   = normDate(toVal||fromVal);
+  const dayInvs = S.invoices.filter(i=>{
+    if(!i.bill_date) return false;
+    const bd = dateFromNorm(normDate(i.bill_date));
+    return bd >= dateFromNorm(fromDate) && bd <= dateFromNorm(toDate);
+  });
+  const dateStr = fromDate === toDate ? fromDate : fromDate+' to '+toDate;
   const s = S.settings;
   const sale   = dayInvs.reduce((sum,i)=>sum+parseFloat(i.total||0),0);
   const profit = dayInvs.reduce((sum,i)=>sum+parseFloat(i.profit||0),0);
