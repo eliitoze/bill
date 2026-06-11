@@ -768,15 +768,6 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
       <div style="font-size:13px;color:var(--muted);margin-top:3px">Secured Access</div>
     </div>
     <div class="card" style="padding:22px">
-      <div id="loginWorkerSection" style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
-        <div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">⚙ Worker URL <span style="font-weight:400;text-transform:none">(ekvar set karo)</span></div>
-        <div style="display:flex;gap:6px">
-          <input id="loginWorkerUrl" type="url" placeholder="https://shopbill.xxx.workers.dev"
-            style="flex:1;padding:8px 10px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-family:'DM Sans',sans-serif;outline:none;box-sizing:border-box"
-            onkeydown="if(event.key==='Enter')saveLoginWorkerUrl()">
-          <button onclick="saveLoginWorkerUrl()" class="btn btn-ghost btn-sm">Save</button>
-        </div>
-      </div>
       <div class="form-group" style="margin-bottom:13px">
         <label>Username</label>
         <input id="loginUser" type="text" placeholder="Username" autocomplete="username"
@@ -850,7 +841,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
     <div class="nav-item" onclick="showPage('import',this)"><span class="nav-icon">⇪</span> Excel Import</div>
     <div class="nav-item" onclick="showPage('settings',this)"><span class="nav-icon">⚙</span> Settings</div>
   </nav>
-  <div style="padding:10px 16px;font-size:11px;color:var(--muted);border-top:1px solid var(--border)">v5.0 · Cloudflare + Neon</div>
+  <div style="padding:10px 16px;font-size:11px;color:var(--muted);border-top:1px solid var(--border)">v4.0 · Supabase Sync</div>
 </div>
 
 <!-- MAIN -->
@@ -1271,21 +1262,6 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
           </div>
           <button class="btn btn-primary" onclick="saveSettings()">💾 Save</button>
         </div>
-
-        <!-- WORKER API CONFIG -->
-        <div class="card" style="border:1px solid rgba(110,231,183,0.3)">
-          <div class="card-title">🔗 API Config <span style="font-size:11px;font-weight:400;color:var(--muted)">(Cloudflare Worker)</span></div>
-          <div class="form-group" style="margin-bottom:10px">
-            <label>Worker URL</label>
-            <input id="sWorkerUrl" placeholder="https://shopbill.your-name.workers.dev" style="font-size:12px">
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-primary btn-sm" onclick="saveWorkerUrl()">💾 Save URL</button>
-            <button class="btn btn-ghost btn-sm" onclick="testWorkerUrl()">🔗 Test</button>
-          </div>
-          <div id="workerTestResult" style="font-size:12px;margin-top:8px;display:none"></div>
-        </div>
-
         <div class="card">
           <div class="card-title">🔐 Profit Report PIN</div>
           <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Profit reports are PIN protected. Default PIN: 1234</p>
@@ -1443,74 +1419,41 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 <div class="toast" id="toast"></div>
 
 <script>
-// ===== CLOUDFLARE WORKER CONFIG =====
-// Settings > API Config maa Worker URL set karo
-let WORKER_URL = localStorage.getItem('shopbill_worker_url') || '';
-let _workerToken = sessionStorage.getItem('sb_token') || '';
+// ===== SUPABASE CONFIG =====
+const SUPA_URL = 'https://jfsozatpvnnwrykdunni.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impmc296YXRwdm5ud3J5a2R1bm5pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2Mzk5NTksImV4cCI6MjA4ODIxNTk1OX0.axksIYJB3xyGULIo4y_Qmhfti0lwVsp65b9O5gssUxU';
 
-// ── Worker API helper ──
-// Supabase-style calls ne Worker routes par map karo
 const api = async (endpoint, method='GET', body=null, extraHeaders={}) => {
-  if(!WORKER_URL){
-    const err = new Error('Worker URL set nathi — Settings > API Config maa nakho');
-    const db = document.getElementById('debugBox');
-    const dm = document.getElementById('debugMsg');
-    if(db && dm){ db.style.display='block'; dm.textContent = err.message; }
-    throw err;
-  }
-
-  // Supabase-style endpoint → Worker route convert
-  // e.g. "products?order=name" → "/products"
-  //      "settings?key=eq.bill_counter" (PATCH) → "/settings/bill_counter"
-  //      "invoices?id=eq.5" (DELETE) → "/invoices/5"
-  let route = '/' + endpoint.split('?')[0];
-  const qs  = endpoint.includes('?') ? endpoint.split('?')[1] : '';
-
-  // id=eq.X → /route/X  (for PATCH / DELETE)
-  const idMatch = qs.match(/^id=eq\.(\d+)/);
-  const keyMatch = qs.match(/^key=eq\.([^&]+)/);
-  if(idMatch)  route += '/' + idMatch[1];
-  if(keyMatch) route += '/' + decodeURIComponent(keyMatch[1]);
-
-  // Query params forward karo (order, limit, etc.)
-  const fwdQs = qs.replace(/id=eq\.\d+&?/,'').replace(/key=eq\.[^&]+&?/,'');
-  const urlStr = WORKER_URL.replace(/\/$/, '') + route + (fwdQs ? '?' + fwdQs : '');
-
   const opts = {
     method,
     headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${_workerToken}`,
+      'Content-Type':'application/json',
+      'apikey': SUPA_KEY,
+      'Authorization': `Bearer ${SUPA_KEY}`,
+      'Prefer': 'return=representation',
       ...extraHeaders
     },
     mode: 'cors'
   };
   if(body) opts.body = JSON.stringify(body);
-
   try {
-    const res = await fetch(urlStr, opts);
+    const res = await fetch(`${SUPA_URL}/rest/v1/${endpoint}`, opts);
     if(!res.ok){
       const e = await res.text();
-      console.error('Worker error:', urlStr, res.status, e);
+      console.error('Supabase error:', endpoint, res.status, e);
       throw new Error(e);
     }
     const txt = await res.text();
-    if(!txt) return [];
-    const parsed = JSON.parse(txt);
-    // Worker returns {products:[...]} or {customers:[...]} etc
-    // Supabase returns [] directly — normalize to array
-    if(Array.isArray(parsed)) return parsed;
-    if(parsed.products)  return parsed.products;
-    if(parsed.customers) return parsed.customers;
-    if(parsed.invoices)  return parsed.invoices;
-    if(parsed.settings)  return parsed.settings;
-    if(parsed.users)     return parsed.users;
-    return parsed;
+    return txt ? JSON.parse(txt) : [];
   } catch(err) {
-    console.error('API fetch failed:', urlStr, err.message);
+    console.error('API fetch failed:', endpoint, err.message);
+    // Show on screen for mobile debug
     const db = document.getElementById('debugBox');
     const dm = document.getElementById('debugMsg');
-    if(db && dm){ db.style.display='block'; dm.textContent = endpoint + ': ' + err.message; }
+    if(db && dm){
+      db.style.display = 'block';
+      dm.textContent = endpoint + ': ' + err.message;
+    }
     throw err;
   }
 };
@@ -1539,22 +1482,68 @@ async function hashPass(pass){
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
-// ── Cloudflare Worker thhi users fetch karo ──
+// ── Supabase thhi users fetch karo ──
 async function fetchUsersFromServer(){
   try{
-    const rows = await api('app_users');
+    const rows = await api('app_users?order=created_at');
+    // Cache locally for offline
     localStorage.setItem('sb_users_cache', JSON.stringify(rows));
-    return Array.isArray(rows) ? rows : [];
+    return rows;
   } catch(e){
+    // Offline fallback
     const cached = localStorage.getItem('sb_users_cache');
     if(cached) return JSON.parse(cached);
     return [];
   }
 }
 
-// ── (Neon DB maa user management Worker handles kare chhe) ──
-async function ensureMasterUser(){ /* Worker handles this */ }
-async function migrateLocalUsers(){ /* not needed with Neon */ }
+// ── Default master user ensure karo (first time setup) ──
+async function ensureMasterUser(){
+  try{
+    const rows = await api('app_users?username=eq.281981');
+    if(!rows || rows.length===0){
+      // Master user nathi — banavo
+      const ph = await hashPass('152207');
+      await api('app_users','POST',{
+        username:'281981', password_hash:ph,
+        role:'master', approved:true
+      });
+      console.log('Master user created on server');
+    }
+    // Migrate localStorage users to server if any
+    await migrateLocalUsers();
+  } catch(e){
+    console.warn('ensureMasterUser failed (offline?):', e.message);
+  }
+}
+
+// ── Old localStorage users ne Supabase ma migrate karo ──
+async function migrateLocalUsers(){
+  const raw = localStorage.getItem('sb_users');
+  if(!raw) return;
+  try{
+    const localUsers = JSON.parse(raw);
+    for(const u of localUsers){
+      if(u.username === '281981') continue; // master skip
+      // Check if already on server
+      const exists = await api('app_users?username=eq.'+encodeURIComponent(u.username));
+      if(exists && exists.length > 0) continue; // already chhe
+      // Server par save karo
+      const ph = u.passwordHash || (u.password ? await hashPass(u.password) : await hashPass('changeme'));
+      await api('app_users','POST',{
+        username: u.username,
+        password_hash: ph,
+        role: u.role||'staff',
+        approved: u.approved===true
+      });
+    }
+    // Migration done — localStorage clear karo
+    localStorage.removeItem('sb_users');
+    console.log('Local users migrated to Supabase');
+  } catch(e){
+    console.warn('Migration failed:', e.message);
+  }
+}
 
 // ── LOGIN ──
 async function doLogin(){
@@ -1568,37 +1557,105 @@ async function doLogin(){
     errEl.textContent='Username ane password nakho!'; errEl.style.display='block'; return;
   }
 
-  // Worker URL check
-  if(!WORKER_URL){
-    errEl.textContent='⚠️ Worker URL set nathi. Settings > API Config maa nakho.';
-    errEl.style.display='block'; return;
-  }
-
+  // Loading state
   if(btn){ btn.disabled=true; btn.textContent='⏳ Verifying...'; }
 
   try{
-    const res = await fetch(WORKER_URL.replace(/\/$/',') + '/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    });
-    const data = await res.json();
-    if(!res.ok) throw new Error(data.error || 'Login failed');
+    const hashed = await hashPass(password);
 
-    // JWT token store karo
-    _workerToken = data.token;
-    sessionStorage.setItem('sb_token', data.token);
+    // 1. Try Supabase first
+    let user = null;
+    try{
+      const rows = await api('app_users?username=eq.'+encodeURIComponent(username));
+      if(rows && rows.length > 0) user = rows[0];
+    } catch(e){
+      // Offline — use cache
+      const cached = localStorage.getItem('sb_users_cache');
+      if(cached){
+        const arr = JSON.parse(cached);
+        user = arr.find(u=>u.username===username)||null;
+      }
+    }
 
-    currentUser = { username: data.username, role: data.role };
+    // 2. Fallback: check old localStorage (migration period)
+    if(!user){
+      const raw = localStorage.getItem('sb_users');
+      if(raw){
+        const arr = JSON.parse(raw);
+        const lu = arr.find(u=>u.username===username);
+        if(lu){
+          // Old format ma chhe — password check karo
+          const oldHash = lu.passwordHash || (lu.password ? await hashPass(lu.password) : '');
+          const oldPlain = lu.password;
+          const oldOk = (hashed === oldHash) || (password === oldPlain);
+          if(oldOk && lu.approved){
+            // Server par save karo + login
+            try{
+              await api('app_users','POST',{
+                username: lu.username, password_hash: hashed,
+                role: lu.role||'staff', approved: true
+              });
+            } catch(e2){}
+            currentUser = {username: lu.username, role: lu.role||'staff'};
+            sessionStorage.setItem('sb_session', JSON.stringify(currentUser));
+            document.getElementById('loginScreen').style.display='none';
+            document.getElementById('mainApp').style.display='block';
+            if(btn){ btn.disabled=false; btn.textContent='🔑 Sign In'; }
+            applyRoleRestrictions();
+            await init();
+            return;
+          } else {
+            errEl.textContent = lu.approved===false ? 'Account approved nathi!' : 'Password wrong chhe!';
+            errEl.style.display='block';
+            if(btn){ btn.disabled=false; btn.textContent='🔑 Sign In'; }
+            return;
+          }
+        }
+      }
+    }
+
+    if(!user){
+      errEl.textContent='User maldo nahi. Master pase request karo.'; errEl.style.display='block';
+      if(btn){ btn.disabled=false; btn.textContent='🔑 Sign In'; }
+      return;
+    }
+    if(!user.approved){
+      errEl.textContent='Tamaro account approved nathi. Master ne janavjo.'; errEl.style.display='block';
+      if(btn){ btn.disabled=false; btn.textContent='🔑 Sign In'; }
+      return;
+    }
+
+    // Password verify
+    // Support: new hash (v2 salt), old hash (v1 salt), plain text (migration)
+    const newHash = hashed;
+    const oldHash = await (async()=>{
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password+'shopbill_salt'));
+      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    })();
+    const passOk = (user.password_hash === newHash) || (user.password_hash === oldHash);
+
+    if(!passOk){
+      errEl.textContent='Password wrong chhe!'; errEl.style.display='block';
+      if(btn){ btn.disabled=false; btn.textContent='🔑 Sign In'; }
+      return;
+    }
+
+    // If old hash matched — upgrade to new hash
+    if(user.password_hash === oldHash && user.password_hash !== newHash){
+      try{ await api('app_users?id=eq.'+user.id,'PATCH',{password_hash: newHash}); } catch(e){}
+    }
+
+    // ✅ Login success
+    currentUser = {id: user.id, username: user.username, role: user.role};
     sessionStorage.setItem('sb_session', JSON.stringify(currentUser));
     document.getElementById('loginScreen').style.display='none';
     document.getElementById('mainApp').style.display='block';
     if(btn){ btn.disabled=false; btn.textContent='🔑 Sign In'; }
     applyRoleRestrictions();
     await init();
+
   } catch(e){
-    errEl.textContent = e.message || 'Login failed. Connection check karo.';
-    errEl.style.display='block';
+    errEl.textContent='Connection error: '+e.message; errEl.style.display='block';
     if(btn){ btn.disabled=false; btn.textContent='🔑 Sign In'; }
   }
 }
@@ -1614,12 +1671,29 @@ async function changeMyPassword(){
   if(np !== conf){ toast('New password match nathi!','error'); return; }
 
   try{
-    const res = await fetch(WORKER_URL.replace(/\/$/,'') + '/change-password', {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+_workerToken },
-      body: JSON.stringify({ current_password: cur, new_password: np })
-    });
-    if(!res.ok){ const d=await res.json(); throw new Error(d.error||'Failed'); }
+    // Verify current password from server
+    const rows = await api('app_users?username=eq.'+encodeURIComponent(currentUser.username));
+    if(!rows||!rows.length){ toast('User maldo nahi!','error'); return; }
+    const u = rows[0];
+    const curHash = await hashPass(cur);
+    const oldSaltHash = await (async()=>{
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(cur+'shopbill_salt'));
+      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    })();
+    const curOk = (u.password_hash === curHash)||(u.password_hash === oldSaltHash);
+    if(!curOk){ toast('Current password wrong chhe!','error'); return; }
+
+    // Save new password to Supabase
+    const newHash = await hashPass(np);
+    await api('app_users?id=eq.'+u.id,'PATCH',{password_hash: newHash});
+
+    // Update cache
+    const cached = localStorage.getItem('sb_users_cache');
+    if(cached){
+      const arr = JSON.parse(cached);
+      const idx = arr.findIndex(x=>x.id===u.id);
+      if(idx>=0){ arr[idx].password_hash = newHash; localStorage.setItem('sb_users_cache', JSON.stringify(arr)); }
+    }
 
     document.getElementById('cpCurrent').value='';
     document.getElementById('cpNew').value='';
@@ -1633,9 +1707,7 @@ async function changeMyPassword(){
 // ── LOGOUT ──
 function doLogout(){
   currentUser = null;
-  _workerToken = '';
   sessionStorage.removeItem('sb_session');
-  sessionStorage.removeItem('sb_token');
   document.getElementById('mainApp').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('loginUser').value='';
@@ -1758,22 +1830,8 @@ function checkSession(){
   return false;
 }
 
-function checkSession(){
-  try{
-    const sess = sessionStorage.getItem('sb_session');
-    const tok  = sessionStorage.getItem('sb_token');
-    if(sess && tok){
-      currentUser = JSON.parse(sess);
-      _workerToken = tok;
-      document.getElementById('loginScreen').style.display='none';
-      document.getElementById('mainApp').style.display='block';
-      return true;
-    }
-  }catch(e){}
-  document.getElementById('loginScreen').style.display='flex';
-  document.getElementById('mainApp').style.display='none';
-  return false;
-}
+// Check existing session on page load
+function toggleTheme(){
   const isLight = document.body.classList.toggle('light-mode');
   localStorage.setItem('sb_theme', isLight ? 'light' : 'dark');
   document.getElementById('themeBtn').textContent = isLight ? '☀️' : '🌙';
@@ -1791,10 +1849,8 @@ function loadTheme(){
 function checkSession(){
   try{
     const sess = sessionStorage.getItem('sb_session');
-    const tok  = sessionStorage.getItem('sb_token');
-    if(sess && tok){
+    if(sess){
       currentUser = JSON.parse(sess);
-      _workerToken = tok;
       document.getElementById('loginScreen').style.display='none';
       document.getElementById('mainApp').style.display='block';
       return true;
@@ -1823,6 +1879,8 @@ async function init(){
   document.getElementById('dateChip').textContent = new Date().toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'});
   try {
     await loadAll();
+    // Ensure master user exists on Supabase (background)
+    ensureMasterUser().catch(e=>console.warn('ensureMasterUser bg error:',e));
     setSyncStatus('online');
     vbInit();
     document.getElementById('loadingOverlay').style.display='none';
@@ -1848,12 +1906,10 @@ async function loadAll(){
     api('invoices?order=created_at.desc&limit=200'),
     api('settings')
   ]);
-  S.products  = Array.isArray(prods) ? prods : [];
-  S.customers = Array.isArray(custs) ? custs : [];
-  S.invoices  = Array.isArray(invs)  ? invs  : [];
-  // Settings: Worker returns [{key,value},...] array
-  const sArr = Array.isArray(sets) ? sets : [];
-  sArr.forEach(s => { if(s.key) S.settings[s.key] = s.value; });
+  S.products = prods;
+  S.customers = custs;
+  S.invoices = invs;
+  sets.forEach(s => S.settings[s.key] = s.value);
   saveOffline();
 }
 
@@ -1898,9 +1954,6 @@ function applySettings(){
   document.getElementById('sPaper').value = s.paper_width||'58mm';
   const gr = parseFloat(s.gst_rate); const grDisp = isNaN(gr)?18:gr;
   document.getElementById('gstLabel').textContent = grDisp>0?`GST (${grDisp}%)`:`GST (0%)`;
-  // Worker URL
-  const wuEl = document.getElementById('sWorkerUrl');
-  if(wuEl) wuEl.value = WORKER_URL || '';
 }
 
 function renderAll(){ renderProds(); renderCusts(); renderInvs(); updateDash(); updateBillNo(); populateSels(); }
@@ -4148,43 +4201,16 @@ async function saveSettings(){
     gst_rate:document.getElementById('sGSTRate').value===''?'0':document.getElementById('sGSTRate').value,
     paper_width:document.getElementById('sPaper').value||'58mm',
   };
+  // Apply locally first — so UI updates immediately even if offline
   Object.assign(S.settings, updates);
   saveOffline(); applySettings();
   try{
-    // Worker expects: POST /settings with {settings:[{key,value},...]}
-    const rows = Object.entries(updates).map(([k,v])=>({key:k, value:String(v)}));
-    await fetch(WORKER_URL.replace(/\/$/,'') + '/settings', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_workerToken},
-      body: JSON.stringify({settings: rows})
-    });
+    // UPSERT — works for both new keys (email,terms) and existing ones
+    const rows = Object.entries(updates).map(([k,v])=>({key:k, value:v, updated_at:new Date().toISOString()}));
+    await api('settings','POST', rows, {'Prefer':'resolution=merge-duplicates'});
     toast('✅ Settings saved!','success');
   } catch(e){
     toast('✅ Saved locally (sync later)','success');
-  }
-}
-
-async function saveWorkerUrl(){
-  const url = (document.getElementById('sWorkerUrl').value||'').trim().replace(/\/$/,'');
-  if(!url){ toast('URL nakho!','error'); return; }
-  WORKER_URL = url;
-  localStorage.setItem('shopbill_worker_url', url);
-  toast('✅ Worker URL saved!','success');
-}
-
-async function testWorkerUrl(){
-  const url = (document.getElementById('sWorkerUrl').value||WORKER_URL||'').trim().replace(/\/$/,'');
-  const res = document.getElementById('workerTestResult');
-  res.style.display='block';
-  res.style.color='var(--muted)';
-  res.textContent='Testing...';
-  if(!url){ res.textContent='⚠ URL enter karo first'; res.style.color='var(--yellow)'; return; }
-  try{
-    const r = await fetch(url+'/health', { headers:{'Authorization':'Bearer '+_workerToken} });
-    if(r.ok){ res.textContent='✅ Connected! Worker working chhe.'; res.style.color='var(--accent)'; }
-    else { res.textContent='⚠ Worker respond kare chhe pan error: '+r.status; res.style.color='var(--yellow)'; }
-  } catch(e){
-    res.textContent='❌ Connect nathi thatu: '+e.message; res.style.color='var(--red)';
   }
 }
 
@@ -4193,15 +4219,13 @@ async function savePIN(){
   const cp=document.getElementById('sConfPIN').value;
   if(np.length!==4||!/^\d{4}$/.test(np)){ toast('PIN must be 4 digits!','error'); return; }
   if(np!==cp){ toast('PINs do not match!','error'); return; }
+  // Save locally first
   S.settings.profit_pin=np; saveOffline();
   document.getElementById('sNewPIN').value='';
   document.getElementById('sConfPIN').value='';
   try{
-    await fetch(WORKER_URL.replace(/\/$/,'') + '/settings', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_workerToken},
-      body: JSON.stringify({settings:[{key:'profit_pin',value:np}]})
-    });
+    // UPSERT — works even if row doesn't exist yet
+    await api('settings','POST',[{key:'profit_pin',value:np,updated_at:new Date().toISOString()}],{'Prefer':'resolution=merge-duplicates'});
     toast('✅ PIN updated!','success');
   } catch(e){
     toast('✅ PIN saved locally','success');
@@ -4835,31 +4859,18 @@ function vbPrint(){
 }
 // ===== END VYAPAR BILLING JS =====
 
-function saveLoginWorkerUrl(){
-  const url = (document.getElementById('loginWorkerUrl').value||'').trim().replace(/\/$/,'');
-  if(!url){ return; }
-  WORKER_URL = url;
-  localStorage.setItem('shopbill_worker_url', url);
-  const el = document.getElementById('loginError');
-  if(el){ el.textContent='✅ Worker URL saved! Hve login karo.'; el.style.display='block'; el.style.color='var(--accent)'; }
-  setTimeout(()=>{ if(el) el.style.display='none'; }, 3000);
-}
-
 // Start: check session first, show login if needed
 (async function(){
   loadTheme();
-  WORKER_URL = localStorage.getItem('shopbill_worker_url') || '';
-
-  // Populate login screen Worker URL field
-  const lwEl = document.getElementById('loginWorkerUrl');
-  if(lwEl && WORKER_URL) lwEl.value = WORKER_URL;
-
   if(!checkSession()){
+    // Show login — but first try to ensure master exists (background, silent)
     try{
       const off = JSON.parse(localStorage.getItem('shopbill_offline')||'{}');
       const sn = off.settings?.shop_name;
       if(sn){ const el=document.getElementById('loginShopName'); if(el) el.textContent=sn; }
     }catch(e){}
+    // Background ma master user ensure karo (Supabase available hoy to)
+    ensureMasterUser().catch(()=>{});
   } else {
     applyRoleRestrictions();
     await init();
