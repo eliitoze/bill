@@ -505,9 +505,16 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .drop-zone:hover { border-color: var(--accent); color: var(--text); background: rgba(110,231,183,0.03); }
 
 /* SCROLLBAR */
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
-::-webkit-scrollbar-track { background: transparent; }
+/* Scrollbar — Windows only, Android/mobile hide */
+@media (hover: hover) and (pointer: fine) {
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+  ::-webkit-scrollbar-track { background: transparent; }
+}
+@media (hover: none) and (pointer: coarse) {
+  ::-webkit-scrollbar { width: 0; height: 0; display: none; }
+}
 
 .empty { text-align: center; padding: 28px; color: var(--muted); }
 .empty .ei { font-size: 32px; opacity: 0.5; margin-bottom: 6px; }
