@@ -1464,11 +1464,69 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 <div class="toast" id="toast"></div>
 
 <script>
-// ===== SUPABASE CONFIG =====
+// ===== WORKER CONFIG =====
+// ⚠️ IMPORTANT: Taro Cloudflare Worker URL niche set karo
+const WORKER_URL = 'https://shopbill-api.bhkmanish.workers.dev/'; // ← taro actual Worker URL
+let _workerToken = sessionStorage.getItem('sb_token') || null;
+
+// ===== SUPABASE CONFIG (fallback/direct use for ensureMasterUser) =====
 const SUPA_URL = 'https://jfsozatpvnnwrykdunni.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impmc296YXRwdm5ud3J5a2R1bm5pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2Mzk5NTksImV4cCI6MjA4ODIxNTk1OX0.axksIYJB3xyGULIo4y_Qmhfti0lwVsp65b9O5gssUxU';
 
+// ===== WORKER API — JWT authenticated =====
+// Login ne baad badha calls Worker through JWT sathe jaay chhe
 const api = async (endpoint, method='GET', body=null, extraHeaders={}) => {
+  // Worker URL available hoy to Worker through call karo
+  if(WORKER_URL && _workerToken){
+    const base = WORKER_URL.replace(/\/$/, '');
+    // Endpoint ma ? hoy to path?query split karo
+    const [path, qs] = endpoint.split('?');
+    const url = qs ? `${base}/${path}?${qs}` : `${base}/${path}`;
+    const opts = {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${_workerToken}`,
+        ...extraHeaders
+      }
+    };
+    if(body) opts.body = JSON.stringify(body);
+    try {
+      const res = await fetch(url, opts);
+      if(res.status === 401){
+        // Token expire — re-login
+        _workerToken = null;
+        sessionStorage.removeItem('sb_token');
+        sessionStorage.removeItem('sb_session');
+        doLogout();
+        throw new Error('Session expire thai gayu. Pharthi login karo.');
+      }
+      if(!res.ok){
+        const e = await res.text();
+        console.error('Worker error:', url, res.status, e);
+        throw new Error(e);
+      }
+      const txt = await res.text();
+      const data = txt ? JSON.parse(txt) : [];
+      // Worker returns {products:[...]}, {invoices:[...]}, {customers:[...]}, {settings:[...]} wrappers
+      // Supabase direct returns array — unwrap if needed
+      if(data && typeof data === 'object' && !Array.isArray(data)){
+        if(data.products !== undefined) return data.products;
+        if(data.invoices !== undefined) return data.invoices;
+        if(data.customers !== undefined) return data.customers;
+        if(data.settings !== undefined) return data.settings;
+      }
+      return data;
+    } catch(err){
+      console.error('Worker API failed:', url, err.message);
+      const db = document.getElementById('debugBox');
+      const dm = document.getElementById('debugMsg');
+      if(db && dm){ db.style.display='block'; dm.textContent = endpoint+': '+err.message; }
+      throw err;
+    }
+  }
+
+  // Fallback: Direct Supabase call (login pehla ya token na hoy to)
   const opts = {
     method,
     headers: {
@@ -1492,13 +1550,9 @@ const api = async (endpoint, method='GET', body=null, extraHeaders={}) => {
     return txt ? JSON.parse(txt) : [];
   } catch(err) {
     console.error('API fetch failed:', endpoint, err.message);
-    // Show on screen for mobile debug
     const db = document.getElementById('debugBox');
     const dm = document.getElementById('debugMsg');
-    if(db && dm){
-      db.style.display = 'block';
-      dm.textContent = endpoint + ': ' + err.message;
-    }
+    if(db && dm){ db.style.display='block'; dm.textContent = endpoint+': '+err.message; }
     throw err;
   }
 };
@@ -1783,12 +1837,29 @@ async function changeMyPassword(){
 // ── LOGOUT ──
 function doLogout(){
   currentUser = null;
+  _workerToken = null;
   sessionStorage.removeItem('sb_session');
+  sessionStorage.removeItem('sb_token');
+  sessionStorage.removeItem('sb_branch');
   document.getElementById('mainApp').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('loginUser').value='';
   document.getElementById('loginPass').value='';
   document.getElementById('loginError').style.display='none';
+  // Branch dropdown reload
+  const sel = document.getElementById('loginBranch');
+  if(sel) sel.innerHTML = '<option value="">⏳ Loading branches...</option>';
+  setTimeout(async()=>{
+    try{
+      const base = WORKER_URL.replace(/\/$/, '');
+      const brRes = await fetch(base+'/branches');
+      if(brRes.ok){
+        const branches = await brRes.json();
+        if(Array.isArray(branches)&&branches.length)
+          sel.innerHTML = branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+      }
+    }catch(e){ if(sel) sel.innerHTML='<option value="1">Main Branch</option>'; }
+  }, 300);
 }
 
 // ── ROLE RESTRICTIONS ──
@@ -1898,6 +1969,14 @@ function checkSession(){
     const sess = sessionStorage.getItem('sb_session');
     if(sess){
       currentUser = JSON.parse(sess);
+      // JWT token restore karo
+      const tok = sessionStorage.getItem('sb_token');
+      if(tok) _workerToken = tok;
+      // Branch restore
+      try{
+        const br = JSON.parse(sessionStorage.getItem('sb_branch')||'{}');
+        if(br.id) setActiveBranch(br.id, br.name||'Main');
+      }catch(e){}
       document.getElementById('loginScreen').style.display='none';
       document.getElementById('mainApp').style.display='block';
       return true;
@@ -1924,20 +2003,6 @@ function loadTheme(){
   }
 }
 
-function checkSession(){
-  try{
-    const sess = sessionStorage.getItem('sb_session');
-    if(sess){
-      currentUser = JSON.parse(sess);
-      document.getElementById('loginScreen').style.display='none';
-      document.getElementById('mainApp').style.display='block';
-      return true;
-    }
-  }catch(e){}
-  document.getElementById('loginScreen').style.display='flex';
-  document.getElementById('mainApp').style.display='none';
-  return false;
-}
 // ===== END AUTH =====
 
 // Mobile billing aliases - same functions
@@ -2437,7 +2502,8 @@ async function saveBill(){
     note:document.getElementById('billNote').value,
     bill_date:now.toLocaleDateString('en-IN'),
     bill_time:now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}),
-    status:'paid'
+    status:'paid',
+    branch_id: S.activeBranchId || 1
   };
   try {
     setSyncStatus('syncing');
@@ -2454,7 +2520,10 @@ async function saveBill(){
     // Update bill counter
     const newCounter=billNum+1;
     S.settings.bill_counter=String(newCounter);
-    await api(`settings?key=eq.bill_counter`,'PATCH',{value:String(newCounter)});
+    // Worker: settings endpoint branch_id sathe
+    const bid = S.activeBranchId || 1;
+    await api(`settings/bill_counter_${bid}?branch_id=${bid}`,'PATCH',{value:String(newCounter)})
+      .catch(()=> api(`settings?key=eq.bill_counter`,'PATCH',{value:String(newCounter)}));
     setSyncStatus('online');
     saveOffline();
     updateDash(); renderInvs(); clearBill();
@@ -4994,15 +5063,43 @@ function vbPrint(){
 (async function(){
   loadTheme();
   if(!checkSession()){
-    // Show login — but first try to ensure master exists (background, silent)
+    // Show login — branch dropdown public endpoint thhi load karo
     try{
       const off = JSON.parse(localStorage.getItem('shopbill_offline')||'{}');
       const sn = off.settings?.shop_name;
       if(sn){ const el=document.getElementById('loginShopName'); if(el) el.textContent=sn; }
     }catch(e){}
+    // Login branch dropdown populate karo (Worker public /branches — no auth)
+    try{
+      const base = WORKER_URL.replace(/\/$/, '');
+      // Temporary token check — agar pehla session hoi to reuse karo for branch fetch
+      const tempTok = sessionStorage.getItem('sb_token');
+      const headers = {'Content-Type':'application/json'};
+      if(tempTok) headers['Authorization'] = 'Bearer '+tempTok;
+      const brRes = await fetch(base+'/branches', {headers});
+      if(brRes.ok){
+        const brData = await brRes.json();
+        const branches = Array.isArray(brData) ? brData : [];
+        const sel = document.getElementById('loginBranch');
+        if(sel && branches.length){
+          sel.innerHTML = branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+        }
+      }
+    }catch(e){
+      // Offline — default branch dikhao
+      const sel = document.getElementById('loginBranch');
+      if(sel) sel.innerHTML = '<option value="1">Main Branch</option>';
+    }
     // Background ma master user ensure karo (Supabase available hoy to)
     ensureMasterUser().catch(()=>{});
   } else {
+    // Session chhe — token restore karo
+    _workerToken = sessionStorage.getItem('sb_token') || _workerToken;
+    // Branch restore
+    try{
+      const br = JSON.parse(sessionStorage.getItem('sb_branch')||'{}');
+      if(br.id) setActiveBranch(br.id, br.name||'Main');
+    }catch(e){}
     applyRoleRestrictions();
     await init();
   }
