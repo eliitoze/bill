@@ -776,6 +776,12 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
     </div>
     <div class="card" style="padding:22px">
       <div class="form-group" style="margin-bottom:13px">
+        <label>Branch</label>
+        <select id="loginBranch" style="width:100%;padding:11px 13px;background:var(--s2);border:1px solid var(--border);border-radius:9px;color:var(--text);font-size:14px;font-family:'DM Sans',sans-serif;outline:none;box-sizing:border-box">
+          <option value="">⏳ Loading branches...</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:13px">
         <label>Username</label>
         <input id="loginUser" type="text" placeholder="Username" autocomplete="username"
           style="width:100%;padding:11px 13px;background:var(--s2);border:1px solid var(--border);border-radius:9px;color:var(--text);font-size:14px;font-family:'DM Sans',sans-serif;outline:none;box-sizing:border-box"
@@ -857,6 +863,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
     <div style="display:flex;align-items:center;gap:10px">
       <button class="menu-btn" onclick="toggleSidebar()">☰</button>
       <h2 id="pageTitle">Dashboard</h2>
+      <span id="activeBranchChip" style="display:none;background:rgba(110,231,183,0.12);color:var(--accent);border:1px solid rgba(110,231,183,0.3);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;margin-left:4px"></span>
     </div>
     <div class="topbar-right" style="display:flex;align-items:center;gap:10px">
       <button onclick="toggleTheme()" id="themeBtn" style="background:none;border:1px solid var(--border);border-radius:20px;padding:4px 10px;cursor:pointer;font-size:13px;color:var(--text);font-family:'DM Sans',sans-serif" title="Light/Dark Mode">🌙</button>
@@ -1325,6 +1332,31 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
           <button class="btn btn-primary" onclick="changeMyPassword()">🔑 Password Update Karo</button>
         </div>
 
+        <!-- BRANCH MANAGEMENT — Master only -->
+        <div class="card" id="branchMgmtCard" style="margin-top:14px;display:none">
+          <div class="card-title">🏪 Branch Management <span style="font-size:11px;color:var(--accent);font-weight:400">(Master Only)</span></div>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:14px">Branches add/rename/delete karo. Login screen par select thay.</p>
+
+          <!-- Add branch -->
+          <div style="background:var(--s2);border-radius:10px;padding:14px;margin-bottom:14px">
+            <div style="font-size:13px;font-weight:600;margin-bottom:10px">➕ Navi Branch</div>
+            <div style="display:flex;gap:8px">
+              <input id="newBranchName" placeholder="Branch name (e.g. Rajkot, Morbi...)"
+                style="flex:1;padding:9px 12px;background:var(--s1);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none"
+                onkeydown="if(event.key==='Enter')addBranch()">
+              <button class="btn btn-primary" onclick="addBranch()">➕ Add</button>
+            </div>
+          </div>
+
+          <!-- Branch list -->
+          <div id="branchList"></div>
+
+          <!-- Active branch info -->
+          <div style="margin-top:12px;padding:10px 14px;background:var(--s2);border-radius:8px;font-size:12px;color:var(--muted)">
+            Active Branch: <strong style="color:var(--accent)" id="activeBranchLabel">—</strong>
+          </div>
+        </div>
+
         <!-- Logout -->
         <div class="card" style="margin-top:14px">
           <div style="display:flex;justify-content:space-between;align-items:center">
@@ -1475,8 +1507,107 @@ const api = async (endpoint, method='GET', body=null, extraHeaders={}) => {
 let S = {
   products:[], customers:[], invoices:[],
   settings:{shop_name:'Eliitoze Jewelz',phone:'',address:'RELIANCE MALL, RELIANCE SMART MARKET, GROUND FLOOR, NR. NANA MAVA CIRCLE, RAJKOT 360005',email:'ELIITOZE@GMAIL.COM',gst_number:'',thank_you:'Thank you!',gst_rate:'0',paper_width:'58mm',profit_pin:'1234',bill_counter:'1',terms:'(1) No Cash Refund & No buy-back (2) Exchange within 7 days from the available stock only, If found any manufacturing defect (3) 3 Month warranty on all Silver Jewelry that covers any material defects or workmanship under normal use. (4) No Guarantee or Warranty on Imitation Jewelry (5) Silver Jewelry Exchange Price 40% of Purchasing Price. Only Exchange No Cash Return or Refund. (6) Small stone fixing is free for lifetime (7) Silver jewelry cleaning is free for lifetime Happy to help you always.... Visit again.'},
-  billItems:[], importData:[], pinTarget:''
+  billItems:[], importData:[], pinTarget:'',
+  branches:[], activeBranchId: null, activeBranchName: ''
 };
+
+// ── BRANCH FUNCTIONS ──
+
+async function loadBranches(){
+  try{
+    const rows = await api('branches');
+    S.branches = Array.isArray(rows) ? rows : (rows.branches || []);
+    // Default branch na hoy to banavo
+    if(!S.branches.length){
+      await api('branches','POST',{name:'Main Branch'});
+      const rows2 = await api('branches');
+      S.branches = Array.isArray(rows2) ? rows2 : (rows2.branches || []);
+    }
+  } catch(e){
+    // Offline fallback
+    const cached = localStorage.getItem('sb_branches');
+    S.branches = cached ? JSON.parse(cached) : [{id:1, name:'Main Branch'}];
+  }
+  localStorage.setItem('sb_branches', JSON.stringify(S.branches));
+}
+
+function populateLoginBranches(){
+  const sel = document.getElementById('loginBranch');
+  if(!sel) return;
+  sel.innerHTML = S.branches.map(b=>
+    `<option value="${b.id}">${b.name}</option>`
+  ).join('');
+  // Last used branch auto-select
+  const last = localStorage.getItem('sb_last_branch');
+  if(last) sel.value = last;
+}
+
+function setActiveBranch(id, name){
+  S.activeBranchId   = parseInt(id);
+  S.activeBranchName = name;
+  localStorage.setItem('sb_last_branch', id);
+  localStorage.setItem('sb_last_branch_name', name);
+  // Topbar chip update
+  const chip = document.getElementById('activeBranchChip');
+  if(chip){ chip.textContent = '🏪 '+name; chip.style.display='inline-block'; }
+  const lbl = document.getElementById('activeBranchLabel');
+  if(lbl) lbl.textContent = name;
+}
+
+async function addBranch(){
+  const name = (document.getElementById('newBranchName').value||'').trim();
+  if(!name){ toast('Branch name nakho!','error'); return; }
+  try{
+    await api('branches','POST',{name});
+    document.getElementById('newBranchName').value='';
+    await loadBranches();
+    renderBranchList();
+    populateLoginBranches();
+    toast('✅ Branch "'+name+'" add thayi!','success');
+  } catch(e){ toast('Error: '+e.message,'error'); }
+}
+
+async function renameBranch(id, oldName){
+  const newName = prompt('New name for "'+oldName+'":', oldName);
+  if(!newName || newName===oldName) return;
+  try{
+    await api('branches/'+id,'PATCH',{name:newName});
+    await loadBranches();
+    renderBranchList();
+    populateLoginBranches();
+    if(S.activeBranchId===parseInt(id)) setActiveBranch(id, newName);
+    toast('✅ Branch rename thayi!','success');
+  } catch(e){ toast('Error: '+e.message,'error'); }
+}
+
+async function deleteBranch(id, name){
+  if(S.branches.length<=1){ toast('Ek branch to hovi j joie!','error'); return; }
+  if(!confirm('"'+name+'" branch delete karvi chhe? Aa branch na bills/products remain rahe, pan branch delete thay.')) return;
+  try{
+    await api('branches/'+id,'DELETE');
+    await loadBranches();
+    renderBranchList();
+    populateLoginBranches();
+    toast('✅ Branch deleted!','success');
+  } catch(e){ toast('Error: '+e.message,'error'); }
+}
+
+function renderBranchList(){
+  const el = document.getElementById('branchList');
+  if(!el) return;
+  if(!S.branches.length){ el.innerHTML='<div style="color:var(--muted);font-size:13px">Koi branch nathi</div>'; return; }
+  el.innerHTML = S.branches.map(b=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600">${b.name}
+          ${S.activeBranchId===parseInt(b.id)?'<span style="font-size:10px;background:rgba(110,231,183,0.15);color:var(--accent);padding:2px 7px;border-radius:10px;margin-left:6px">Active</span>':''}
+        </div>
+        <div style="font-size:11px;color:var(--muted)">ID: ${b.id}</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="renameBranch(${b.id},'${b.name.replace(/'/g,"\'")}')">✏️ Rename</button>
+      ${S.branches.length>1?`<button class="btn btn-red btn-sm" onclick="deleteBranch(${b.id},'${b.name.replace(/'/g,"\'")}')">🗑</button>`:''}
+    </div>`).join('');
+}
 
 let pinEntry = '';
 
@@ -1584,8 +1715,15 @@ async function doLogin(){
     if(!res.ok) throw new Error(data.error || 'Login failed');
     _workerToken = data.token;
     sessionStorage.setItem('sb_token', data.token);
+    // Branch select
+    const branchSel = document.getElementById('loginBranch');
+    const branchId   = branchSel ? parseInt(branchSel.value) : 1;
+    const branchName = branchSel ? (branchSel.options[branchSel.selectedIndex]?.text || 'Main') : 'Main';
+    setActiveBranch(branchId, branchName);
+
     currentUser = { username: data.username, role: data.role };
     sessionStorage.setItem('sb_session', JSON.stringify(currentUser));
+    sessionStorage.setItem('sb_branch', JSON.stringify({id:branchId, name:branchName}));
     document.getElementById('loginScreen').style.display='none';
     document.getElementById('mainApp').style.display='block';
     if(btn){ btn.disabled=false; btn.textContent='Sign In'; }
@@ -1663,6 +1801,8 @@ function applyRoleRestrictions(){
   if(lrEl) lrEl.textContent = 'Role: '+role.charAt(0).toUpperCase()+role.slice(1);
   const umCard = document.getElementById('userMgmtCard');
   if(umCard) umCard.style.display = (role==='master')?'block':'none';
+  const bmCard = document.getElementById('branchMgmtCard');
+  if(bmCard) bmCard.style.display = (role==='master')?'block':'none';
   if(role==='staff'){
     document.querySelectorAll('.nav-item').forEach(el=>{
       if(el.textContent.includes('Reports')) el.style.display='none';
@@ -1935,7 +2075,7 @@ function showPage(page, el){
   document.getElementById('pageTitle').textContent = t[page]||page;
   if(page==='reports') updateReports();
   if(page==='billing'){ vbUpdateInvInfo(); }
-  if(page==='settings') renderUserList();
+  if(page==='settings'){ renderUserList(); renderBranchList(); }
   document.getElementById('sidebar').classList.remove('open');
   // Billing page: no padding, full height
   const contentEl = document.querySelector('.content');
@@ -3356,7 +3496,8 @@ async function saveProd(){
     cost:parseFloat(document.getElementById('pCost').value)||0,
     stock:parseInt(document.getElementById('pStock').value)||0,
     min_stock:parseInt(document.getElementById('pMin').value)||5,
-    category:document.getElementById('pCat').value||'General'};
+    category:document.getElementById('pCat').value||'General',
+    branch_id: S.activeBranchId || 1};
   try{
     const editId=document.getElementById('editPId').value;
     if(editId){
@@ -4680,7 +4821,7 @@ async function vbSave(){
     gst: 0, gst_rate: 0, total: grand, profit,
     note, bill_date: nowVb.toLocaleDateString('en-IN'),
     bill_time: nowVb.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}),
-    status:'paid'
+    status:'paid', branch_id: S.activeBranchId || 1
   };
 
   try {
