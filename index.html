@@ -2494,6 +2494,11 @@ async function saveBill(){
   }
   const billNum=parseInt(S.settings.bill_counter)||1;
   const now = new Date();
+  // Public bill token generate
+  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let public_token='';
+  for(let i=0;i<11;i++) public_token+=chars[Math.floor(Math.random()*chars.length)];
+
   const inv={
     bill_number:billNum, customer_name:custName,
     customer_id:cust?cust.id:null, payment_mode:getActivePayMode(),
@@ -2503,7 +2508,8 @@ async function saveBill(){
     bill_date:now.toLocaleDateString('en-IN'),
     bill_time:now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}),
     status:'paid',
-    branch_id: S.activeBranchId || 1
+    branch_id: S.activeBranchId || 1,
+    public_token
   };
   try {
     setSyncStatus('syncing');
@@ -2822,7 +2828,7 @@ function thermalPrint(invData){
 }
 
 // ===== WHATSAPP MESSAGE — PHOTO LAYOUT =====
-function buildVyaparMsg(items, t, customer, custPhone, billNum, dateStr, payment, note){
+function buildVyaparMsg(items, t, customer, custPhone, billNum, dateStr, payment, note, billToken){
   const s = S.settings;
   const billStr = String(billNum).padStart(4,'0');
   const bar  = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
@@ -2915,6 +2921,13 @@ function buildVyaparMsg(items, t, customer, custPhone, billNum, dateStr, payment
 
   // ── FOOTER ──
   msg += '🙏 _' + (s.thank_you||'Thank you for your purchase!') + '_\n';
+
+  // ── PUBLIC BILL LINK ──
+  if(billToken){
+    msg += bar + '\n';
+    msg += '🧾 *View & Download Bill:*\n';
+    msg += 'https://bill.eliitoze.in/' + billToken + '\n';
+  }
 
   return msg;
 }
@@ -3032,7 +3045,9 @@ async function shareImageWA(invoiceId){
   const bd = resolveBillData(invoiceId);
   if(!bd){ toast('Add items first!','error'); return; }
   const {items,t,customer,custPhone,billNum,dateStr,payment,note} = bd;
-  const msg = buildVyaparMsg(items, t, customer, custPhone, billNum, dateStr, payment, note);
+  const inv = invoiceId ? S.invoices.find(x=>x.id===invoiceId) : null;
+  const tok = inv ? (inv.public_token||'') : '';
+  const msg = buildVyaparMsg(items, t, customer, custPhone, billNum, dateStr, payment, note, tok);
   sendToWA(custPhone, msg);
   toast('WhatsApp khulushe...','success');
 }
@@ -3913,7 +3928,8 @@ function resendWA(id){
   const msg = buildVyaparMsg(
     inv.items||[], t,
     inv.customer_name, cust?cust.phone:'',
-    inv.bill_number, inv.bill_date, inv.payment_mode, inv.note||''
+    inv.bill_number, inv.bill_date, inv.payment_mode, inv.note||'',
+    inv.public_token||''
   );
   sendToWA(cust?cust.phone:'', msg);
 }
