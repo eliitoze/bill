@@ -2534,14 +2534,17 @@ async function saveBill(){
     saveOffline();
     updateDash(); renderInvs(); clearBill();
     toast('✅ Bill saved & synced!','success');
+    return saved&&saved[0] ? saved[0] : inv;
   } catch(e){
     setSyncStatus('offline');
     toast('📴 Offline — Bill locally saved!','success');
-    S.invoices.unshift({...inv, id:Date.now()});
+    const offInv = {...inv, id:Date.now()};
+    S.invoices.unshift(offInv);
     // Update bill counter offline too
     const newCounterOff = billNum+1;
     S.settings.bill_counter = String(newCounterOff);
     saveOffline(); updateDash(); renderInvs(); clearBill();
+    return offInv;
   }
 }
 
@@ -2953,7 +2956,7 @@ function sendToWA(phone, msg){
   document.body.removeChild(a);
 }
 
-function waShare(){
+async function waShare(){
   if(!S.billItems.length){ toast('Add items first!','error'); return; }
   const t = getTotals();
   const mode = S.custMode||'existing';
@@ -2962,11 +2965,23 @@ function waShare(){
   else if(mode==='new'&&S.quickCust) cust=S.quickCust;
   const customer = cust?cust.name:'Walk-in';
   const custPhone = cust?cust.phone:'';
-  const billNum = parseInt(S.settings.bill_counter)||1;
   const dateStr = new Date().toLocaleDateString('en-IN');
   const payment = getActivePayMode();
   const note = document.getElementById('billNote').value||'';
-  const msg = buildVyaparMsg(S.billItems, t, customer, custPhone, billNum, dateStr, payment, note);
+
+  // Token mate — already saved hoy to reuse, nahitar save karo
+  let tok = S.lastSavedToken || '';
+  let billNum = S.lastSavedBillNum || parseInt(S.settings.bill_counter)||1;
+  if(!tok){
+    toast('Bill save thai rahu chhe...','success');
+    const saved = await saveBill();
+    tok = saved?.public_token || '';
+    if(saved?.bill_number) billNum = saved.bill_number;
+    S.lastSavedToken = tok;
+    S.lastSavedBillNum = billNum;
+  }
+
+  const msg = buildVyaparMsg(S.billItems, t, customer, custPhone, billNum, dateStr, payment, note, tok);
   sendToWA(custPhone, msg);
 }
 
