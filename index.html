@@ -1815,7 +1815,7 @@ async function changeMyPassword(){
 
     // Save new password to Supabase
     const newHash = await hashPass(np);
-    await api('app_users/'++u.id,'PATCH',{password_hash: newHash});
+    await api('app_users/'+u.id,'PATCH',{password_hash: newHash});
 
     // Update cache
     const cached = localStorage.getItem('sb_users_cache');
@@ -1942,7 +1942,7 @@ async function toggleUserApproval(userId, currentApproved){
   if(currentUser?.role!=='master'){ toast('Only master approve kari shake','error'); return; }
   try{
     const newVal = !currentApproved;
-    await api('app_users/'++userId,'PATCH',{approved: newVal});
+    await api('app_users/'+userId,'PATCH',{approved: newVal});
     await renderUserList();
     toast(newVal?'✅ User approved!':'🚫 User revoked!','success');
   } catch(e){
@@ -1955,7 +1955,7 @@ async function deleteUser(userId, username){
   if(currentUser?.role!=='master'){ toast('Only master delete kari shake','error'); return; }
   if(!confirm('Delete user "'+username+'"?')) return;
   try{
-    await api('app_users/'++userId,'DELETE');
+    await api('app_users/'+userId,'DELETE');
     await renderUserList();
     toast('✅ User deleted!','success');
   } catch(e){
