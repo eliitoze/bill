@@ -1815,7 +1815,7 @@ async function changeMyPassword(){
 
     // Save new password to Supabase
     const newHash = await hashPass(np);
-    await api('app_users?id=eq.'+u.id,'PATCH',{password_hash: newHash});
+    await api('app_users/'++u.id,'PATCH',{password_hash: newHash});
 
     // Update cache
     const cached = localStorage.getItem('sb_users_cache');
@@ -1942,7 +1942,7 @@ async function toggleUserApproval(userId, currentApproved){
   if(currentUser?.role!=='master'){ toast('Only master approve kari shake','error'); return; }
   try{
     const newVal = !currentApproved;
-    await api('app_users?id=eq.'+userId,'PATCH',{approved: newVal});
+    await api('app_users/'++userId,'PATCH',{approved: newVal});
     await renderUserList();
     toast(newVal?'✅ User approved!':'🚫 User revoked!','success');
   } catch(e){
@@ -1955,7 +1955,7 @@ async function deleteUser(userId, username){
   if(currentUser?.role!=='master'){ toast('Only master delete kari shake','error'); return; }
   if(!confirm('Delete user "'+username+'"?')) return;
   try{
-    await api('app_users?id=eq.'+userId,'DELETE');
+    await api('app_users/'++userId,'DELETE');
     await renderUserList();
     toast('✅ User deleted!','success');
   } catch(e){
@@ -2519,10 +2519,10 @@ async function saveBill(){
     // Update stock
     for(const item of S.billItems){
       const p=S.products.find(x=>x.id===item.pid);
-      if(p){ p.stock-=item.qty; await api(`products?id=eq.${p.id}`,'PATCH',{stock:p.stock}); }
+      if(p){ p.stock-=item.qty; await api(`products/${p.id}`,'PATCH',{stock:p.stock}); }
     }
     // Update customer total
-    if(cust){ cust.total_purchase=(parseFloat(cust.total_purchase)||0)+t.grand; await api(`customers?id=eq.${cust.id}`,'PATCH',{total_purchase:cust.total_purchase}); }
+    if(cust){ cust.total_purchase=(parseFloat(cust.total_purchase)||0)+t.grand; await api(`customers/${cust.id}`,'PATCH',{total_purchase:cust.total_purchase}); }
     // Update bill counter
     const newCounter=billNum+1;
     S.settings.bill_counter=String(newCounter);
@@ -2958,6 +2958,8 @@ function sendToWA(phone, msg){
 
 async function waShare(){
   if(!S.billItems.length){ toast('Add items first!','error'); return; }
+  const itemsSnap = JSON.parse(JSON.stringify(S.billItems));
+  const billNum = parseInt(S.settings.bill_counter)||1;
   const t = getTotals();
   const mode = S.custMode||'existing';
   let cust = null;
@@ -2969,19 +2971,11 @@ async function waShare(){
   const payment = getActivePayMode();
   const note = document.getElementById('billNote').value||'';
 
-  // Token mate — already saved hoy to reuse, nahitar save karo
-  let tok = S.lastSavedToken || '';
-  let billNum = S.lastSavedBillNum || parseInt(S.settings.bill_counter)||1;
-  if(!tok){
-    toast('Bill save thai rahu chhe...','success');
-    const saved = await saveBill();
-    tok = saved?.public_token || '';
-    if(saved?.bill_number) billNum = saved.bill_number;
-    S.lastSavedToken = tok;
-    S.lastSavedBillNum = billNum;
-  }
+  // Bill save karo — token ane items pahela capture
+  const saved = await saveBill();
+  const tok = saved?.public_token || '';
 
-  const msg = buildVyaparMsg(S.billItems, t, customer, custPhone, billNum, dateStr, payment, note, tok);
+  const msg = buildVyaparMsg(itemsSnap, t, customer, custPhone, billNum, dateStr, payment, note, tok);
   sendToWA(custPhone, msg);
 }
 
@@ -3600,7 +3594,7 @@ async function saveProd(){
   try{
     const editId=document.getElementById('editPId').value;
     if(editId){
-      await api(`products?id=eq.${editId}`,'PATCH',data);
+      await api(`products/${editId}`,'PATCH',data);
       Object.assign(S.products.find(p=>p.id===parseInt(editId)),data);
     } else {
       const saved=await api('products','POST',data);
@@ -3615,7 +3609,7 @@ async function saveProd(){
 async function delProd(id){
   if(!confirm('Delete product?')) return;
   try{
-    await api(`products?id=eq.${id}`,'DELETE');
+    await api(`products/${id}`,'DELETE');
     S.products=S.products.filter(p=>p.id!==id);
     saveOffline(); renderProds(); populateSels(); updateDash();
     toast('Deleted','success');
@@ -3684,7 +3678,7 @@ async function deleteAllProds(){
   const ids = S.products.map(p=>p.id);
   for(const id of ids){
     try{
-      await api(`products?id=eq.${id}`,'DELETE');
+      await api(`products/${id}`,'DELETE');
       done++;
     } catch(e){}
   }
@@ -3703,7 +3697,7 @@ async function bulkDeleteProds(){
 
   for(const id of ids){
     try{
-      await api(`products?id=eq.${id}`,'DELETE');
+      await api(`products/${id}`,'DELETE');
       // id number hoy ke string — banne handle karo
       S.products = S.products.filter(p => String(p.id) !== String(id));
       done++;
@@ -3728,7 +3722,7 @@ async function bulkUpdatePrice(){
     let newPrice = type==='pct' ? p.price + (p.price * val/100) : p.price + val;
     newPrice = Math.max(0, parseFloat(newPrice.toFixed(2)));
     try{
-      await api(`products?id=eq.${id}`,'PATCH',{price:newPrice});
+      await api(`products/${id}`,'PATCH',{price:newPrice});
       p.price = newPrice;
       done++;
     } catch(e){}
@@ -3787,7 +3781,7 @@ async function saveCust(){
   try{
     const editId=document.getElementById('editCId').value;
     if(editId){
-      await api(`customers?id=eq.${editId}`,'PATCH',data);
+      await api(`customers/${editId}`,'PATCH',data);
       Object.assign(S.customers.find(c=>c.id===parseInt(editId)),data);
     } else {
       const saved=await api('customers','POST',{...data,total_purchase:0});
@@ -3802,7 +3796,7 @@ async function saveCust(){
 async function delCust(id){
   if(!confirm('Delete customer?')) return;
   try{
-    await api(`customers?id=eq.${id}`,'DELETE');
+    await api(`customers/${id}`,'DELETE');
     S.customers=S.customers.filter(c=>c.id!==id);
     saveOffline(); renderCusts(); populateSels();
   } catch(e){ toast('Error','error'); }
@@ -3812,7 +3806,7 @@ async function delCust(id){
 async function deleteInvoice(id){
   if(!confirm('Aa bill delete karvu chhe?')) return;
   try {
-    await api('invoices?id=eq.'+id,'DELETE');
+    await api('invoices/'+id,'DELETE');
     S.invoices = S.invoices.filter(i=>i.id!==id);
     saveOffline(); renderInvs(); updateDash();
     toast('✅ Bill deleted!','success');
@@ -4181,7 +4175,7 @@ async function saveMissingCost(pid, name, costVal){
     if(prod){
       prod.cost = cost;
       try{
-        await api(`products?id=eq.${prod.id}`,'PATCH',{cost});
+        await api(`products/${prod.id}`,'PATCH',{cost});
       } catch(e){ /* offline ok */ }
     }
   }
@@ -4220,7 +4214,7 @@ async function saveMissingCost(pid, name, costVal){
   );
   for(const inv of updatedInvs){
     try{
-      await api(`invoices?id=eq.${inv.id}`,'PATCH',{
+      await api(`invoices/${inv.id}`,'PATCH',{
         items: inv.items,
         profit: inv.profit
       });
@@ -4526,7 +4520,7 @@ async function confirmImport(){
   try{
     for(const p of S.importData){
       const ex=S.products.find(x=>x.name.toLowerCase()===p.name.toLowerCase()||(x.sku&&p.sku&&x.sku===p.sku));
-      if(ex){ await api(`products?id=eq.${ex.id}`,'PATCH',p); Object.assign(ex,p); updated++; }
+      if(ex){ await api(`products/${ex.id}`,'PATCH',p); Object.assign(ex,p); updated++; }
       else{ const saved=await api('products','POST',p); if(saved&&saved[0]) S.products.push(saved[0]); added++; }
     }
     saveOffline(); renderProds(); populateSels(); updateDash();
@@ -4930,15 +4924,16 @@ async function vbSave(){
     if(saved&&saved[0]) S.invoices.unshift(saved[0]);
     for(const item of items){
       const p = S.products.find(x=>x.id===item.pid);
-      if(p){ p.stock -= item.qty; await api('products?id=eq.'+p.id,'PATCH',{stock:p.stock}); }
+      if(p){ p.stock -= item.qty; await api('products/'+p.id,'PATCH',{stock:p.stock}); }
     }
     if(custId){
       const cust = S.customers.find(c=>c.id===custId);
-      if(cust){ cust.total_purchase=(parseFloat(cust.total_purchase)||0)+grand; await api('customers?id=eq.'+cust.id,'PATCH',{total_purchase:cust.total_purchase}); }
+      if(cust){ cust.total_purchase=(parseFloat(cust.total_purchase)||0)+grand; await api('customers/'+cust.id,'PATCH',{total_purchase:cust.total_purchase}); }
     }
     const newCounter = billNum+1;
     S.settings.bill_counter = String(newCounter);
-    await api('settings?key=eq.bill_counter','PATCH',{value:String(newCounter)});
+    const bid2 = S.activeBranchId||1;
+    await api(`settings/bill_counter_${bid2}?branch_id=${bid2}`,'PATCH',{value:String(newCounter)});
     setSyncStatus('online');
     saveOffline(); updateDash(); renderInvs();
     vbClear();
