@@ -5091,13 +5091,19 @@ async function vbSave(){
   const profit = items.reduce((s,i)=>s+(i.total-(i.cost*(parseFloat(i.qty)||1))),0) - discAmt;
 
   const nowVb = new Date();
+  // Public token generate
+  const vbChars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let vbToken='';
+  for(let i=0;i<11;i++) vbToken+=vbChars[Math.floor(Math.random()*vbChars.length)];
+
   const inv = {
     bill_number: billNum, customer_name: custName, customer_id: custId,
     payment_mode: payMode, items, subtotal, discount: discAmt, discount_pct: discPct,
     gst: 0, gst_rate: 0, total: grand, profit,
     note, bill_date: nowVb.toLocaleDateString('en-IN'),
     bill_time: nowVb.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}),
-    status:'paid', branch_id: S.activeBranchId || 1
+    status:'paid', branch_id: S.activeBranchId || 1,
+    public_token: vbToken
   };
 
   try {
