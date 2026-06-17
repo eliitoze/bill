@@ -1375,17 +1375,33 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 
 <!-- BILL DETAIL MODAL -->
 <div class="overlay" id="billDetailModal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
-  <div class="modal" style="max-width:520px;max-height:90vh;overflow-y:auto">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <h3 id="billDetailTitle" style="margin:0;font-size:15px">Bill Detail</h3>
-      <button onclick="document.getElementById('billDetailModal').style.display='none'" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0 4px">✕</button>
+  <div class="modal" style="max-width:520px;max-height:92vh;overflow-y:auto;padding:0;background:var(--s1);border-radius:16px">
+    <!-- HEADER -->
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--s1);z-index:2">
+      <div style="font-size:13px;font-weight:700;color:var(--accent)" id="billDetailTitle">Bill Detail</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="billDetailEditBtn" onclick="toggleBillEdit()" style="background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.3);color:#fbbf24;padding:5px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">✏️ Edit</button>
+        <button onclick="document.getElementById('billDetailModal').style.display='none'" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0 4px">✕</button>
+      </div>
     </div>
-    <div id="billDetailBody"></div>
-    <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
-      <button id="billDetailPrint" class="btn btn-print" style="flex:1">🖨 Print</button>
-      <button id="billDetailWA" class="btn btn-wa" style="flex:1">💬 WhatsApp</button>
-      <button id="billDetailPDF" class="btn btn-blue" style="flex:1">📄 PDF</button>
-      <button onclick="document.getElementById('billDetailModal').style.display='none'" class="btn btn-ghost">Close</button>
+
+    <!-- VIEW MODE -->
+    <div id="billDetailView" style="padding:16px">
+      <div id="billDetailBody"></div>
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+        <button id="billDetailPrint" class="btn btn-print" style="flex:1">🖨 Print</button>
+        <button id="billDetailWA" class="btn btn-wa" style="flex:1">💬 WhatsApp</button>
+        <button id="billDetailPDF" class="btn btn-blue" style="flex:1">📄 PDF</button>
+      </div>
+    </div>
+
+    <!-- EDIT MODE (hidden) -->
+    <div id="billDetailEdit" style="display:none;padding:16px">
+      <div id="billEditForm"></div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button onclick="saveBillEdit()" class="btn btn-primary" style="flex:1;font-weight:700">💾 Save Changes</button>
+        <button onclick="toggleBillEdit()" class="btn" style="flex:1;background:var(--s2);color:var(--muted)">✕ Cancel</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2514,26 +2530,45 @@ async function saveBill(){
   try {
     setSyncStatus('syncing');
     document.getElementById('syncDot').className='sync-dot syncing';
-    const saved=await api('invoices',  'POST', inv);
-    if(saved&&saved[0]) S.invoices.unshift(saved[0]);
-    // Update stock
-    for(const item of S.billItems){
-      const p=S.products.find(x=>x.id===item.pid);
-      if(p){ p.stock-=item.qty; await api(`products/${p.id}`,'PATCH',{stock:p.stock}); }
+
+    let saved;
+    const editId = S.editingInvoiceId;
+
+    if(editId){
+      // EDIT MODE — existing bill update
+      inv.public_token = S.editingInvoiceToken || public_token;
+      inv.bill_number = S.invoices.find(x=>x.id===editId)?.bill_number || billNum;
+      await api(`invoices/${editId}`,'PATCH', inv);
+      const idx = S.invoices.findIndex(x=>x.id===editId);
+      if(idx>=0) S.invoices[idx] = {...S.invoices[idx], ...inv, id:editId};
+      saved = [{...inv, id:editId}];
+      S.editingInvoiceId = null;
+      S.editingInvoiceToken = '';
+      const banner = document.getElementById('editingBanner');
+      if(banner) banner.style.display='none';
+      toast('✅ Bill updated!','success');
+    } else {
+      // NEW BILL
+      saved=await api('invoices','POST', inv);
+      if(saved&&saved[0]) S.invoices.unshift(saved[0]);
+      // Update stock
+      for(const item of S.billItems){
+        const p=S.products.find(x=>x.id===item.pid);
+        if(p){ p.stock-=item.qty; await api(`products/${p.id}`,'PATCH',{stock:p.stock}); }
+      }
+      // Update customer total
+      if(cust){ cust.total_purchase=(parseFloat(cust.total_purchase)||0)+t.grand; await api(`customers/${cust.id}`,'PATCH',{total_purchase:cust.total_purchase}); }
+      // Update bill counter
+      const newCounter=billNum+1;
+      S.settings.bill_counter=String(newCounter);
+      const bid = S.activeBranchId || 1;
+      await api(`settings/bill_counter_${bid}?branch_id=${bid}`,'PATCH',{value:String(newCounter)})
+        .catch(()=>{});
+      toast('✅ Bill saved & synced!','success');
     }
-    // Update customer total
-    if(cust){ cust.total_purchase=(parseFloat(cust.total_purchase)||0)+t.grand; await api(`customers/${cust.id}`,'PATCH',{total_purchase:cust.total_purchase}); }
-    // Update bill counter
-    const newCounter=billNum+1;
-    S.settings.bill_counter=String(newCounter);
-    // Worker: settings endpoint branch_id sathe
-    const bid = S.activeBranchId || 1;
-    await api(`settings/bill_counter_${bid}?branch_id=${bid}`,'PATCH',{value:String(newCounter)})
-      .catch(()=> api(`settings?key=eq.bill_counter`,'PATCH',{value:String(newCounter)}));
     setSyncStatus('online');
     saveOffline();
     updateDash(); renderInvs(); clearBill();
-    toast('✅ Bill saved & synced!','success');
     return saved&&saved[0] ? saved[0] : inv;
   } catch(e){
     setSyncStatus('offline');
@@ -2560,6 +2595,94 @@ function clearBill(){
   const st=document.getElementById('qcStatus'); if(st){ st.style.display='none'; st.textContent=''; }
   switchCustTab('existing');
   updateBillNo(); renderBillItems();
+}
+
+// Bill History → New Bill ma load karva mate
+function toggleBillEdit(){
+  const inv = window._currentDetailInv;
+  if(!inv) return;
+  loadBillToNewBill(inv);
+}
+
+function loadBillToNewBill(inv){
+  if(!inv) return;
+  // Modal band karo (jો open hoy)
+  document.getElementById('billDetailModal').style.display='none';
+
+  // New Bill page par jao
+  const navItem = document.querySelector('.nav-item[onclick*="newbill"]') ||
+                  document.querySelector('[onclick*="newbill"]');
+  showPage('newbill', navItem);
+  const mobItem = document.getElementById('mbn-newbill');
+  if(mobItem) mobNav('newbill', mobItem);
+
+  setTimeout(()=>{
+    clearBill();
+
+    // Original invoice id store — save time update karashu
+    S.editingInvoiceId = inv.id;
+    S.editingInvoiceToken = inv.public_token || '';
+
+    // Items load
+    S.billItems = JSON.parse(JSON.stringify(inv.items||[]));
+
+    // Customer set
+    if(inv.customer_id){
+      switchCustTab('existing');
+      const sel = document.getElementById('billCust');
+      if(sel){ sel.value = inv.customer_id; sel.dispatchEvent(new Event('change')); }
+    } else if(inv.customer_name && inv.customer_name !== 'Walk-in'){
+      switchCustTab('walkin');
+      const wn = document.getElementById('walkinName');
+      if(wn) wn.value = inv.customer_name;
+    }
+
+    // Discount
+    if(parseFloat(inv.discount_pct||0) > 0){
+      const dp = document.getElementById('discPct');
+      if(dp) dp.value = inv.discount_pct;
+    }
+
+    // Payment mode
+    const payEl = document.getElementById('payMode');
+    if(payEl) payEl.value = inv.payment_mode || 'cash';
+
+    // Note
+    const noteEl = document.getElementById('billNote');
+    if(noteEl) noteEl.value = inv.note||'';
+
+    renderBillItems();
+    updateTotals && updateTotals();
+
+    // Editing banner show karo
+    showEditingBanner(inv);
+
+    toast('✏️ Bill #'+String(inv.bill_number).padStart(4,'0')+' loaded — edit karo!', 'success');
+  }, 200);
+}
+
+function showEditingBanner(inv){
+  let banner = document.getElementById('editingBanner');
+  if(!banner){
+    banner = document.createElement('div');
+    banner.id = 'editingBanner';
+    banner.style.cssText = 'background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.3);color:#fbbf24;padding:8px 14px;border-radius:10px;font-size:12px;font-weight:600;display:flex;justify-content:space-between;align-items:center;margin-bottom:10px';
+    // New bill page container ma insert karo
+    const billPage = document.getElementById('page-newbill') || document.getElementById('newbillPage');
+    if(billPage) billPage.insertBefore(banner, billPage.firstChild);
+  }
+  const billStr = '#'+String(inv.bill_number).padStart(4,'0');
+  banner.innerHTML = `✏️ Editing Bill ${billStr} · ${inv.customer_name} <span onclick="cancelEdit()" style="cursor:pointer;opacity:0.7;font-size:14px">✕</span>`;
+  banner.style.display = 'flex';
+}
+
+function cancelEdit(){
+  S.editingInvoiceId = null;
+  S.editingInvoiceToken = '';
+  const banner = document.getElementById('editingBanner');
+  if(banner) banner.style.display = 'none';
+  clearBill();
+  toast('Edit cancelled', 'success');
 }
 
 // ===== BILL DATA HELPER =====
@@ -2925,10 +3048,11 @@ function buildVyaparMsg(items, t, customer, custPhone, billNum, dateStr, payment
   // ── FOOTER ──
   msg += '🙏 _' + (s.thank_you||'Thank you for your purchase!') + '_\n';
 
-  // ── PUBLIC BILL LINK ──
+  // ── PUBLIC BILL LINK — Vyapar style ──
   if(billToken){
     msg += bar + '\n';
-    msg += '🧾 *View & Download Bill:*\n';
+    msg += '📋 *તમારું Digital Bill જોવા માટે નીચે Click કરો:*\n';
+    msg += '👇\n';
     msg += 'https://bill.eliitoze.in/' + billToken + '\n';
   }
 
@@ -2958,6 +3082,8 @@ function sendToWA(phone, msg){
 
 async function waShare(){
   if(!S.billItems.length){ toast('Add items first!','error'); return; }
+
+  // Snapshot — saveBill clearBill kare pehla
   const itemsSnap = JSON.parse(JSON.stringify(S.billItems));
   const billNum = parseInt(S.settings.bill_counter)||1;
   const t = getTotals();
@@ -2971,12 +3097,67 @@ async function waShare(){
   const payment = getActivePayMode();
   const note = document.getElementById('billNote').value||'';
 
-  // Bill save karo — token ane items pahela capture
-  const saved = await saveBill();
-  const tok = saved?.public_token || '';
+  // Public token generate — same logic as saveBill
+  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let public_token='';
+  for(let i=0;i<11;i++) public_token+=chars[Math.floor(Math.random()*chars.length)];
 
-  const msg = buildVyaparMsg(itemsSnap, t, customer, custPhone, billNum, dateStr, payment, note, tok);
+  // Message pehla ready karo — token sathe
+  const msg = buildVyaparMsg(itemsSnap, t, customer, custPhone, billNum, dateStr, payment, note, public_token);
+
+  // WhatsApp TURANT kholo — user gesture par (popup block nai thay)
   sendToWA(custPhone, msg);
+
+  // Pachhhi background ma save karo — same token sathe
+  saveBillWithToken(public_token);
+}
+
+async function saveBillWithToken(public_token){
+  if(!S.billItems.length) return;
+  const t=getTotals();
+  let cust=null, custName='Walk-in';
+  const mode=S.custMode||'existing';
+  if(mode==='existing'){ const cid=document.getElementById('billCust').value; if(cid){ cust=S.customers.find(c=>c.id===parseInt(cid)); if(cust){ custName=cust.name; } } }
+  else if(mode==='new'&&S.quickCust){ cust=S.quickCust; custName=cust.name; }
+  else if(mode==='walkin'){ const wn=(document.getElementById('walkinName')||{value:''}).value.trim(); custName=wn||'Walk-in'; }
+  const billNum=parseInt(S.settings.bill_counter)||1;
+  const now=new Date();
+  const inv={
+    bill_number:billNum, customer_name:custName,
+    customer_id:cust?cust.id:null, payment_mode:getActivePayMode(),
+    items:S.billItems, subtotal:t.sub, discount:t.discAmt, discount_pct:t.disc,
+    gst:t.gst, gst_rate:t.gstRate, total:t.grand, profit:t.profit,
+    note:document.getElementById('billNote').value,
+    bill_date:now.toLocaleDateString('en-IN'),
+    bill_time:now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}),
+    status:'paid', branch_id:S.activeBranchId||1, public_token
+  };
+  try{
+    setSyncStatus('syncing');
+    document.getElementById('syncDot').className='sync-dot syncing';
+    const saved=await api('invoices','POST',inv);
+    if(saved&&saved[0]) S.invoices.unshift(saved[0]);
+    for(const item of S.billItems){
+      const p=S.products.find(x=>x.id===item.pid);
+      if(p){ p.stock-=item.qty; await api(`products/${p.id}`,'PATCH',{stock:p.stock}); }
+    }
+    if(cust){ cust.total_purchase=(parseFloat(cust.total_purchase)||0)+t.grand; await api(`customers/${cust.id}`,'PATCH',{total_purchase:cust.total_purchase}); }
+    const newCounter=billNum+1;
+    S.settings.bill_counter=String(newCounter);
+    const bid=S.activeBranchId||1;
+    await api(`settings/bill_counter_${bid}?branch_id=${bid}`,'PATCH',{value:String(newCounter)})
+      .catch(()=>{});
+    setSyncStatus('online');
+    saveOffline(); updateDash(); renderInvs(); clearBill();
+    toast('✅ Bill saved & synced!','success');
+  }catch(e){
+    setSyncStatus('offline');
+    toast('📴 Offline — Bill locally saved!','success');
+    S.invoices.unshift({...inv,id:Date.now()});
+    const newCounterOff=billNum+1;
+    S.settings.bill_counter=String(newCounterOff);
+    saveOffline(); updateDash(); renderInvs(); clearBill();
+  }
 }
 
 // ===== IMAGE SHARE VIA WHATSAPP =====
@@ -3845,7 +4026,7 @@ function renderInvs(){
   }
   const pm={cash:'💵 Cash',upi:'📱 UPI',card:'💳 Card',credit:'📝 Credit'};
   tbody.innerHTML=filtered.map(inv=>`
-    <tr style="cursor:pointer" onclick="openBillDetail(${inv.id})">
+    <tr style="cursor:pointer" onclick="loadBillToNewBill(S.invoices.find(x=>x.id===${inv.id}))" title="Click to edit this bill">
       <td><strong style="font-family:'DM Mono',monospace">#${String(inv.bill_number).padStart(4,'0')}</strong></td>
       <td>${inv.bill_date||'—'}</td>
       <td>${inv.customer_name}</td>
@@ -3863,6 +4044,7 @@ function renderInvs(){
 function openBillDetail(id){
   const inv = S.invoices.find(x=>x.id===id);
   if(!inv) return;
+  window._currentDetailInv = inv;
   const s = S.settings;
   const pm = {cash:'💵 Cash',upi:'📱 UPI',card:'💳 Card',credit:'📝 Credit'};
   const items = inv.items||[];
@@ -4971,23 +5153,31 @@ function showAfterSaveOptions(inv, billNum){
   window._lastSavedPhone = waNum;
 
   body.innerHTML = `
-    <div style="text-align:center;margin-bottom:18px">
-      <div style="font-size:32px;margin-bottom:8px">✅</div>
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="font-size:36px;margin-bottom:8px">✅</div>
       <div style="font-family:'Syne',sans-serif;font-size:17px;font-weight:700;color:var(--accent)">Bill #${billStr} Saved!</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:4px">${inv.customer_name||'Walk-in'} · ₹${inv.total||0}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">${inv.customer_name||'Walk-in'} · ₹${parseFloat(inv.total||0).toFixed(0)}</div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <button class="btn btn-primary" style="width:100%;font-size:14px;padding:12px" onclick="afterSavePrint()">
+
+    <!-- STEP 1: PRINT -->
+    <div id="stepPrint" style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:11px;color:var(--muted);text-align:center;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:2px">Step 1 of 2 — Print</div>
+      <button class="btn btn-primary" style="width:100%;font-size:15px;padding:13px;font-weight:700" onclick="afterSavePrint()">
         🖨️ Print Bill
       </button>
-      <button class="btn" style="width:100%;font-size:14px;padding:12px;background:var(--s3);color:var(--text)" onclick="afterSaveShare()">
-        📤 Share (Image)
+      <button class="btn" style="width:100%;font-size:13px;padding:11px;background:var(--s2);color:var(--muted)" onclick="showStepWA()">
+        ➡ Skip — WhatsApp
       </button>
-      <button class="btn" style="width:100%;font-size:14px;padding:12px;background:#25D366;color:#fff" ${!waNum?'disabled style="opacity:0.5"':''} onclick="afterSaveWA()">
-        💬 WhatsApp ${!waNum ? '(No Phone)' : ''}
+    </div>
+
+    <!-- STEP 2: WHATSAPP (hidden initially) -->
+    <div id="stepWA" style="display:none;flex-direction:column;gap:10px">
+      <div style="font-size:11px;color:var(--muted);text-align:center;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:2px">Step 2 of 2 — WhatsApp</div>
+      <button class="btn" style="width:100%;font-size:15px;padding:13px;font-weight:700;background:#25D366;color:#fff" ${!waNum?'disabled':''} onclick="afterSaveWA()">
+        💬 WhatsApp Bill ${!waNum ? '(No Phone)' : ''}
       </button>
-      <button class="btn" style="width:100%;font-size:14px;padding:12px;background:var(--s2);color:var(--muted)" onclick="closeAfterSave()">
-        ✖ Close
+      <button class="btn" style="width:100%;font-size:13px;padding:11px;background:var(--s2);color:var(--muted)" onclick="closeAfterSave()">
+        ✖ Done — Close
       </button>
     </div>
   `;
@@ -4999,8 +5189,16 @@ function closeAfterSave(){
 }
 
 function afterSavePrint(){
-  closeAfterSave();
-  setTimeout(()=>{ thermalPrint(window._lastSavedInv); }, 150);
+  thermalPrint(window._lastSavedInv);
+  // Print pachhi WA step show karo
+  setTimeout(()=>{ showStepWA(); }, 400);
+}
+
+function showStepWA(){
+  const p = document.getElementById('stepPrint');
+  const w = document.getElementById('stepWA');
+  if(p) p.style.display='none';
+  if(w) w.style.display='flex';
 }
 
 function afterSaveShare(){
@@ -5009,9 +5207,19 @@ function afterSaveShare(){
 }
 
 function afterSaveWA(){
+  const inv = window._lastSavedInv;
   const phone = window._lastSavedPhone || '';
   closeAfterSave();
-  setTimeout(()=>{ vbWhatsApp(window._lastSavedInv, phone); }, 150);
+  setTimeout(()=>{
+    const d = getBillData(inv);
+    if(!d){ sendToWA(phone,''); return; }
+    const msg = buildVyaparMsg(
+      d.items, d.t, d.customer, d.custPhone,
+      d.billNum, d.dateStr, d.payment, d.note,
+      inv.public_token || ''
+    );
+    sendToWA(phone, msg);
+  }, 150);
 }
 
 function vbShareImage(inv){
