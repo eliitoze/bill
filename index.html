@@ -2568,7 +2568,7 @@ async function saveBill(){
     }
     setSyncStatus('online');
     saveOffline();
-    updateDash(); renderInvs(); clearBill();
+    updateDash(); renderInvs(); clearBill(); updateBillNo();
     return saved&&saved[0] ? saved[0] : inv;
   } catch(e){
     setSyncStatus('offline');
@@ -2578,7 +2578,7 @@ async function saveBill(){
     // Update bill counter offline too
     const newCounterOff = billNum+1;
     S.settings.bill_counter = String(newCounterOff);
-    saveOffline(); updateDash(); renderInvs(); clearBill();
+    saveOffline(); updateDash(); renderInvs(); clearBill(); updateBillNo();
     return offInv;
   }
 }
@@ -3081,83 +3081,9 @@ function sendToWA(phone, msg){
 }
 
 async function waShare(){
+  // saveBill karo — afterSave modal show thase — tyathi Print + WhatsApp
   if(!S.billItems.length){ toast('Add items first!','error'); return; }
-
-  // Snapshot — saveBill clearBill kare pehla
-  const itemsSnap = JSON.parse(JSON.stringify(S.billItems));
-  const billNum = parseInt(S.settings.bill_counter)||1;
-  const t = getTotals();
-  const mode = S.custMode||'existing';
-  let cust = null;
-  if(mode==='existing'){ const cid=document.getElementById('billCust').value; if(cid) cust=S.customers.find(c=>c.id===parseInt(cid)); }
-  else if(mode==='new'&&S.quickCust) cust=S.quickCust;
-  const customer = cust?cust.name:'Walk-in';
-  const custPhone = cust?cust.phone:'';
-  const dateStr = new Date().toLocaleDateString('en-IN');
-  const payment = getActivePayMode();
-  const note = document.getElementById('billNote').value||'';
-
-  // Public token generate — same logic as saveBill
-  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let public_token='';
-  for(let i=0;i<11;i++) public_token+=chars[Math.floor(Math.random()*chars.length)];
-
-  // Message pehla ready karo — token sathe
-  const msg = buildVyaparMsg(itemsSnap, t, customer, custPhone, billNum, dateStr, payment, note, public_token);
-
-  // WhatsApp TURANT kholo — user gesture par (popup block nai thay)
-  sendToWA(custPhone, msg);
-
-  // Pachhhi background ma save karo — same token sathe
-  saveBillWithToken(public_token);
-}
-
-async function saveBillWithToken(public_token){
-  if(!S.billItems.length) return;
-  const t=getTotals();
-  let cust=null, custName='Walk-in';
-  const mode=S.custMode||'existing';
-  if(mode==='existing'){ const cid=document.getElementById('billCust').value; if(cid){ cust=S.customers.find(c=>c.id===parseInt(cid)); if(cust){ custName=cust.name; } } }
-  else if(mode==='new'&&S.quickCust){ cust=S.quickCust; custName=cust.name; }
-  else if(mode==='walkin'){ const wn=(document.getElementById('walkinName')||{value:''}).value.trim(); custName=wn||'Walk-in'; }
-  const billNum=parseInt(S.settings.bill_counter)||1;
-  const now=new Date();
-  const inv={
-    bill_number:billNum, customer_name:custName,
-    customer_id:cust?cust.id:null, payment_mode:getActivePayMode(),
-    items:S.billItems, subtotal:t.sub, discount:t.discAmt, discount_pct:t.disc,
-    gst:t.gst, gst_rate:t.gstRate, total:t.grand, profit:t.profit,
-    note:document.getElementById('billNote').value,
-    bill_date:now.toLocaleDateString('en-IN'),
-    bill_time:now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}),
-    status:'paid', branch_id:S.activeBranchId||1, public_token
-  };
-  try{
-    setSyncStatus('syncing');
-    document.getElementById('syncDot').className='sync-dot syncing';
-    const saved=await api('invoices','POST',inv);
-    if(saved&&saved[0]) S.invoices.unshift(saved[0]);
-    for(const item of S.billItems){
-      const p=S.products.find(x=>x.id===item.pid);
-      if(p){ p.stock-=item.qty; await api(`products/${p.id}`,'PATCH',{stock:p.stock}); }
-    }
-    if(cust){ cust.total_purchase=(parseFloat(cust.total_purchase)||0)+t.grand; await api(`customers/${cust.id}`,'PATCH',{total_purchase:cust.total_purchase}); }
-    const newCounter=billNum+1;
-    S.settings.bill_counter=String(newCounter);
-    const bid=S.activeBranchId||1;
-    await api(`settings/bill_counter_${bid}?branch_id=${bid}`,'PATCH',{value:String(newCounter)})
-      .catch(()=>{});
-    setSyncStatus('online');
-    saveOffline(); updateDash(); renderInvs(); clearBill();
-    toast('✅ Bill saved & synced!','success');
-  }catch(e){
-    setSyncStatus('offline');
-    toast('📴 Offline — Bill locally saved!','success');
-    S.invoices.unshift({...inv,id:Date.now()});
-    const newCounterOff=billNum+1;
-    S.settings.bill_counter=String(newCounterOff);
-    saveOffline(); updateDash(); renderInvs(); clearBill();
-  }
+  await saveBill();
 }
 
 // ===== IMAGE SHARE VIA WHATSAPP =====
@@ -5124,7 +5050,7 @@ async function vbSave(){
     await api(`settings/bill_counter_${bid2}?branch_id=${bid2}`,'PATCH',{value:String(newCounter)});
     setSyncStatus('online');
     saveOffline(); updateDash(); renderInvs();
-    vbClear();
+    vbClear(); updateBillNo();
     toast('✅ Bill #'+String(billNum).padStart(4,'0')+' saved!','success');
     showAfterSaveOptions(saved&&saved[0]?saved[0]:inv, billNum);
   } catch(e){
@@ -5133,7 +5059,7 @@ async function vbSave(){
     S.invoices.unshift(offInv);
     const nc = billNum+1; S.settings.bill_counter=String(nc);
     saveOffline(); updateDash(); renderInvs();
-    vbClear();
+    vbClear(); updateBillNo();
     toast('Bill saved offline!','success');
     showAfterSaveOptions(offInv, billNum);
   } finally {
