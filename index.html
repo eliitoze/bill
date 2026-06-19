@@ -2214,7 +2214,11 @@ function pinClear(){ pinEntry=''; document.getElementById('pinDisplay').textCont
 // ===== BILLING =====
 function updateBillNo(){
   const n = parseInt(S.settings.bill_counter)||1;
-  document.getElementById('billNoLabel').textContent = 'Bill #'+String(n).padStart(4,'0');
+  const el = document.getElementById('billNoLabel');
+  if(el) el.textContent = 'Bill #'+String(n).padStart(4,'0');
+  // VB invoice number input update karo
+  const vbEl = document.getElementById('vbInvNo');
+  if(vbEl) vbEl.value = n;
 }
 
 function populateSels(){
