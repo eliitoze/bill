@@ -2569,16 +2569,18 @@ async function saveBill(){
     setSyncStatus('online');
     saveOffline();
     updateDash(); renderInvs(); clearBill(); updateBillNo();
-    return saved&&saved[0] ? saved[0] : inv;
+    const finalInv = saved&&saved[0] ? saved[0] : inv;
+    showAfterSaveOptions(finalInv, billNum);
+    return finalInv;
   } catch(e){
     setSyncStatus('offline');
     toast('📴 Offline — Bill locally saved!','success');
     const offInv = {...inv, id:Date.now()};
     S.invoices.unshift(offInv);
-    // Update bill counter offline too
     const newCounterOff = billNum+1;
     S.settings.bill_counter = String(newCounterOff);
     saveOffline(); updateDash(); renderInvs(); clearBill(); updateBillNo();
+    showAfterSaveOptions(offInv, billNum);
     return offInv;
   }
 }
