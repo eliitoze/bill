@@ -5055,7 +5055,7 @@ async function vbSave(){
     await api(`settings/bill_counter_${bid2}?branch_id=${bid2}`,'PATCH',{value:String(newCounter)});
     setSyncStatus('online');
     saveOffline(); updateDash(); renderInvs();
-    vbClear(); updateBillNo();
+    vbClear(); updateBillNo(); vbUpdateInvInfo();
     toast('✅ Bill #'+String(billNum).padStart(4,'0')+' saved!','success');
     showAfterSaveOptions(saved&&saved[0]?saved[0]:inv, billNum);
   } catch(e){
@@ -5064,7 +5064,7 @@ async function vbSave(){
     S.invoices.unshift(offInv);
     const nc = billNum+1; S.settings.bill_counter=String(nc);
     saveOffline(); updateDash(); renderInvs();
-    vbClear(); updateBillNo();
+    vbClear(); updateBillNo(); vbUpdateInvInfo();
     toast('Bill saved offline!','success');
     showAfterSaveOptions(offInv, billNum);
   } finally {
