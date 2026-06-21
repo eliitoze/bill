@@ -2058,15 +2058,13 @@ async function init(){
   ['pPrice','pCost'].forEach(id => document.getElementById(id).addEventListener('input', ppPreview));
 }
 
-// ⭐ FIXED: branch_id filter added to products & invoices so each branch
-// only sees its own data. Customers stay shared across branches.
 async function loadAll(){
   const bid = S.activeBranchId || 1;
   const [prods, custs, invs, sets] = await Promise.all([
-    api(`products?branch_id=eq.${bid}&order=name`),
+    api('products?order=name&branch_id=eq.'+bid),
     api('customers?order=name'),
-    api(`invoices?branch_id=eq.${bid}&order=created_at.desc&limit=200`),
-    api('settings')
+    api('invoices?order=created_at.desc&limit=200&branch_id=eq.'+bid),
+    api('settings?branch_id=eq.'+bid)
   ]);
   S.products = prods;
   S.customers = custs;
@@ -2217,11 +2215,7 @@ function pinClear(){ pinEntry=''; document.getElementById('pinDisplay').textCont
 // ===== BILLING =====
 function updateBillNo(){
   const n = parseInt(S.settings.bill_counter)||1;
-  const el = document.getElementById('billNoLabel');
-  if(el) el.textContent = 'Bill #'+String(n).padStart(4,'0');
-  // VB invoice number input update karo
-  const vbEl = document.getElementById('vbInvNo');
-  if(vbEl) vbEl.value = n;
+  document.getElementById('billNoLabel').textContent = 'Bill #'+String(n).padStart(4,'0');
 }
 
 function populateSels(){
@@ -2568,9 +2562,7 @@ async function saveBill(){
       // Update bill counter
       const newCounter=billNum+1;
       S.settings.bill_counter=String(newCounter);
-      const bid = S.activeBranchId || 1;
-      await api(`settings/bill_counter_${bid}?branch_id=${bid}`,'PATCH',{value:String(newCounter)})
-        .catch(()=>{});
+      // Worker j counter increment karse
       toast('✅ Bill saved & synced!','success');
     }
     setSyncStatus('online');
@@ -2615,7 +2607,7 @@ function toggleBillEdit(){
 
 function loadBillToNewBill(inv){
   if(!inv) return;
-  // Modal band karo (jо open hoy)
+  // Modal band karo (jો open hoy)
   document.getElementById('billDetailModal').style.display='none';
 
   // New Bill page par jao
@@ -3060,8 +3052,9 @@ function buildVyaparMsg(items, t, customer, custPhone, billNum, dateStr, payment
   // ── PUBLIC BILL LINK — Vyapar style ──
   if(billToken){
     msg += bar + '\n';
-    msg += '🧾 *View Bill Online:*\n';
-    msg += 'https://bill.eliitoze.in/#' + billToken + '\n';
+    msg += '📋 *તમારું Digital Bill જોવા માટે નીચે Click કરો:*\n';
+    msg += '👇\n';
+    msg += 'https://bill.eliitoze.in/' + billToken + '\n';
   }
 
   return msg;
@@ -4547,7 +4540,8 @@ async function saveSettings(){
   saveOffline(); applySettings();
   try{
     // UPSERT — works for both new keys (email,terms) and existing ones
-    const rows = Object.entries(updates).map(([k,v])=>({key:k, value:v, updated_at:new Date().toISOString()}));
+    const bid = S.activeBranchId || 1;
+    const rows = Object.entries(updates).map(([k,v])=>({key:k, value:v, branch_id:bid, updated_at:new Date().toISOString()}));
     await api('settings','POST', rows, {'Prefer':'resolution=merge-duplicates'});
     toast('✅ Settings saved!','success');
   } catch(e){
@@ -4566,7 +4560,8 @@ async function savePIN(){
   document.getElementById('sConfPIN').value='';
   try{
     // UPSERT — works even if row doesn't exist yet
-    await api('settings','POST',[{key:'profit_pin',value:np,updated_at:new Date().toISOString()}],{'Prefer':'resolution=merge-duplicates'});
+    const pinBid = S.activeBranchId || 1;
+    await api('settings','POST',[{key:'profit_pin',value:np,branch_id:pinBid,updated_at:new Date().toISOString()}],{'Prefer':'resolution=merge-duplicates'});
     toast('✅ PIN updated!','success');
   } catch(e){
     toast('✅ PIN saved locally','success');
@@ -5054,11 +5049,10 @@ async function vbSave(){
     }
     const newCounter = billNum+1;
     S.settings.bill_counter = String(newCounter);
-    const bid2 = S.activeBranchId||1;
-    await api(`settings/bill_counter_${bid2}?branch_id=${bid2}`,'PATCH',{value:String(newCounter)});
+    // Worker j counter increment karse
     setSyncStatus('online');
     saveOffline(); updateDash(); renderInvs();
-    vbClear(); updateBillNo(); vbUpdateInvInfo();
+    vbClear(); updateBillNo();
     toast('✅ Bill #'+String(billNum).padStart(4,'0')+' saved!','success');
     showAfterSaveOptions(saved&&saved[0]?saved[0]:inv, billNum);
   } catch(e){
@@ -5067,7 +5061,7 @@ async function vbSave(){
     S.invoices.unshift(offInv);
     const nc = billNum+1; S.settings.bill_counter=String(nc);
     saveOffline(); updateDash(); renderInvs();
-    vbClear(); updateBillNo(); vbUpdateInvInfo();
+    vbClear(); updateBillNo();
     toast('Bill saved offline!','success');
     showAfterSaveOptions(offInv, billNum);
   } finally {
