@@ -2058,11 +2058,14 @@ async function init(){
   ['pPrice','pCost'].forEach(id => document.getElementById(id).addEventListener('input', ppPreview));
 }
 
+// ⭐ FIXED: branch_id filter added to products & invoices so each branch
+// only sees its own data. Customers stay shared across branches.
 async function loadAll(){
+  const bid = S.activeBranchId || 1;
   const [prods, custs, invs, sets] = await Promise.all([
-    api('products?order=name'),
+    api(`products?branch_id=eq.${bid}&order=name`),
     api('customers?order=name'),
-    api('invoices?order=created_at.desc&limit=200'),
+    api(`invoices?branch_id=eq.${bid}&order=created_at.desc&limit=200`),
     api('settings')
   ]);
   S.products = prods;
@@ -2612,7 +2615,7 @@ function toggleBillEdit(){
 
 function loadBillToNewBill(inv){
   if(!inv) return;
-  // Modal band karo (jો open hoy)
+  // Modal band karo (jо open hoy)
   document.getElementById('billDetailModal').style.display='none';
 
   // New Bill page par jao
