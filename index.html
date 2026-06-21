@@ -2074,11 +2074,25 @@ async function loadAll(){
 }
 
 function loadOffline(){
-  const d = localStorage.getItem('shopbill_offline');
-  if(d){ const o = JSON.parse(d); S.products=o.products||[]; S.customers=o.customers||[]; S.invoices=o.invoices||[]; S.settings=o.settings||S.settings; }
+  const bid = S.activeBranchId || 1;
+  // Branch-wise cache pehla try karo
+  const bkey = 'shopbill_offline_b'+bid;
+  const bd = localStorage.getItem(bkey) || localStorage.getItem('shopbill_offline');
+  if(bd){
+    const o = JSON.parse(bd);
+    S.products = o.products||[];
+    S.customers = o.customers||[];
+    // Invoices branch filter karo — legacy cache ma mix hoy to
+    S.invoices = (o.invoices||[]).filter(i=>!i.branch_id || parseInt(i.branch_id)===parseInt(bid));
+    S.settings = o.settings||S.settings;
+  }
 }
 
 function saveOffline(){
+  const bid = S.activeBranchId || 1;
+  // Branch-wise offline cache — mix na thay
+  localStorage.setItem('shopbill_offline_b'+bid, JSON.stringify({products:S.products, customers:S.customers, invoices:S.invoices, settings:S.settings}));
+  // Legacy key pan update kariye (backward compat)
   localStorage.setItem('shopbill_offline', JSON.stringify({products:S.products, customers:S.customers, invoices:S.invoices, settings:S.settings}));
 }
 
@@ -4072,7 +4086,10 @@ function updateDash(){
   const priv = window._dashPrivacy || false;
   const mask = '••••';
   const today=new Date().toLocaleDateString('en-IN');
-  const todayInv=S.invoices.filter(i=>i.bill_date===today);
+  const bid = S.activeBranchId || 1;
+  // Branch filter — sirf active branch na invoices dashboard ma
+  const branchInvs = S.invoices.filter(i=>!i.branch_id || parseInt(i.branch_id)===parseInt(bid));
+  const todayInv=branchInvs.filter(i=>i.bill_date===today);
   const sale=todayInv.reduce((s,i)=>s+parseFloat(i.total||0),0);
   const profit=todayInv.reduce((s,i)=>s+parseFloat(i.profit||0),0);
   const margin=sale>0?((profit/sale)*100).toFixed(1):0;
@@ -4087,7 +4104,7 @@ function updateDash(){
   if(priv){
     rd.innerHTML='<div class="empty"><div class="ei">🙈</div><p>Privacy mode on</p></div>';
   } else {
-    rd.innerHTML=!S.invoices.length?'<div class="empty"><div class="ei">🧾</div><p>No bills</p></div>':'<table><thead><tr><th>Bill</th><th>Customer</th><th>Amount</th></tr></thead><tbody>'+S.invoices.slice(0,5).map(i=>`<tr><td>#${String(i.bill_number).padStart(4,'0')}</td><td>${i.customer_name}</td><td>₹${parseFloat(i.total).toFixed(2)}</td></tr>`).join('')+'</tbody></table>';
+    rd.innerHTML=!branchInvs.length?'<div class="empty"><div class="ei">🧾</div><p>No bills</p></div>':'<table><thead><tr><th>Bill</th><th>Customer</th><th>Amount</th></tr></thead><tbody>'+branchInvs.slice(0,5).map(i=>`<tr><td>#${String(i.bill_number).padStart(4,'0')}</td><td>${i.customer_name}</td><td>₹${parseFloat(i.total).toFixed(2)}</td></tr>`).join('')+'</tbody></table>';
   }
   const ld=document.getElementById('d-lowlist');
   ld.innerHTML=!low.length?'<div class="empty"><div class="ei">✅</div><p>All in stock</p></div>':low.map(p=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px"><span>${p.name}</span><span class="badge badge-red">Stock: ${p.stock}</span></div>`).join('');
