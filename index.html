@@ -3068,7 +3068,7 @@ function buildVyaparMsg(items, t, customer, custPhone, billNum, dateStr, payment
     msg += bar + '\n';
     msg += '📋 *તમારું Digital Bill જોવા માટે નીચે Click કરો:*\n';
     msg += '👇\n';
-    msg += 'https://bill.eliitoze.in/' + billToken + '\n';
+    msg += 'https://bill.eliitoze.in/#' + billToken + '\n';
   }
 
   return msg;
@@ -5042,6 +5042,10 @@ async function vbSave(){
   let vbToken='';
   for(let i=0;i<11;i++) vbToken+=vbChars[Math.floor(Math.random()*vbChars.length)];
 
+  // Phone store karo inv ma — showAfterSaveOptions ma vaperay
+  const custObjForPhone = custId ? S.customers.find(c=>c.id===custId) : null;
+  const custPhoneForInv = phone || (custObjForPhone ? custObjForPhone.phone||'' : '');
+
   const inv = {
     bill_number: billNum, customer_name: custName, customer_id: custId,
     payment_mode: payMode, items, subtotal, discount: discAmt, discount_pct: discPct,
@@ -5049,7 +5053,8 @@ async function vbSave(){
     note, bill_date: nowVb.toLocaleDateString('en-IN'),
     bill_time: nowVb.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}),
     status:'paid', branch_id: S.activeBranchId || 1,
-    public_token: vbToken
+    public_token: vbToken,
+    customer_phone: custPhoneForInv
   };
 
   try {
@@ -5096,11 +5101,13 @@ function showAfterSaveOptions(inv, billNum){
   // PEHLA set karo — button click ma vaperay
   window._lastSavedInv = inv;
 
-  const phone = inv.phone ||
-    (inv.customer_id ? (S.customers.find(c=>c.id===inv.customer_id)||{}).phone||'' : '') ||
-    '';
+  // Phone resolve: customer_id thi lookup, phir vbPhone field, phir blank
+  const custForPhone = inv.customer_id 
+    ? S.customers.find(c=>c.id===inv.customer_id || String(c.id)===String(inv.customer_id))
+    : null;
+  const phone = (custForPhone && custForPhone.phone)
+    || inv.customer_phone || inv.phone || '';
   const waNum = phone.replace(/\D/g,'');
-  // waNum global ma store karo jethhi button use kari shake
   window._lastSavedPhone = waNum;
 
   body.innerHTML = `
@@ -5124,8 +5131,8 @@ function showAfterSaveOptions(inv, billNum){
     <!-- STEP 2: WHATSAPP (hidden initially) -->
     <div id="stepWA" style="display:none;flex-direction:column;gap:10px">
       <div style="font-size:11px;color:var(--muted);text-align:center;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:2px">Step 2 of 2 — WhatsApp</div>
-      <button class="btn" style="width:100%;font-size:15px;padding:13px;font-weight:700;background:#25D366;color:#fff" ${!waNum?'disabled':''} onclick="afterSaveWA()">
-        💬 WhatsApp Bill ${!waNum ? '(No Phone)' : ''}
+      <button class="btn" style="width:100%;font-size:15px;padding:13px;font-weight:700;background:#25D366;color:#fff" onclick="afterSaveWA()">
+        💬 WhatsApp Bill ${!waNum ? '(Contact Select Thase)' : '· '+waNum}
       </button>
       <button class="btn" style="width:100%;font-size:13px;padding:11px;background:var(--s2);color:var(--muted)" onclick="closeAfterSave()">
         ✖ Done — Close
@@ -5159,17 +5166,20 @@ function afterSaveShare(){
 
 function afterSaveWA(){
   const inv = window._lastSavedInv;
-  const phone = window._lastSavedPhone || '';
+  // Phone: saved phone, phir customer lookup, phir custPhone from getBillData
+  const savedPhone = window._lastSavedPhone || '';
   closeAfterSave();
   setTimeout(()=>{
     const d = getBillData(inv);
-    if(!d){ sendToWA(phone,''); return; }
+    if(!d){ sendToWA(savedPhone,''); return; }
+    // Best phone — savedPhone priority, phir d.custPhone
+    const finalPhone = savedPhone || d.custPhone || '';
     const msg = buildVyaparMsg(
       d.items, d.t, d.customer, d.custPhone,
       d.billNum, d.dateStr, d.payment, d.note,
       inv.public_token || ''
     );
-    sendToWA(phone, msg);
+    sendToWA(finalPhone, msg);
   }, 150);
 }
 
