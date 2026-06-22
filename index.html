@@ -2080,23 +2080,45 @@ async function loadAll(){
 async function refreshBillCounter(){
   const bid = S.activeBranchId || 1;
   try{
-    // Worker /invoices POST j counter manage kare chhe
-    // Aapde settings thi current counter read kariye
     const cntRows = await api('settings?key=eq.bill_counter_'+bid+'&branch_id=eq.'+bid);
     if(cntRows && cntRows.length){
-      const val = parseInt(cntRows[0].value)||1;
-      S.settings.bill_counter = String(val);
+      const dbVal = parseInt(cntRows[0].value)||1;
+      // Safety check: DB value, loaded invoices ma max bill_number — jo bemo compare kariye
+      const maxFromInvs = S.invoices.reduce((mx,i)=>{
+        const bn = parseInt(i.bill_number||0);
+        return bn > mx ? bn : mx;
+      }, 0);
+      // Correct counter = max(DB value, max existing bill + 1)
+      const correctCounter = Math.max(dbVal, maxFromInvs + 1);
+      S.settings.bill_counter = String(correctCounter);
     } else {
-      // Row nathi — default 1
-      S.settings.bill_counter = '1';
+      // Row nathi — invoices thi calculate karo
+      const maxFromInvs = S.invoices.reduce((mx,i)=>{
+        const bn = parseInt(i.bill_number||0);
+        return bn > mx ? bn : mx;
+      }, 0);
+      S.settings.bill_counter = String(maxFromInvs > 0 ? maxFromInvs + 1 : 1);
     }
-    // UI update
-    updateBillNo();
-    const vbEl = document.getElementById('vbInvNo');
-    if(vbEl) vbEl.value = parseInt(S.settings.bill_counter)||1;
   } catch(e){
-    console.warn('Counter fetch failed:', e.message);
+    // Offline — invoices thi max calculate karo (localStorage cache)
+    const maxFromInvs = S.invoices.reduce((mx,i)=>{
+      const bn = parseInt(i.bill_number||0);
+      return bn > mx ? bn : mx;
+    }, 0);
+    if(maxFromInvs > 0){
+      const offlineCounter = maxFromInvs + 1;
+      // Sirf update karo jо current value choti hoy
+      const current = parseInt(S.settings.bill_counter)||1;
+      if(offlineCounter > current){
+        S.settings.bill_counter = String(offlineCounter);
+      }
+    }
+    console.warn('Counter fetch failed (offline):', e.message);
   }
+  // UI update
+  updateBillNo();
+  const vbEl = document.getElementById('vbInvNo');
+  if(vbEl) vbEl.value = parseInt(S.settings.bill_counter)||1;
 }
 
 function loadOffline(){
