@@ -2070,7 +2070,33 @@ async function loadAll(){
   S.customers = custs;
   S.invoices = invs;
   sets.forEach(s => S.settings[s.key] = s.value);
+
+  // Bill counter — branch-specific key thi explicitly fetch karo
+  await refreshBillCounter();
   saveOffline();
+}
+
+// Worker thi fresh bill counter fetch karo
+async function refreshBillCounter(){
+  const bid = S.activeBranchId || 1;
+  try{
+    // Worker /invoices POST j counter manage kare chhe
+    // Aapde settings thi current counter read kariye
+    const cntRows = await api('settings?key=eq.bill_counter_'+bid+'&branch_id=eq.'+bid);
+    if(cntRows && cntRows.length){
+      const val = parseInt(cntRows[0].value)||1;
+      S.settings.bill_counter = String(val);
+    } else {
+      // Row nathi — default 1
+      S.settings.bill_counter = '1';
+    }
+    // UI update
+    updateBillNo();
+    const vbEl = document.getElementById('vbInvNo');
+    if(vbEl) vbEl.value = parseInt(S.settings.bill_counter)||1;
+  } catch(e){
+    console.warn('Counter fetch failed:', e.message);
+  }
 }
 
 function loadOffline(){
@@ -5060,7 +5086,13 @@ async function vbSave(){
   try {
     setSyncStatus('syncing');
     const saved = await api('invoices','POST',inv);
-    if(saved&&saved[0]) S.invoices.unshift(saved[0]);
+    if(saved&&saved[0]){
+      S.invoices.unshift(saved[0]);
+      // Worker thi actual saved bill_number use karo (Worker authoritative chhe)
+      if(saved[0].bill_number){
+        inv.bill_number = saved[0].bill_number;
+      }
+    }
     for(const item of items){
       const p = S.products.find(x=>x.id===item.pid);
       if(p){ p.stock -= item.qty; await api('products/'+p.id,'PATCH',{stock:p.stock}); }
@@ -5074,9 +5106,13 @@ async function vbSave(){
     // Worker j counter increment karse
     setSyncStatus('online');
     saveOffline(); updateDash(); renderInvs();
-    vbClear(); updateBillNo();
-    toast('✅ Bill #'+String(billNum).padStart(4,'0')+' saved!','success');
-    showAfterSaveOptions(saved&&saved[0]?saved[0]:inv, billNum);
+    vbClear();
+    // Worker thi fresh counter fetch karo — next bill number correct aave
+    await refreshBillCounter();
+    vbUpdateInvInfo();
+    const actualBillNum = (saved&&saved[0]&&saved[0].bill_number) ? saved[0].bill_number : billNum;
+    toast('✅ Bill #'+String(actualBillNum).padStart(4,'0')+' saved!','success');
+    showAfterSaveOptions(saved&&saved[0]?saved[0]:inv, actualBillNum);
   } catch(e){
     setSyncStatus('offline');
     const offInv = {...inv, id:Date.now()};
