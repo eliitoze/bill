@@ -5033,33 +5033,40 @@ async function vbSave(){
 
   const custId_raw = parseInt(document.getElementById('vbCustId').value)||null;
   const custName = document.getElementById('vbCustName').value.trim() || 'Walk-in';
-  const phone = document.getElementById('vbPhone').value.trim();
+  // vbPhone OR vbMobile — banne check karo
+  const phoneRaw = document.getElementById('vbPhone').value.trim();
+  const mobileRaw = document.getElementById('vbMobile').value.trim();
+  const phone = phoneRaw || mobileRaw;
   const note = document.getElementById('vbNote').value.trim();
   const payMode = vbGetPayMode();
 
-  // Auto-save customer if name+phone entered but not selected from list
+  // Auto-save customer — name fill karyu hoy to hamesha save karvo
   let custId = custId_raw;
-  if(!custId && custName !== 'Walk-in' && phone){
-    // Check if already exists
+  if(!custId && custName !== 'Walk-in'){
+    // Phone ya name thi existing customer check karo
     const existing = S.customers.find(c=>
-      c.phone === phone ||
+      (phone && c.phone === phone) ||
       c.name.toLowerCase() === custName.toLowerCase()
     );
     if(existing){
+      // Already chhe — reuse karo, phone update karo jо navu hoy
       custId = existing.id;
+      if(phone && !existing.phone){
+        existing.phone = phone;
+        api('customers/'+existing.id,'PATCH',{phone}).catch(()=>{});
+      }
     } else {
-      // New customer — save
+      // Navo customer — name+phone sathe save karo
       try{
-        const newCust = {name: custName, phone, address:'', total_purchase:0};
+        const newCust = {name: custName, phone: phone||'', address:'', total_purchase:0};
         const saved = await api('customers','POST', newCust);
         const nc = saved&&saved[0] ? saved[0] : {...newCust, id:Date.now()};
         S.customers.push(nc);
         custId = nc.id;
         saveOffline();
-        toast('👤 Customer saved: '+custName,'success');
+        toast('👤 '+custName+' customer ma add thaya!','success');
       } catch(e){
-        // offline — local save
-        const nc = {id:Date.now(), name:custName, phone, address:'', total_purchase:0};
+        const nc = {id:Date.now(), name:custName, phone:phone||'', address:'', total_purchase:0};
         S.customers.push(nc);
         custId = nc.id;
         saveOffline();
@@ -5090,7 +5097,7 @@ async function vbSave(){
   let vbToken='';
   for(let i=0;i<11;i++) vbToken+=vbChars[Math.floor(Math.random()*vbChars.length)];
 
-  // Phone store karo inv ma — showAfterSaveOptions ma vaperay
+  // Phone resolve — saved customer thi OR directly entered
   const custObjForPhone = custId ? S.customers.find(c=>c.id===custId) : null;
   const custPhoneForInv = phone || (custObjForPhone ? custObjForPhone.phone||'' : '');
 
@@ -5101,9 +5108,10 @@ async function vbSave(){
     note, bill_date: nowVb.toLocaleDateString('en-IN'),
     bill_time: nowVb.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}),
     status:'paid', branch_id: S.activeBranchId || 1,
-    public_token: vbToken,
-    customer_phone: custPhoneForInv
+    public_token: vbToken
   };
+  // Phone sirf local use mate — DB column nathi
+  inv._localPhone = custPhoneForInv;
 
   try {
     setSyncStatus('syncing');
@@ -5164,7 +5172,7 @@ function showAfterSaveOptions(inv, billNum){
     ? S.customers.find(c=>c.id===inv.customer_id || String(c.id)===String(inv.customer_id))
     : null;
   const phone = (custForPhone && custForPhone.phone)
-    || inv.customer_phone || inv.phone || '';
+    || inv._localPhone || inv.phone || '';
   const waNum = phone.replace(/\D/g,'');
   window._lastSavedPhone = waNum;
 
