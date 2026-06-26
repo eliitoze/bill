@@ -2175,7 +2175,8 @@ function applySettings(){
   document.getElementById('sGSTRate').value = (s.gst_rate!==undefined&&s.gst_rate!=='')?s.gst_rate:18;
   document.getElementById('sPaper').value = s.paper_width||'58mm';
   const gr = parseFloat(s.gst_rate); const grDisp = isNaN(gr)?18:gr;
-  document.getElementById('gstLabel').textContent = grDisp>0?`GST (${grDisp}%)`:`GST (0%)`;
+  const gstLabelEl = document.getElementById('gstLabel');
+  if(gstLabelEl) gstLabelEl.textContent = grDisp>0?`GST (${grDisp}%)`:`GST (0%)`;
 }
 
 function renderAll(){ renderProds(); renderCusts(); renderInvs(); updateDash(); updateBillNo(); populateSels(); }
