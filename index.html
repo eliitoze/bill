@@ -2047,7 +2047,11 @@ async function init(){
     renderAll();
     toast('☁ Connected & synced!','success');
   } catch(e) {
-    document.getElementById('loadingMsg').textContent = 'Connection failed. Loading offline...';
+    console.error('INIT ERROR:', e.message, e.stack);
+    const dm = document.getElementById('debugMsg');
+    const db = document.getElementById('debugBox');
+    if(dm && db){ dm.textContent = 'Init Error: ' + e.message; db.style.display='block'; }
+    document.getElementById('loadingMsg').textContent = 'Error: ' + e.message;
     loadOffline();
     setSyncStatus('offline');
     vbInit();
@@ -2055,7 +2059,7 @@ async function init(){
     renderAll();
     setTimeout(()=>{ document.getElementById('loadingOverlay').style.display='none'; },1000);
   }
-  ['pPrice','pCost'].forEach(id => document.getElementById(id).addEventListener('input', ppPreview));
+  ['pPrice','pCost'].forEach(id => { const el=document.getElementById(id); if(el) el.addEventListener('input', ppPreview); });
 }
 
 async function loadAll(){
