@@ -2179,7 +2179,7 @@ function applySettings(){
   if(gstLabelEl) gstLabelEl.textContent = grDisp>0?`GST (${grDisp}%)`:`GST (0%)`;
 }
 
-function renderAll(){ renderProds(); renderCusts(); renderInvs(); updateDash(); updateBillNo(); populateSels(); }
+function renderAll(){ renderProds(); renderCusts(); renderInvs(); updateDash(); updateBillNo(); populateSels(); vbUpdateInvInfo(); }
 
 // ===== NAVIGATION =====
 function mobNav(page, el){
@@ -2278,14 +2278,19 @@ function pinClear(){ pinEntry=''; document.getElementById('pinDisplay').textCont
 // ===== BILLING =====
 function updateBillNo(){
   const n = parseInt(S.settings.bill_counter)||1;
-  document.getElementById('billNoLabel').textContent = 'Bill #'+String(n).padStart(4,'0');
+  const billNoEl = document.getElementById('billNoLabel');
+  if(billNoEl) billNoEl.textContent = 'Bill #'+String(n).padStart(4,'0');
+  // Also update vbInvNo if visible
+  const vbEl = document.getElementById('vbInvNo');
+  if(vbEl) vbEl.value = n;
 }
 
 function populateSels(){
   const ps=document.getElementById('addProd');
-  ps.innerHTML='<option value="">— Select Product —</option>';
-  S.products.forEach(p=>ps.innerHTML+=`<option value="${p.id}">${p.name} · ₹${p.price}</option>`);
-  // Customer dropdown is now searchable — just reset
+  if(ps){
+    ps.innerHTML='<option value="">— Select Product —</option>';
+    S.products.forEach(p=>ps.innerHTML+=`<option value="${p.id}">${p.name} · ₹${p.price}</option>`);
+  }
   const cs = document.getElementById('billCust');
   if(cs) cs.value='';
   const si = document.getElementById('custSearch');
@@ -2400,7 +2405,8 @@ function updateCustInfo(){
   const mode = S.custMode || 'existing';
   let info = '🚶 Walk-in';
   if(mode==='existing'){
-    const cid = document.getElementById('billCust').value;
+    const cidEl = document.getElementById('billCust');
+    const cid = cidEl ? cidEl.value : '';
     if(cid && cid!==''){
       const c=S.customers.find(x=>x.id===parseInt(cid));
       if(c) info=c.name+' · 📞 '+(c.phone||'—');
@@ -2412,14 +2418,18 @@ function updateCustInfo(){
     const wp = (document.getElementById('walkinPhone')||{value:''}).value.trim();
     info = wn ? wn+(wp?' · 📞 '+wp:'') : '🚶 Walk-in';
   }
-  document.getElementById('rpCustInfo').textContent = info;
+  const rpEl = document.getElementById('rpCustInfo');
+  if(rpEl) rpEl.textContent = info;
 }
 
 function getActivePayMode(){
   const mode = S.custMode || 'existing';
-  if(mode==='new')    return document.getElementById('payModeNew').value;
-  if(mode==='walkin') return document.getElementById('payModeWalkin').value;
-  return document.getElementById('payMode').value;
+  const pmNew = document.getElementById('payModeNew');
+  const pmWalkin = document.getElementById('payModeWalkin');
+  const pmMain = document.getElementById('payMode');
+  if(mode==='new' && pmNew)    return pmNew.value;
+  if(mode==='walkin' && pmWalkin) return pmWalkin.value;
+  return pmMain ? pmMain.value : 'cash';
 }
 
 async function quickSaveCust(){
@@ -2531,16 +2541,17 @@ function getGR(){ const r=parseFloat(S.settings.gst_rate); return isNaN(r)?0.18:
 
 function calcTotals(){
   const sub=S.billItems.reduce((s,i)=>s+i.total,0);
-  const disc=parseFloat(document.getElementById('discPct').value)||0;
+  const discEl = document.getElementById('discPct');
+  const disc=parseFloat(discEl ? discEl.value : 0)||0;
   const discAmt=sub*disc/100;
   const afterDisc=sub-discAmt;
   const gst=afterDisc*getGR();
   const grand=afterDisc+gst;
-  document.getElementById('rSub').textContent='₹'+sub.toFixed(2);
-  document.getElementById('rDisc').textContent='-₹'+discAmt.toFixed(2);
-  document.getElementById('rGST').textContent='₹'+gst.toFixed(2);
-  document.getElementById('rGST').parentElement.style.display=gst>0?'flex':'none';
-  document.getElementById('rTotal').textContent='₹'+grand.toFixed(2);
+  const rSub=document.getElementById('rSub'); if(rSub) rSub.textContent='₹'+sub.toFixed(2);
+  const rDisc=document.getElementById('rDisc'); if(rDisc) rDisc.textContent='-₹'+discAmt.toFixed(2);
+  const rGST=document.getElementById('rGST');
+  if(rGST){ rGST.textContent='₹'+gst.toFixed(2); if(rGST.parentElement) rGST.parentElement.style.display=gst>0?'flex':'none'; }
+  const rTotal=document.getElementById('rTotal'); if(rTotal) rTotal.textContent='₹'+grand.toFixed(2);
 }
 
 function getTotals(){
