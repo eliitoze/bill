@@ -5126,12 +5126,14 @@ async function vbSave(){
     status:'paid', branch_id: S.activeBranchId || 1,
     public_token: vbToken
   };
-  // Phone sirf local use mate — DB column nathi
+  // Phone sirf local use mate — DB column nathi, inv ma rakho WhatsApp mate
   inv._localPhone = custPhoneForInv;
 
   try {
     setSyncStatus('syncing');
-    const saved = await api('invoices','POST',inv);
+    // DB ne clean object moklo — _localPhone column exist nathi Supabase ma
+    const { _localPhone: _lp, ...invForDB } = inv;
+    const saved = await api('invoices','POST',invForDB);
     if(saved&&saved[0]){
       S.invoices.unshift(saved[0]);
       // Worker thi actual saved bill_number use karo (Worker authoritative chhe)
