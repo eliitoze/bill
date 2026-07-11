@@ -758,6 +758,107 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 }
 .vb-btn-save:hover { opacity: 0.9; }
 
+/* ===== MOBILE BILLING (card-based, step by step) — desktop UI untouched ===== */
+.vb-mob-items { display: none; }
+.vbm-wrap { padding: 10px 12px 4px; }
+.vbm-add-btn {
+  width: 100%; padding: 13px; margin-bottom: 10px;
+  border: 2px dashed var(--accent); border-radius: 12px;
+  background: rgba(110,231,183,0.07); color: var(--accent);
+  font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer;
+}
+.vbm-add-btn:active { background: rgba(110,231,183,0.15); }
+.vbm-card {
+  background: var(--s1); border: 1px solid var(--border); border-radius: 12px;
+  padding: 10px 12px; margin-bottom: 8px;
+}
+.vbm-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 9px; }
+.vbm-card-name { font-weight: 700; font-size: 13.5px; flex: 1; line-height: 1.35; }
+.vbm-card-name.vbm-placeholder { color: var(--muted); font-weight: 500; }
+.vbm-card-del { background: rgba(248,113,113,0.1); border: none; color: var(--red); font-size: 15px; width: 26px; height: 26px; border-radius: 8px; cursor: pointer; flex-shrink: 0; }
+.vbm-card-row { display: flex; align-items: center; gap: 6px; }
+.vbm-stepper { display: flex; align-items: center; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--s2); flex-shrink: 0; }
+.vbm-stepper button { width: 30px; height: 34px; background: transparent; border: none; color: var(--accent); font-size: 17px; font-weight: 700; cursor: pointer; }
+.vbm-stepper button:active { background: rgba(110,231,183,0.15); }
+.vbm-stepper input {
+  width: 38px; height: 34px; text-align: center; border: none; background: transparent;
+  color: var(--text); font-size: 13px; font-weight: 700; outline: none; font-family: 'DM Mono', monospace;
+}
+.vbm-unit-sel {
+  padding: 0 4px; height: 34px; background: var(--s2); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--muted); font-size: 10px; font-family: 'DM Sans', sans-serif; outline: none; flex-shrink: 0;
+}
+.vbm-price-box {
+  display: flex; align-items: center; gap: 3px; flex: 1; min-width: 0;
+  background: var(--s2); border: 1px solid var(--border); border-radius: 8px; padding: 0 8px; height: 34px;
+}
+.vbm-price-box span { color: var(--muted); font-size: 12px; }
+.vbm-price-box input {
+  border: none; background: transparent; color: var(--text); font-size: 13px; width: 100%;
+  outline: none; font-family: 'DM Mono', monospace; font-weight: 600;
+}
+.vbm-card-amt { text-align: right; margin-top: 7px; font-size: 11px; color: var(--muted); }
+.vbm-card-amt b { font-size: 14px; color: var(--accent); font-weight: 800; margin-left: 4px; }
+.vbm-empty { text-align: center; padding: 26px 10px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+
+/* ITEM PICKER BOTTOM SHEET */
+#vbItemPickerOverlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 400;
+  display: none; align-items: flex-end; justify-content: center;
+}
+#vbItemPickerOverlay.open { display: flex; }
+.vbip-sheet {
+  background: var(--s1); width: 100%; max-width: 560px; max-height: 84vh;
+  border-radius: 18px 18px 0 0; display: flex; flex-direction: column;
+  box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.vbip-header { padding: 14px 16px 8px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.vbip-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.vbip-close { background: var(--s2); border: none; color: var(--text); width: 30px; height: 30px; border-radius: 50%; font-size: 15px; cursor: pointer; }
+.vbip-search {
+  width: 100%; padding: 10px 12px; background: var(--s2); border: 1px solid var(--border);
+  border-radius: 9px; color: var(--text); font-size: 14px; font-family: 'DM Sans', sans-serif; outline: none; box-sizing: border-box; margin-bottom: 9px;
+}
+.vbip-search:focus { border-color: var(--accent); }
+.vbip-cats { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
+.vbip-cat-chip {
+  padding: 5px 13px; border-radius: 20px; background: var(--s2); border: 1px solid var(--border);
+  color: var(--muted); font-size: 11.5px; font-weight: 600; white-space: nowrap; cursor: pointer; flex-shrink: 0;
+}
+.vbip-cat-chip.active { background: var(--accent); color: #0a0a0f; border-color: var(--accent); }
+.vbip-list { flex: 1; overflow-y: auto; padding: 6px 16px 16px; -webkit-overflow-scrolling: touch; }
+.vbip-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 4px; border-bottom: 1px solid rgba(42,42,56,0.5); cursor: pointer; gap: 10px; }
+.vbip-item:active { background: rgba(255,255,255,0.03); }
+.vbip-item-name { font-weight: 600; font-size: 13px; }
+.vbip-item-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.vbip-item-price { font-family: 'DM Mono', monospace; font-weight: 700; color: var(--accent); font-size: 13px; flex-shrink: 0; }
+.vbip-custom { background: rgba(110,231,183,0.08); border: 1px dashed var(--accent); border-radius: 9px; padding: 11px 12px; margin-bottom: 8px; color: var(--accent); font-weight: 600; font-size: 13px; cursor: pointer; text-align: center; }
+
+/* Everything below is scoped to mobile screens only — desktop (>768px) is 100% unaffected */
+@media (max-width: 768px) {
+  #vyaparBill { height: auto; }
+  .vb-top { grid-template-columns: 1fr; }
+  .vb-cust-section { border-right: none; border-bottom: 1px solid var(--border); }
+  .vb-cust-fields { grid-template-columns: 1fr; }
+  .vb-inv-info { flex-direction: row; flex-wrap: wrap; gap: 10px 18px; padding: 10px 14px; }
+  .vb-inv-row { flex-direction: column; align-items: flex-start; gap: 2px; font-size: 12px; }
+  .vb-inv-val { font-size: 15px !important; }
+  .vb-table-wrap { display: none; }
+  .vb-mob-items { display: block; }
+  .vb-bottom { grid-template-columns: 1fr; }
+  .vb-bottom-left { border-right: none; border-bottom: 1px solid var(--border); }
+  .vb-actions {
+    position: sticky; bottom: 0; z-index: 20;
+    margin: 8px -14px -20px -14px;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom,0px)) 14px;
+    box-shadow: 0 -6px 20px rgba(0,0,0,0.35);
+  }
+  .vb-actions button { flex: 1; padding: 13px; font-size: 14px; }
+}
+
 /* Billing page takes full content area */
 #page-billing { height: 100%; display: none; flex-direction: column; }
 #page-billing.active { display: flex; }
@@ -972,6 +1073,14 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
           </div>
         </div>
 
+        <!-- MOBILE ITEMS (card view, step-by-step) — only visible on mobile screens -->
+        <div class="vb-mob-items" id="vbMobItems">
+          <div class="vbm-wrap">
+            <button type="button" class="vbm-add-btn" onclick="vbOpenItemPicker()">➕ Item Umero</button>
+            <div id="vbmCards"></div>
+          </div>
+        </div>
+
         <!-- BOTTOM: Discount + Total + Actions -->
         <div class="vb-bottom">
           <div class="vb-bottom-left">
@@ -1007,6 +1116,21 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
           <button class="vb-btn-save" id="vbSaveBtn" onclick="vbSave()">💾 Save</button>
         </div>
 
+      </div>
+    </div>
+
+    <!-- MOBILE ITEM PICKER (bottom sheet) -->
+    <div id="vbItemPickerOverlay" onclick="if(event.target===this)vbCloseItemPicker()">
+      <div class="vbip-sheet">
+        <div class="vbip-header">
+          <div class="vbip-title">
+            <span>🔍 Item Pasand Karo</span>
+            <button class="vbip-close" onclick="vbCloseItemPicker()">✕</button>
+          </div>
+          <input type="text" id="vbipSearch" class="vbip-search" placeholder="Item name search karo..." oninput="vbFilterPicker(this.value)">
+          <div class="vbip-cats" id="vbipCats"></div>
+        </div>
+        <div class="vbip-list" id="vbipList"></div>
       </div>
     </div>
 
@@ -4864,6 +4988,134 @@ function vbRender(){
         <button onclick="vbRemoveRow(${r.id})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:2px 6px">✕</button>
       </td>
     </tr>`).join('');
+  vbRenderMobile();
+}
+
+// ===== MOBILE CARD RENDERING (desktop table logic above stays 100% unchanged) =====
+function vbRenderMobile(){
+  const wrap = document.getElementById('vbmCards');
+  if(!wrap) return;
+  if(!VB.rows.length){
+    wrap.innerHTML = '<div class="vbm-empty">🧾 Koi item nathi.<br>Upar "➕ Item Umero" dabao.</div>';
+    return;
+  }
+  wrap.innerHTML = VB.rows.map((r,i)=>`
+    <div class="vbm-card" id="vbmrow-${r.id}">
+      <div class="vbm-card-top">
+        <span class="vbm-card-name ${r.itemName?'':'vbm-placeholder'}" onclick="vbOpenItemPicker(${r.id})">${i+1}. ${r.itemName || 'Item pasand karo...'}</span>
+        <button class="vbm-card-del" onclick="vbRemoveRow(${r.id})">✕</button>
+      </div>
+      <div class="vbm-card-row">
+        <div class="vbm-stepper">
+          <button type="button" onclick="vbMobQtyStep(${r.id},-1)">−</button>
+          <input type="number" id="vbm-qty-${r.id}" value="${r.qty}" inputmode="decimal" oninput="vbRowChange(${r.id},'qty',this.value);vbCalcRow(${r.id})">
+          <button type="button" onclick="vbMobQtyStep(${r.id},1)">+</button>
+        </div>
+        <select class="vbm-unit-sel" id="vbm-unit-${r.id}" onchange="vbRowChange(${r.id},'unit',this.value)">
+          <option value="NONE" ${r.unit==='NONE'?'selected':''}>NONE</option>
+          <option value="PCS" ${r.unit==='PCS'?'selected':''}>PCS</option>
+          <option value="GM" ${r.unit==='GM'?'selected':''}>GM</option>
+          <option value="KG" ${r.unit==='KG'?'selected':''}>KG</option>
+          <option value="SET" ${r.unit==='SET'?'selected':''}>SET</option>
+        </select>
+        <div class="vbm-price-box">
+          <span>₹</span>
+          <input type="number" id="vbm-price-${r.id}" value="${r.price}" placeholder="Price" inputmode="decimal" oninput="vbRowChange(${r.id},'price',this.value);vbCalcRow(${r.id})">
+        </div>
+      </div>
+      <div class="vbm-card-amt">Amount:<b id="vbm-amt-${r.id}">₹${r.amount>0?r.amount.toFixed(0):'0'}</b></div>
+    </div>`).join('');
+}
+
+function vbMobQtyStep(id, delta){
+  const r = VB.rows.find(r=>r.id===id);
+  if(!r) return;
+  let q = parseFloat(r.qty)||0;
+  q = Math.max(0, Math.round((q + delta)*100)/100);
+  r.qty = q;
+  const inp = document.getElementById('vbm-qty-'+id);
+  if(inp) inp.value = q;
+  vbCalcRow(id);
+}
+
+// Item picker (bottom sheet) — used for both adding a new item and editing an existing card's item
+let vbPickerRowId = null;
+let vbPickerCat = 'ALL';
+function vbOpenItemPicker(rowId){
+  vbPickerRowId = rowId || null;
+  const overlay = document.getElementById('vbItemPickerOverlay');
+  if(!overlay) return;
+  overlay.classList.add('open');
+  vbPickerCat = 'ALL';
+  document.getElementById('vbipSearch').value = '';
+  vbRenderPickerCats();
+  vbFilterPicker('');
+  setTimeout(()=>{ const s=document.getElementById('vbipSearch'); if(s) s.focus(); }, 200);
+}
+function vbCloseItemPicker(){
+  const overlay = document.getElementById('vbItemPickerOverlay');
+  if(overlay) overlay.classList.remove('open');
+  vbPickerRowId = null;
+}
+function vbRenderPickerCats(){
+  const el = document.getElementById('vbipCats');
+  if(!el) return;
+  const cats = ['ALL', ...new Set(S.products.map(p=>p.category||'General'))];
+  el.innerHTML = cats.map(c=>`<div class="vbip-cat-chip ${c===vbPickerCat?'active':''}" data-cat="${c.replace(/"/g,'&quot;')}" onclick="vbSelectPickerCat('${c.replace(/'/g,"\\'")}')">${c}</div>`).join('');
+}
+function vbSelectPickerCat(cat){
+  vbPickerCat = cat;
+  document.querySelectorAll('.vbip-cat-chip').forEach(ch=>ch.classList.toggle('active', ch.getAttribute('data-cat')===cat));
+  vbFilterPicker(document.getElementById('vbipSearch').value);
+}
+function vbFilterPicker(query){
+  const list = document.getElementById('vbipList');
+  if(!list) return;
+  const q = (query||'').toLowerCase().trim();
+  let items = S.products.filter(p=> vbPickerCat==='ALL' || (p.category||'General')===vbPickerCat);
+  if(q){
+    items = items.filter(p=>p.name.toLowerCase().includes(q) || (p.sku||'').toLowerCase().includes(q));
+  }
+  items = items.slice(0,50);
+  let html = '';
+  if(q){
+    html += `<div class="vbip-custom" onclick="vbAddCustomItemMobile('${query.replace(/'/g,"\\'")}')">➕ "${query}" ne custom item tarike umero</div>`;
+  }
+  if(!items.length){
+    html += '<div class="vbm-empty">Koi item na malyu</div>';
+  } else {
+    html += items.map(p=>`
+      <div class="vbip-item" onclick="vbPickerSelectProduct(${p.id})">
+        <div><div class="vbip-item-name">${p.name}</div><div class="vbip-item-sub">${p.category||'General'}${p.stock>0?' · Stock: '+p.stock:''}</div></div>
+        <div class="vbip-item-price">₹${p.price||0}</div>
+      </div>`).join('');
+  }
+  list.innerHTML = html;
+}
+function vbPickerSelectProduct(pid){
+  const p = S.products.find(x=>x.id===pid);
+  if(!p) return;
+  let rowId = vbPickerRowId;
+  if(!rowId){
+    vbAddRow();
+    rowId = VB.rows[VB.rows.length-1].id;
+  }
+  vbSelectItem(rowId, p.id, p.name, p.price||0, p.cost||0);
+  vbCloseItemPicker();
+  setTimeout(()=>{ const el=document.getElementById('vbm-qty-'+rowId); if(el){ el.focus(); el.select(); } }, 150);
+}
+function vbAddCustomItemMobile(name){
+  if(!name || !name.trim()) return;
+  let rowId = vbPickerRowId;
+  if(!rowId){
+    vbAddRow();
+    rowId = VB.rows[VB.rows.length-1].id;
+  }
+  const r = VB.rows.find(r=>r.id===rowId);
+  if(r){ r.itemName = name.trim(); r.pid = null; }
+  vbRender();
+  vbCloseItemPicker();
+  setTimeout(()=>{ const el=document.getElementById('vbm-price-'+rowId); if(el){ el.focus(); } }, 150);
 }
 
 function vbRowChange(id, field, val){
@@ -4885,6 +5137,8 @@ function vbCalcRow(id){
     const amtCell = row.cells[7];
     if(amtCell) amtCell.textContent = r.amount > 0 ? r.amount.toFixed(0) : '';
   }
+  const mAmt = document.getElementById('vbm-amt-'+id);
+  if(mAmt) mAmt.textContent = '₹' + (r.amount > 0 ? r.amount.toFixed(0) : '0');
 }
 
 function vbItemSearch(id, query){
