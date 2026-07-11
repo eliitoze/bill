@@ -12,6 +12,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 
 <style>
@@ -992,6 +993,10 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
         <div class="card"><div class="card-title">Recent Bills</div><div id="d-recent"><div class="empty"><div class="ei">🧾</div><p>No bills yet</p></div></div></div>
         <div class="card"><div class="card-title">⚠ Low Stock</div><div id="d-lowlist"><div class="empty"><div class="ei">✅</div><p>All in stock</p></div></div></div>
       </div>
+      <div class="card" style="margin-top:12px">
+        <div class="card-title">🔁 Recurring Customers (<span id="d-recur-count">0</span> — 3+ mahina thi nathi aavya)</div>
+        <div id="d-recurring"><div class="empty"><div class="ei">🙌</div><p>Loading...</p></div></div>
+      </div>
     </div>
 
     <!-- BILLING -->
@@ -1127,12 +1132,17 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
             <span>🔍 Item Pasand Karo</span>
             <button class="vbip-close" onclick="vbCloseItemPicker()">✕</button>
           </div>
-          <input type="text" id="vbipSearch" class="vbip-search" placeholder="Item name search karo..." oninput="vbFilterPicker(this.value)">
+          <div style="display:flex;gap:8px;margin-bottom:9px">
+            <input type="text" id="vbipSearch" class="vbip-search" placeholder="Item name search karo..." oninput="vbFilterPicker(this.value)" style="flex:1;margin-bottom:0">
+            <button type="button" onclick="document.getElementById('vbCodeScanInput').click()" title="Handwritten code scan karo" style="flex-shrink:0;width:42px;background:var(--s2);border:1px solid var(--border);border-radius:9px;color:var(--accent);font-size:18px;cursor:pointer">📷</button>
+          </div>
+          <div id="vbScanStatus" style="display:none;font-size:11px;color:var(--accent);margin-bottom:8px">🔍 Code scan thai rahyu chhe...</div>
           <div class="vbip-cats" id="vbipCats"></div>
         </div>
         <div class="vbip-list" id="vbipList"></div>
       </div>
     </div>
+    <input type="file" id="vbCodeScanInput" accept="image/*" capture="environment" style="display:none" onchange="vbHandleCodeScan(this.files[0])">
 
     <!-- PRODUCTS -->
     <div class="page" id="page-products">
@@ -2349,6 +2359,7 @@ function showPage(page, el){
   const t={dashboard:'Dashboard',billing:'New Bill',products:'Products',customers:'Customers',invoices:'Bill History',reports:'Profit Report',import:'Excel Import',settings:'Settings'};
   document.getElementById('pageTitle').textContent = t[page]||page;
   if(page==='reports') updateReports();
+  if(page==='dashboard'){ updateDash(); }
   if(page==='billing'){ vbSyncOnOpen(); }
   if(page==='settings'){ renderUserList(); renderBranchList(); }
   document.getElementById('sidebar').classList.remove('open');
@@ -4298,6 +4309,73 @@ function updateDash(){
   }
   const ld=document.getElementById('d-lowlist');
   ld.innerHTML=!low.length?'<div class="empty"><div class="ei">✅</div><p>All in stock</p></div>':low.map(p=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px"><span>${p.name}</span><span class="badge badge-red">Stock: ${p.stock}</span></div>`).join('');
+  renderRecurringCustomers();
+}
+
+// ===== RECURRING / INACTIVE CUSTOMERS (3+ mahina thi nathi aavya) =====
+function parseDMY(str){
+  // bill_date 'en-IN' locale ma DD/MM/YYYY format ma save thay chhe
+  if(!str) return null;
+  const parts = String(str).split('/');
+  if(parts.length!==3) { const d=new Date(str); return isNaN(d)?null:d; }
+  const [d,m,y] = parts.map(Number);
+  const dt = new Date(y, m-1, d);
+  return isNaN(dt) ? null : dt;
+}
+
+function getRecurringCustomers(){
+  const RECUR_DAYS = 90; // 3 mahina — jarur padye aa number j badlo, baki koi UI setting nathi
+  const bid = S.activeBranchId || 1;
+  const branchInvs = S.invoices.filter(i=>!i.branch_id || parseInt(i.branch_id)===parseInt(bid));
+  const lastByCust = {};
+  branchInvs.forEach(i=>{
+    if(!i.customer_id) return;
+    const d = parseDMY(i.bill_date);
+    if(!d) return;
+    if(!lastByCust[i.customer_id] || d > lastByCust[i.customer_id]) lastByCust[i.customer_id] = d;
+  });
+  const now = new Date();
+  const list = [];
+  Object.keys(lastByCust).forEach(cid=>{
+    const c = S.customers.find(x=>String(x.id)===String(cid));
+    if(!c || !c.phone) return;
+    const lastDate = lastByCust[cid];
+    const days = Math.floor((now - lastDate)/(1000*60*60*24));
+    if(days >= RECUR_DAYS){
+      list.push({ id:c.id, name:c.name||'Customer', phone:c.phone, lastDate, days });
+    }
+  });
+  list.sort((a,b)=>b.days-a.days);
+  return list;
+}
+
+function renderRecurringCustomers(){
+  const el = document.getElementById('d-recurring');
+  if(!el) return;
+  const list = getRecurringCustomers();
+  const countEl = document.getElementById('d-recur-count');
+  if(countEl) countEl.textContent = list.length;
+  if(!list.length){
+    el.innerHTML = '<div class="empty"><div class="ei">🙌</div><p>Koi inactive customer nathi</p></div>';
+    return;
+  }
+  el.innerHTML = list.map(c=>{
+    const lastStr = c.lastDate.toLocaleDateString('en-IN');
+    const safeName = String(c.name).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);gap:8px">
+      <div style="min-width:0">
+        <div style="font-weight:600;font-size:13px">${c.name}</div>
+        <div style="font-size:11px;color:var(--muted)">📞 ${c.phone} · Last visit: ${lastStr} (${c.days} din pehla)</div>
+      </div>
+      <button onclick="sendRecurringMsg('${safeName}','${c.phone}')" style="background:#25d366;border:none;color:#fff;padding:7px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;display:flex;align-items:center;gap:4px">💬 Msg</button>
+    </div>`;
+  }).join('');
+}
+
+function sendRecurringMsg(custName, phone){
+  const shopName = (S.settings.shop_name||'Eliitoze Jewelz');
+  const msg = `Namaste ${custName} ji,\n\n${shopName} taraf thi tamne yaad karva mate aa message. Ketla samay thi tame amara ahiya nathi aavya!\n\nNava design ane offers joova mate ek vaar visit karo. Tamari raah joi rahiya chhe 🙏`;
+  sendToWA(phone, msg);
 }
 
 // ===== REPORTS (PIN protected) =====
@@ -5123,6 +5201,40 @@ function vbSelectPickerCat(cat){
   document.querySelectorAll('.vbip-cat-chip').forEach(ch=>ch.classList.toggle('active', ch.getAttribute('data-cat')===cat));
   vbFilterPicker(document.getElementById('vbipSearch').value);
 }
+
+// Handwritten code camera scan (OCR) — result ne search box ma bharine
+// existing dropdown list j confirm/select mate vaparie chhiye (kai auto-add nathi thatu)
+async function vbHandleCodeScan(file){
+  if(!file) return;
+  const statusEl = document.getElementById('vbScanStatus');
+  const searchEl = document.getElementById('vbipSearch');
+  if(statusEl) statusEl.style.display = 'block';
+  try{
+    if(typeof Tesseract === 'undefined'){
+      toast('OCR library load nathi thayu, internet check karo','error');
+      return;
+    }
+    const { data:{ text } } = await Tesseract.recognize(file, 'eng', {
+      tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+    });
+    // Sirf letters/numbers rakho, baki (space/newline/junk) hatavi do
+    const cleaned = (text||'').replace(/[^a-zA-Z0-9]/g,'').toUpperCase();
+    if(!cleaned){
+      toast('Code vanchay nathi — clear photo lai ne try karo','error');
+      return;
+    }
+    if(searchEl){ searchEl.value = cleaned; searchEl.focus(); }
+    vbFilterPicker(cleaned);
+    toast('📷 Scan result: "'+cleaned+'" — niche list ma sachu item pasand karo', 'success');
+  } catch(e){
+    console.error('OCR error:', e);
+    toast('Scan fail thayu — manual search karo','error');
+  } finally {
+    if(statusEl) statusEl.style.display = 'none';
+    document.getElementById('vbCodeScanInput').value = ''; // same photo re-select mate reset
+  }
+}
+
 function vbFilterPicker(query){
   const list = document.getElementById('vbipList');
   if(!list) return;
@@ -5130,6 +5242,15 @@ function vbFilterPicker(query){
   let items = S.products.filter(p=> vbPickerCat==='ALL' || (p.category||'General')===vbPickerCat);
   if(q){
     items = items.filter(p=>p.name.toLowerCase().includes(q) || (p.sku||'').toLowerCase().includes(q));
+    // Code hammesha item name/sku no PREFIX hoy chhe (dat: A704000 -> A704000R2400, A704000R5000)
+    // etle prefix-match wala items ne top par batavo, pachi baki matches
+    items.sort((a,b)=>{
+      const aStarts = a.name.toLowerCase().startsWith(q) || (a.sku||'').toLowerCase().startsWith(q);
+      const bStarts = b.name.toLowerCase().startsWith(q) || (b.sku||'').toLowerCase().startsWith(q);
+      if(aStarts && !bStarts) return -1;
+      if(!aStarts && bStarts) return 1;
+      return a.name.localeCompare(b.name);
+    });
   }
   items = items.slice(0,50);
   let html = '';
