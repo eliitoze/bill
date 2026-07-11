@@ -1923,6 +1923,7 @@ async function doLogin(){
     if(btn){ btn.disabled=false; btn.textContent='Sign In'; }
     applyRoleRestrictions();
     await init();
+    setupPushNotifications();
   } catch(e){
     errEl.textContent = e.message || 'Login failed';
     errEl.style.display='block';
@@ -2119,6 +2120,7 @@ function checkSession(){
       }catch(e){}
       document.getElementById('loginScreen').style.display='none';
       document.getElementById('mainApp').style.display='block';
+      setupPushNotifications();
       return true;
     }
   }catch(e){}
@@ -4879,17 +4881,57 @@ function toast(msg,type=''){
   setTimeout(()=>t.classList.remove('show'),3000);
 }
 
-// ===== SERVICE WORKER (PWA) =====
+// ===== SERVICE WORKER (PWA) + PUSH NOTIFICATIONS =====
+let _swReg = null;
 if('serviceWorker' in navigator){
-  const swCode=`
-    const CACHE='shopbill-v4';
-    const FILES=['./', './index.html'];
-    self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES))));
-    self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request))));
-  `;
-  const blob=new Blob([swCode],{type:'application/javascript'});
-  const swUrl=URL.createObjectURL(blob);
-  navigator.serviceWorker.register(swUrl).catch(()=>{});
+  navigator.serviceWorker.register('./service-worker.js')
+    .then(reg => { _swReg = reg; })
+    .catch(()=>{});
+}
+
+function urlB64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g,'+').replace(/_/g,'/');
+  const raw = atob(base64);
+  const out = new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++) out[i]=raw.charCodeAt(i);
+  return out;
+}
+
+// Login pachi call thay chhe — permission mangi ne push subscribe kare chhe
+async function setupPushNotifications(){
+  try{
+    if(!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    if(!_workerToken) return;
+    if(Notification.permission === 'denied') return;
+
+    if(Notification.permission !== 'granted'){
+      const perm = await Notification.requestPermission();
+      if(perm !== 'granted') return;
+    }
+
+    const reg = _swReg || await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub){
+      const keyRes = await fetch(WORKER_URL.replace(/\/$/,'') + '/push/vapid-public-key');
+      const keyData = await keyRes.json();
+      if(!keyData.key) return;
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlB64ToUint8Array(keyData.key)
+      });
+    }
+
+    const branchId = (JSON.parse(sessionStorage.getItem('sb_branch')||'{}')).id || 1;
+    await api('push/subscribe', 'POST', {
+      endpoint: sub.endpoint,
+      keys: {
+        p256dh: btoa(String.fromCharCode(...new Uint8Array(sub.getKey('p256dh')))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''),
+        auth:   btoa(String.fromCharCode(...new Uint8Array(sub.getKey('auth')))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')
+      },
+      branch_id: branchId
+    });
+  } catch(e){ console.error('Push setup failed:', e); }
 }
 
 
