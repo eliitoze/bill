@@ -2349,7 +2349,7 @@ function showPage(page, el){
   const t={dashboard:'Dashboard',billing:'New Bill',products:'Products',customers:'Customers',invoices:'Bill History',reports:'Profit Report',import:'Excel Import',settings:'Settings'};
   document.getElementById('pageTitle').textContent = t[page]||page;
   if(page==='reports') updateReports();
-  if(page==='billing'){ vbUpdateInvInfo(); }
+  if(page==='billing'){ vbSyncOnOpen(); }
   if(page==='settings'){ renderUserList(); renderBranchList(); }
   document.getElementById('sidebar').classList.remove('open');
   // Billing page: no padding, full height
@@ -4954,6 +4954,19 @@ function vbUpdateInvInfo(){
   const now = new Date();
   document.getElementById('vbInvDate').textContent = now.toLocaleDateString('en-IN', {day:'2-digit',month:'2-digit',year:'numeric'});
   vbUpdateTime();
+}
+
+// New Bill page kholta j — server thi latest bill counter force-sync kare chhe
+// (jethi ek device par 123 banyu hoy pachi biji device par pan 123 default na aave)
+async function vbSyncOnOpen(){
+  vbUpdateInvInfo(); // pehla jе cached value chhe e tarat batavo (no blank screen)
+  const vbEl = document.getElementById('vbInvNo');
+  if(vbEl) vbEl.placeholder = 'Syncing...';
+  try{
+    await refreshBillCounter(); // Worker+DB thi fresh counter khenchi laave
+  } catch(e){}
+  vbUpdateInvInfo(); // sync pachi correct number batao
+  if(vbEl) vbEl.placeholder = '';
 }
 
 function vbUpdateTime(){
