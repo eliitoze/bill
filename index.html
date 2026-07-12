@@ -2254,7 +2254,7 @@ async function loadAll(){
   const [prods, custs, invs, sets] = await Promise.all([
     api('products?order=name&branch_id=eq.'+bid),
     api('customers?order=name'),
-    api('invoices?order=created_at.desc&limit=200&branch_id=eq.'+bid),
+    api('invoices?order=bill_number.desc&limit=20000&branch_id=eq.'+bid),
     api('settings?branch_id=eq.'+bid)
   ]);
   S.products = prods;
