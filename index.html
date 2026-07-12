@@ -2806,7 +2806,7 @@ async function saveBill(){
     items:S.billItems, subtotal:t.sub, discount:t.discAmt, discount_pct:t.disc,
     gst:t.gst, gst_rate:t.gstRate, total:t.grand, profit:t.profit,
     note:document.getElementById('billNote').value,
-    bill_date:now.toLocaleDateString('en-IN'),
+    bill_date:fmtDMY(now),
     bill_time:now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}),
     status:'paid',
     branch_id: S.activeBranchId || 1,
@@ -2993,7 +2993,7 @@ function getBillData(invData){
     custPhone = cust ? cust.phone : '';
     mobile = custPhone;
     billNum = parseInt(S.settings.bill_counter)||1;
-    dateStr = new Date().toLocaleDateString('en-IN');
+    dateStr = fmtDMY();
     payment = getActivePayMode();
     note = document.getElementById('billNote').value||'';
   }
@@ -3155,7 +3155,7 @@ function thermalPrint(invData){
     customer = cust ? cust.name : 'Walk-in';
     custPhone = cust ? cust.phone : '';
     billNum = parseInt(S.settings.bill_counter) || 1;
-    dateStr = new Date().toLocaleDateString('en-IN');
+    dateStr = fmtDMY();
     billTime = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
     payment = getActivePayMode();
     note = document.getElementById('billNote').value;
@@ -3435,7 +3435,7 @@ function resolveBillData(invoiceId){
       items: S.billItems, t,
       customer: custName, custPhone,
       billNum: parseInt(S.settings.bill_counter)||1,
-      dateStr: new Date().toLocaleDateString('en-IN'),
+      dateStr: fmtDMY(),
       payment: getActivePayMode(), note: document.getElementById('billNote').value||''
     };
   }
@@ -4224,7 +4224,14 @@ function invGetDateRange(){
   const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const endOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23,59,59,999);
   if(v==='today'){ const t=startOfDay(now); return {from:t, to:endOfDay(now)}; }
-  if(v==='week'){ const t=new Date(now); t.setDate(now.getDate()-now.getDay()); return {from:startOfDay(t), to:endOfDay(now)}; }
+  if(v==='week'){
+    const t=new Date(now);
+    // Monday ne week no first day ganvo (Sunday=0 hoy to 6 din pachhad javu, baki getDay()-1)
+    const dow = now.getDay();
+    const diffToMonday = dow===0 ? 6 : dow-1;
+    t.setDate(now.getDate()-diffToMonday);
+    return {from:startOfDay(t), to:endOfDay(now)};
+  }
   if(v==='month'){ return {from:new Date(now.getFullYear(), now.getMonth(),1), to:endOfDay(now)}; }
   if(v==='quarter'){ const q=Math.floor(now.getMonth()/3); return {from:new Date(now.getFullYear(), q*3, 1), to:endOfDay(now)}; }
   if(v==='fy'){ const y = now.getMonth()>=3 ? now.getFullYear() : now.getFullYear()-1; return {from:new Date(y,3,1), to:endOfDay(now)}; }
@@ -4438,7 +4445,7 @@ function toggleDashPrivacy(){
 function updateDash(){
   const priv = window._dashPrivacy || false;
   const mask = '••••';
-  const today=new Date().toLocaleDateString('en-IN');
+  const today=fmtDMY();
   const bid = S.activeBranchId || 1;
   // Branch filter — sirf active branch na invoices dashboard ma
   const branchInvs = S.invoices.filter(i=>!i.branch_id || parseInt(i.branch_id)===parseInt(bid));
@@ -4465,6 +4472,17 @@ function updateDash(){
 }
 
 // ===== RECURRING / INACTIVE CUSTOMERS (3+ mahina thi nathi aavya) =====
+// Locale-independent date formatter — browser/device na locale par bharoso na karo,
+// kem ke toLocaleDateString('en-IN') alag-alag phone/browser ma alag format aapi shake
+// (kayarek '12/07/2026', kayarek '12/7/2026' ke alag separator) — je filter ne todi nakhe.
+// Aa function hammesha ek j 'DD/MM/YYYY' (zero-padded) format aape chhe.
+function fmtDMY(d){
+  d = d || new Date();
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  return `${dd}/${mm}/${d.getFullYear()}`;
+}
+
 function parseDMY(str){
   // bill_date 'en-IN' locale ma DD/MM/YYYY format ma save thay chhe
   if(!str) return null;
@@ -5703,7 +5721,7 @@ async function vbSave(){
     bill_number: billNum, customer_name: custName, customer_id: custId,
     payment_mode: payMode, items, subtotal, discount: discAmt, discount_pct: discPct,
     gst: 0, gst_rate: 0, total: grand, profit,
-    note, bill_date: nowVb.toLocaleDateString('en-IN'),
+    note, bill_date: fmtDMY(nowVb),
     bill_time: nowVb.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}),
     status:'paid', branch_id: S.activeBranchId || 1,
     public_token: vbToken
@@ -5914,7 +5932,7 @@ function vbPrint(){
     gst:0, gst_rate:0,
     total: parseInt((document.getElementById('vbTotal').textContent||'₹0').replace('₹','')),
     note: document.getElementById('vbNote').value,
-    bill_date: new Date().toLocaleDateString('en-IN')
+    bill_date: fmtDMY()
   };
   thermalPrint(fakeInv);
 }
