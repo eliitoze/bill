@@ -804,6 +804,31 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 .vbm-card-amt b { font-size: 14px; color: var(--accent); font-weight: 800; margin-left: 4px; }
 .vbm-empty { text-align: center; padding: 26px 10px; color: var(--muted); font-size: 13px; line-height: 1.6; }
 
+/* ===== BILL HISTORY — Vyapar-style mobile cards ===== */
+.inv-mob-list { display: none; }
+.inv-card {
+  background: var(--s1); border: 1px solid var(--border); border-radius: 12px;
+  padding: 13px 14px; margin-bottom: 10px; cursor: pointer;
+}
+.inv-card:active { background: var(--s2); }
+.inv-card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+.inv-card-name { font-weight: 700; font-size: 14.5px; }
+.inv-card-badge { text-align: right; }
+.inv-card-billno { font-family: 'DM Mono', monospace; font-weight: 700; font-size: 12px; color: var(--accent); }
+.inv-card-datetime { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.inv-card-row { display: flex; justify-content: space-between; border-top: 1px dashed var(--border); padding-top: 9px; }
+.inv-card-col { text-align: left; }
+.inv-card-col:last-child { text-align: right; }
+.inv-card-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
+.inv-card-val { font-size: 13.5px; font-weight: 700; font-family: 'DM Mono', monospace; }
+.inv-card-actions { display: flex; gap: 6px; margin-top: 10px; }
+.inv-card-actions button { flex: 1; padding: 8px; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; }
+
+@media (max-width: 768px) {
+  .inv-desk-table { display: none; }
+  .inv-mob-list { display: block; }
+}
+
 /* ITEM PICKER BOTTOM SHEET */
 #vbItemPickerOverlay {
   position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 400;
@@ -1194,6 +1219,29 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 
     <!-- INVOICES -->
     <div class="page" id="page-invoices">
+      <!-- Date Range Filter -->
+      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
+        <select id="invDateRange" onchange="invRangeChanged()" style="padding:9px 12px;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none">
+          <option value="all">📋 All Time</option>
+          <option value="today">Today</option>
+          <option value="week">This Week</option>
+          <option value="month" selected>This Month</option>
+          <option value="quarter">This Quarter</option>
+          <option value="fy">This Financial Year</option>
+          <option value="custom">Custom Range</option>
+        </select>
+        <input type="date" id="invDateFrom" onchange="renderInvs()" style="display:none;padding:8px 11px;background:var(--s2);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none">
+        <span id="invDateToLbl" style="display:none;color:var(--muted);font-size:12px">to</span>
+        <input type="date" id="invDateTo" onchange="renderInvs()" style="display:none;padding:8px 11px;background:var(--s2);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none">
+      </div>
+
+      <!-- Summary stat cards -->
+      <div class="stats-grid" style="margin-bottom:14px">
+        <div class="stat-card"><div class="stat-label">No of Bills</div><div class="stat-value" id="inv-stat-count">0</div></div>
+        <div class="stat-card green"><div class="stat-label">Total Sale</div><div class="stat-value" id="inv-stat-total">₹0</div></div>
+        <div class="stat-card yellow"><div class="stat-label">Avg Bill</div><div class="stat-value" id="inv-stat-avg">₹0</div></div>
+      </div>
+
       <!-- Search Bar -->
       <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center">
         <div style="flex:1;position:relative">
@@ -1206,7 +1254,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
         <button class="btn btn-ghost btn-sm" onclick="document.getElementById('invSearch').value='';renderInvs()">✕ Clear</button>
       </div>
       <div id="invCount" style="font-size:12px;color:var(--muted);margin-bottom:8px"></div>
-      <div class="card">
+      <div class="card inv-desk-table">
         <div class="tbl-wrap">
           <table>
             <thead><tr><th>Bill#</th><th>Date</th><th>Customer</th><th>Payment</th><th>Amount</th><th>Action</th></tr></thead>
@@ -1214,7 +1262,10 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
           </table>
         </div>
       </div>
+      <!-- Mobile card list (Vyapar-style) -->
+      <div class="inv-mob-list" id="invMobList"></div>
     </div>
+
 
     <!-- PROFIT REPORTS (PIN protected) -->
     <div class="page" id="page-reports">
@@ -4140,33 +4191,83 @@ async function deleteInvoice(id){
   }
 }
 
+function invRangeChanged(){
+  const v = document.getElementById('invDateRange').value;
+  const showCustom = v === 'custom';
+  document.getElementById('invDateFrom').style.display = showCustom ? 'block' : 'none';
+  document.getElementById('invDateToLbl').style.display = showCustom ? 'inline' : 'none';
+  document.getElementById('invDateTo').style.display = showCustom ? 'block' : 'none';
+  renderInvs();
+}
+
+function invGetDateRange(){
+  const v = document.getElementById('invDateRange')?.value || 'all';
+  const now = new Date();
+  const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const endOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23,59,59,999);
+  if(v==='today'){ const t=startOfDay(now); return {from:t, to:endOfDay(now)}; }
+  if(v==='week'){ const t=new Date(now); t.setDate(now.getDate()-now.getDay()); return {from:startOfDay(t), to:endOfDay(now)}; }
+  if(v==='month'){ return {from:new Date(now.getFullYear(), now.getMonth(),1), to:endOfDay(now)}; }
+  if(v==='quarter'){ const q=Math.floor(now.getMonth()/3); return {from:new Date(now.getFullYear(), q*3, 1), to:endOfDay(now)}; }
+  if(v==='fy'){ const y = now.getMonth()>=3 ? now.getFullYear() : now.getFullYear()-1; return {from:new Date(y,3,1), to:endOfDay(now)}; }
+  if(v==='custom'){
+    const f = document.getElementById('invDateFrom')?.value;
+    const t = document.getElementById('invDateTo')?.value;
+    return { from: f ? startOfDay(new Date(f)) : null, to: t ? endOfDay(new Date(t)) : null };
+  }
+  return {from:null, to:null}; // all time
+}
+
 function renderInvs(){
   const tbody=document.getElementById('invTable');
+  const mobList=document.getElementById('invMobList');
   if(!tbody) return;
   const q=(document.getElementById('invSearch')?.value||'').toLowerCase().trim();
+  const {from, to} = invGetDateRange();
 
-  // Filter invoices by search query
-  const filtered = q ? S.invoices.filter(inv=>{
+  // Date-range filter first
+  let byDate = S.invoices;
+  if(from || to){
+    byDate = S.invoices.filter(inv=>{
+      const d = parseDMY(inv.bill_date);
+      if(!d) return false;
+      if(from && d < from) return false;
+      if(to && d > to) return false;
+      return true;
+    });
+  }
+
+  // Then search filter
+  const filtered = q ? byDate.filter(inv=>{
     const billNo = String(inv.bill_number).padStart(4,'0');
     const name   = (inv.customer_name||'').toLowerCase();
-    // Check customer phone
     const cust   = inv.customer_id ? S.customers.find(c=>c.id===inv.customer_id) : null;
     const phone  = (cust?.phone||'').toLowerCase();
     return billNo.includes(q) || name.includes(q) || phone.includes(q);
-  }) : S.invoices;
+  }) : byDate;
+
+  // Summary stat cards
+  const totalSale = filtered.reduce((s,inv)=>s+parseFloat(inv.total||0),0);
+  const avgBill = filtered.length ? totalSale/filtered.length : 0;
+  const cEl=document.getElementById('inv-stat-count'); if(cEl) cEl.textContent=filtered.length;
+  const tEl=document.getElementById('inv-stat-total'); if(tEl) tEl.textContent='₹'+totalSale.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+  const aEl=document.getElementById('inv-stat-avg'); if(aEl) aEl.textContent='₹'+avgBill.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,',');
 
   // Update count label
   const countEl = document.getElementById('invCount');
   if(countEl){
     if(q) countEl.textContent = filtered.length + ' result' + (filtered.length!==1?'s':'') + ' found for "' + q + '"';
-    else  countEl.textContent = S.invoices.length + ' bills total';
+    else  countEl.textContent = filtered.length + ' bills';
   }
 
+  const pm={cash:'💵 Cash',upi:'📱 UPI',card:'💳 Card',credit:'📝 Credit'};
+
   if(!filtered.length){
-    tbody.innerHTML='<tr><td colspan="6" class="empty">'+(q?'No bills found for "'+q+'"':'No bills yet')+'</td></tr>';
+    tbody.innerHTML='<tr><td colspan="6" class="empty">'+(q?'No bills found for "'+q+'"':'No bills in this range')+'</td></tr>';
+    if(mobList) mobList.innerHTML='<div class="vbm-empty">🧾 Koi bill nathi</div>';
     return;
   }
-  const pm={cash:'💵 Cash',upi:'📱 UPI',card:'💳 Card',credit:'📝 Credit'};
+
   tbody.innerHTML=filtered.map(inv=>`
     <tr style="cursor:pointer" onclick="loadBillToNewBill(S.invoices.find(x=>x.id===${inv.id}))" title="Click to edit this bill">
       <td><strong style="font-family:'DM Mono',monospace">#${String(inv.bill_number).padStart(4,'0')}</strong></td>
@@ -4181,6 +4282,36 @@ function renderInvs(){
         <button class="btn btn-red btn-sm" onclick="deleteInvoice(${inv.id})" title="Delete">🗑</button>
       </td>
     </tr>`).join('');
+
+  // Mobile Vyapar-style cards
+  if(mobList){
+    mobList.innerHTML = filtered.map(inv=>`
+      <div class="inv-card" onclick="loadBillToNewBill(S.invoices.find(x=>x.id===${inv.id}))">
+        <div class="inv-card-top">
+          <div class="inv-card-name">${inv.customer_name}</div>
+          <div class="inv-card-badge">
+            <div class="inv-card-billno">BILL #${String(inv.bill_number).padStart(4,'0')}</div>
+            <div class="inv-card-datetime">${inv.bill_date||'—'}${inv.bill_time?' · '+inv.bill_time:''}</div>
+          </div>
+        </div>
+        <div class="inv-card-row">
+          <div class="inv-card-col">
+            <div class="inv-card-label">Amount</div>
+            <div class="inv-card-val">₹${parseFloat(inv.total).toFixed(0)}</div>
+          </div>
+          <div class="inv-card-col">
+            <div class="inv-card-label">Payment</div>
+            <div class="inv-card-val" style="font-family:inherit;font-size:12px">${pm[inv.payment_mode]||inv.payment_mode}</div>
+          </div>
+        </div>
+        <div class="inv-card-actions" onclick="event.stopPropagation()">
+          <button style="background:var(--s2);color:var(--text)" onclick="thermalPrint(S.invoices.find(x=>x.id==${inv.id}))">🖨️</button>
+          <button style="background:#25d366;color:#fff" onclick="shareImageWA(${inv.id})">💬</button>
+          <button style="background:var(--accent);color:#0a0a0f" onclick="openFullInvoice(${inv.id})">🔗</button>
+          <button style="background:rgba(248,113,113,0.15);color:var(--red)" onclick="deleteInvoice(${inv.id})">🗑️</button>
+        </div>
+      </div>`).join('');
+  }
 }
 
 function openBillDetail(id){
