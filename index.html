@@ -2329,10 +2329,28 @@ function loadOffline(){
 
 function saveOffline(){
   const bid = S.activeBranchId || 1;
-  // Branch-wise offline cache — mix na thay
-  localStorage.setItem('shopbill_offline_b'+bid, JSON.stringify({products:S.products, customers:S.customers, invoices:S.invoices, settings:S.settings}));
-  // Legacy key pan update kariye (backward compat)
-  localStorage.setItem('shopbill_offline', JSON.stringify({products:S.products, customers:S.customers, invoices:S.invoices, settings:S.settings}));
+  // Offline cache mate sirf recent bills j rakho (badha 9000+ nahi) —
+  // localStorage ni size limit (~5-10MB) cross na thay e mate.
+  // Full history hammesha online (Supabase) thi j aave chhe, offline mode
+  // sirf recent kaam chalu rakhva mate chhe.
+  const OFFLINE_INV_LIMIT = 300;
+  const recentInvoices = [...S.invoices]
+    .sort((a,b)=> (parseInt(b.bill_number)||0) - (parseInt(a.bill_number)||0))
+    .slice(0, OFFLINE_INV_LIMIT);
+  const payload = JSON.stringify({products:S.products, customers:S.customers, invoices:recentInvoices, settings:S.settings});
+  try{
+    localStorage.setItem('shopbill_offline_b'+bid, payload);
+    localStorage.setItem('shopbill_offline', payload);
+  } catch(e){
+    console.error('Offline cache save failed (quota?), app chalu rakhe chhe:', e.message);
+    // Jagya khali karva jūna/legacy keys hatavva ni koshish karo, pachi ek vaar fari try karo
+    try{
+      localStorage.removeItem('shopbill_offline');
+      localStorage.setItem('shopbill_offline_b'+bid, payload);
+    } catch(e2){
+      console.error('Offline cache disabled — data bahu vadhare chhe localStorage mate:', e2.message);
+    }
+  }
 }
 
 function setSyncStatus(status){
