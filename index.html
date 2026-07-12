@@ -1222,10 +1222,10 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
       <!-- Date Range Filter -->
       <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
         <select id="invDateRange" onchange="invRangeChanged()" style="padding:9px 12px;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none">
-          <option value="all">📋 All Time</option>
+          <option value="all" selected>📋 All Time</option>
           <option value="today">Today</option>
           <option value="week">This Week</option>
-          <option value="month" selected>This Month</option>
+          <option value="month">This Month</option>
           <option value="quarter">This Quarter</option>
           <option value="fy">This Financial Year</option>
           <option value="custom">Custom Range</option>
@@ -4238,13 +4238,16 @@ function renderInvs(){
   }
 
   // Then search filter
-  const filtered = q ? byDate.filter(inv=>{
+  let filtered = q ? byDate.filter(inv=>{
     const billNo = String(inv.bill_number).padStart(4,'0');
     const name   = (inv.customer_name||'').toLowerCase();
     const cust   = inv.customer_id ? S.customers.find(c=>c.id===inv.customer_id) : null;
     const phone  = (cust?.phone||'').toLowerCase();
     return billNo.includes(q) || name.includes(q) || phone.includes(q);
   }) : byDate;
+
+  // Serial order — hammesha bill number pramane, navu bill upar (DB thi je order ma aave e bharoso rakhva jevo nathi)
+  filtered = [...filtered].sort((a,b)=> (parseInt(b.bill_number)||0) - (parseInt(a.bill_number)||0));
 
   // Summary stat cards
   const totalSale = filtered.reduce((s,inv)=>s+parseFloat(inv.total||0),0);
