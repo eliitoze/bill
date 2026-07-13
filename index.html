@@ -976,6 +976,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
     <div class="nav-item" onclick="showPage('billing',this)"><span class="nav-icon">◉</span> New Bill</div>
     <div class="nav-item" onclick="showPage('products',this);renderProds()"><span class="nav-icon">▣</span> Products</div>
     <div class="nav-item" onclick="showPage('customers',this);renderCusts()"><span class="nav-icon">◎</span> Customers</div>
+    <div class="nav-item" onclick="showPage('recurring',this);renderRecurringPage()"><span class="nav-icon">🔁</span> Recurring</div>
     <div class="nav-item" onclick="showPage('invoices',this);renderInvs()"><span class="nav-icon">≡</span> Bill History</div>
     <div class="nav-item" onclick="askPIN('reports')"><span class="nav-icon">📊</span> Reports</div>
     <div class="nav-item" onclick="showPage('import',this)"><span class="nav-icon">⇪</span> Excel Import</div>
@@ -1217,7 +1218,38 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
       </div>
     </div>
 
-    <!-- INVOICES -->
+    <!-- RECURRING CUSTOMERS -->
+    <div class="page" id="page-recurring">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;position:relative;min-width:220px">
+          <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:15px">🔍</span>
+          <input type="text" id="recurSearch" placeholder="Name ke phone thi search karo..." oninput="renderRecurringPage()"
+            style="width:100%;padding:9px 12px 9px 34px;background:var(--s1);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box">
+        </div>
+        <select id="recurDaysFilter" onchange="renderRecurringPage()" style="padding:9px 12px;background:var(--s1);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:inherit;font-size:13px;outline:none">
+          <option value="90" selected>3+ mahina (90 din)</option>
+          <option value="30">1+ mahino (30 din)</option>
+          <option value="180">6+ mahina (180 din)</option>
+          <option value="365">1+ varas (365 din)</option>
+        </select>
+      </div>
+      <div id="recurCount" style="font-size:12px;color:var(--muted);margin-bottom:10px"></div>
+      <div id="recurFullList"></div>
+    </div>
+
+    <!-- Message customize modal -->
+    <div class="overlay" id="recurMsgModal">
+      <div class="modal" style="max-width:440px">
+        <h3>💬 Message Customize Karo</h3>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px" id="recurMsgToLabel"></div>
+        <textarea id="recurMsgText" rows="7" style="width:100%;padding:10px;background:var(--s2);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box;resize:vertical;margin-bottom:12px"></textarea>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" onclick="closeM('recurMsgModal')">Cancel</button>
+          <button class="btn btn-primary" style="background:#25d366" onclick="confirmSendRecurringMsg()">💬 WhatsApp par Mokalo</button>
+        </div>
+      </div>
+    </div>
+
     <div class="page" id="page-invoices">
       <!-- Date Range Filter -->
       <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
@@ -2425,7 +2457,7 @@ function showPage(page, el){
   document.getElementById('page-'+page).classList.add('active');
   closeSidebar();
   if(el) el.classList.add('active');
-  const t={dashboard:'Dashboard',billing:'New Bill',products:'Products',customers:'Customers',invoices:'Bill History',reports:'Profit Report',import:'Excel Import',settings:'Settings'};
+  const t={dashboard:'Dashboard',billing:'New Bill',products:'Products',customers:'Customers',recurring:'Recurring Customers',invoices:'Bill History',reports:'Profit Report',import:'Excel Import',settings:'Settings'};
   document.getElementById('pageTitle').textContent = t[page]||page;
   if(page==='reports') updateReports();
   if(page==='dashboard'){ updateDash(); }
@@ -4493,8 +4525,8 @@ function parseDMY(str){
   return isNaN(dt) ? null : dt;
 }
 
-function getRecurringCustomers(){
-  const RECUR_DAYS = 90; // 3 mahina — jarur padye aa number j badlo, baki koi UI setting nathi
+function getRecurringCustomers(recurDays){
+  const RECUR_DAYS = recurDays || 90; // default 3 mahina
   const bid = S.activeBranchId || 1;
   const branchInvs = S.invoices.filter(i=>!i.branch_id || parseInt(i.branch_id)===parseInt(bid));
   const lastByCust = {};
@@ -4519,33 +4551,83 @@ function getRecurringCustomers(){
   return list;
 }
 
+// Dashboard card — chhota preview, "View All" link sathe (full list have dedicated 'Recurring' page par)
 function renderRecurringCustomers(){
   const el = document.getElementById('d-recurring');
   if(!el) return;
-  const list = getRecurringCustomers();
+  const list = getRecurringCustomers(90);
   const countEl = document.getElementById('d-recur-count');
   if(countEl) countEl.textContent = list.length;
   if(!list.length){
     el.innerHTML = '<div class="empty"><div class="ei">🙌</div><p>Koi inactive customer nathi</p></div>';
     return;
   }
-  el.innerHTML = list.map(c=>{
-    const lastStr = c.lastDate.toLocaleDateString('en-IN');
+  const PREVIEW = 5;
+  el.innerHTML = list.slice(0,PREVIEW).map(c=>{
+    const lastStr = fmtDMY(c.lastDate);
     const safeName = String(c.name).replace(/'/g,"\\'").replace(/"/g,'&quot;');
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);gap:8px">
       <div style="min-width:0">
         <div style="font-weight:600;font-size:13px">${c.name}</div>
         <div style="font-size:11px;color:var(--muted)">📞 ${c.phone} · Last visit: ${lastStr} (${c.days} din pehla)</div>
       </div>
-      <button onclick="sendRecurringMsg('${safeName}','${c.phone}')" style="background:#25d366;border:none;color:#fff;padding:7px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;display:flex;align-items:center;gap:4px">💬 Msg</button>
+      <button onclick="openRecurMsgModal('${safeName}','${c.phone}')" style="background:#25d366;border:none;color:#fff;padding:7px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;display:flex;align-items:center;gap:4px">💬 Msg</button>
+    </div>`;
+  }).join('');
+  if(list.length > PREVIEW){
+    el.innerHTML += `<div style="text-align:center;padding-top:10px">
+      <button class="btn btn-ghost btn-sm" onclick="showPage('recurring', document.querySelector('.nav-item[onclick*=recurring]'));renderRecurringPage()">
+        📋 Badha ${list.length} joo (View All) →
+      </button>
+    </div>`;
+  }
+}
+
+// Dedicated full page — search + days-filter + customize-and-send
+function renderRecurringPage(){
+  const container = document.getElementById('recurFullList');
+  if(!container) return;
+  const days = parseInt(document.getElementById('recurDaysFilter')?.value) || 90;
+  const q = (document.getElementById('recurSearch')?.value||'').toLowerCase().trim();
+  let list = getRecurringCustomers(days);
+  if(q){
+    list = list.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q));
+  }
+  const countEl = document.getElementById('recurCount');
+  if(countEl) countEl.textContent = list.length + ' customer' + (list.length!==1?'s':'') + ' malya (' + days + '+ din thi nathi aavya)';
+
+  if(!list.length){
+    container.innerHTML = '<div class="empty"><div class="ei">🙌</div><p>Koi inactive customer nathi</p></div>';
+    return;
+  }
+  container.innerHTML = list.map(c=>{
+    const lastStr = fmtDMY(c.lastDate);
+    const safeName = String(c.name).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    return `<div class="card" style="display:flex;justify-content:space-between;align-items:center;padding:13px 16px;margin-bottom:8px;gap:10px">
+      <div style="min-width:0">
+        <div style="font-weight:700;font-size:14px">${c.name}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">📞 ${c.phone} · Last visit: ${lastStr} · <span style="color:var(--red);font-weight:600">${c.days} din pehla</span></div>
+      </div>
+      <button onclick="openRecurMsgModal('${safeName}','${c.phone}')" style="background:#25d366;border:none;color:#fff;padding:9px 14px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;display:flex;align-items:center;gap:5px">💬 Message</button>
     </div>`;
   }).join('');
 }
 
-function sendRecurringMsg(custName, phone){
+// Message customize modal
+let _recurMsgTarget = null; // {name, phone}
+function openRecurMsgModal(custName, phone){
+  _recurMsgTarget = { name: custName, phone };
   const shopName = (S.settings.shop_name||'Eliitoze Jewelz');
-  const msg = `Namaste ${custName} ji,\n\n${shopName} taraf thi tamne yaad karva mate aa message. Ketla samay thi tame amara ahiya nathi aavya!\n\nNava design ane offers joova mate ek vaar visit karo. Tamari raah joi rahiya chhe 🙏`;
-  sendToWA(phone, msg);
+  const defaultMsg = `Namaste ${custName} ji,\n\n${shopName} taraf thi tamne yaad karva mate aa message. Ketla samay thi tame amara ahiya nathi aavya!\n\nNava design ane offers joova mate ek vaar visit karo. Tamari raah joi rahiya chhe 🙏`;
+  document.getElementById('recurMsgToLabel').textContent = 'Kone: ' + custName + ' (' + phone + ')';
+  document.getElementById('recurMsgText').value = defaultMsg;
+  document.getElementById('recurMsgModal').classList.add('open');
+}
+function confirmSendRecurringMsg(){
+  if(!_recurMsgTarget) return;
+  const msg = document.getElementById('recurMsgText').value;
+  sendToWA(_recurMsgTarget.phone, msg);
+  closeM('recurMsgModal');
 }
 
 // ===== REPORTS (PIN protected) =====
