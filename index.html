@@ -1254,11 +1254,12 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
       <!-- Date Range Filter -->
       <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
         <select id="invDateRange" onchange="invRangeChanged()" style="padding:9px 12px;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none">
-          <option value="all" selected>📋 All Time</option>
+          <option value="all">📋 All Time (badhu data)</option>
           <option value="today">Today</option>
           <option value="week">This Week</option>
           <option value="month">This Month</option>
           <option value="quarter">This Quarter</option>
+          <option value="year" selected>This Year</option>
           <option value="fy">This Financial Year</option>
           <option value="custom">Custom Range</option>
         </select>
@@ -1795,7 +1796,8 @@ let S = {
   products:[], customers:[], invoices:[],
   settings:{shop_name:'Eliitoze Jewelz',phone:'',address:'RELIANCE MALL, RELIANCE SMART MARKET, GROUND FLOOR, NR. NANA MAVA CIRCLE, RAJKOT 360005',email:'ELIITOZE@GMAIL.COM',gst_number:'',thank_you:'Thank you!',gst_rate:'0',paper_width:'58mm',profit_pin:'1234',bill_counter:'1',terms:'(1) No Cash Refund & No buy-back (2) Exchange within 7 days from the available stock only, If found any manufacturing defect (3) 3 Month warranty on all Silver Jewelry that covers any material defects or workmanship under normal use. (4) No Guarantee or Warranty on Imitation Jewelry (5) Silver Jewelry Exchange Price 40% of Purchasing Price. Only Exchange No Cash Return or Refund. (6) Small stone fixing is free for lifetime (7) Silver jewelry cleaning is free for lifetime Happy to help you always.... Visit again.'},
   billItems:[], importData:[], pinTarget:'',
-  branches:[], activeBranchId: null, activeBranchName: ''
+  branches:[], activeBranchId: null, activeBranchName: '',
+  allInvoicesLoaded: false
 };
 
 // ── BRANCH FUNCTIONS ──
@@ -2283,20 +2285,52 @@ async function init(){
 
 async function loadAll(){
   const bid = S.activeBranchId || 1;
+  const curYear = new Date().getFullYear();
   const [prods, custs, invs, sets] = await Promise.all([
     api('products?order=name&branch_id=eq.'+bid),
     api('customers?order=name'),
-    api('invoices?order=bill_number.desc&limit=20000&branch_id=eq.'+bid),
+    // Default mate SIRF chalu varas na j bills load karo (load ochho thay) —
+    // "All Time" ke jūna year select karta j badhu data on-demand load thashe
+    api('invoices?order=bill_number.desc&limit=20000&branch_id=eq.'+bid+'&bill_date=like.*/'+curYear),
     api('settings?branch_id=eq.'+bid)
   ]);
   S.products = prods;
   S.customers = custs;
   S.invoices = invs;
+  S.allInvoicesLoaded = false; // sirf chalu varas j load thayu chhe abhi
   sets.forEach(s => S.settings[s.key] = s.value);
 
   // Bill counter — branch-specific key thi explicitly fetch karo
   await refreshBillCounter();
   saveOffline();
+}
+
+// "All Time" / jūna varas / custom-old-date jevi range select thay tyare j
+// badha invoices (full history) ek vaar load kariye — dar vaar nahi
+async function ensureFullInvoicesLoaded(){
+  if(S.allInvoicesLoaded) return;
+  const bid = S.activeBranchId || 1;
+  toast('📥 Badhi history load thai rahi chhe...', 'success');
+  try{
+    const all = await api('invoices?order=bill_number.desc&limit=20000&branch_id=eq.'+bid);
+    S.invoices = all;
+    S.allInvoicesLoaded = true;
+  } catch(e){
+    console.error('Full invoice load failed:', e.message);
+    toast('History load na thai — internet check karo','error');
+  }
+}
+
+// Konsi range mate full (badha varas nu) data joiye chhe, ke chalu varas nu j chalse
+function invRangeNeedsFullLoad(v){
+  if(S.allInvoicesLoaded) return false; // already loaded, dobara jarur nathi
+  if(v==='all') return true;
+  if(v==='fy'){ const m=new Date().getMonth(); return m < 3; } // Jan-Mar ma FY pichhla varas thi shરૂ thay
+  if(v==='custom'){
+    const f = document.getElementById('invDateFrom')?.value;
+    if(f){ const y = new Date(f).getFullYear(); return y < new Date().getFullYear(); }
+  }
+  return false; // today/week/month/quarter/year — chalu varas ni andar j
 }
 
 // Worker thi fresh bill counter fetch karo
@@ -3368,7 +3402,7 @@ function buildVyaparMsg(items, t, customer, custPhone, billNum, dateStr, payment
   // ── PUBLIC BILL LINK — Vyapar style ──
   if(billToken){
     msg += bar + '\n';
-    msg += '📋 *YOUR DIGITAL BILL IS HERE:*\n';
+    msg += '📋 *તમારું Digital Bill જોવા માટે નીચે Click કરો:*\n';
     msg += '👇\n';
     msg += 'https://bill.eliitoze.in/#' + billToken + '\n';
   }
@@ -4266,6 +4300,7 @@ function invGetDateRange(){
   }
   if(v==='month'){ return {from:new Date(now.getFullYear(), now.getMonth(),1), to:endOfDay(now)}; }
   if(v==='quarter'){ const q=Math.floor(now.getMonth()/3); return {from:new Date(now.getFullYear(), q*3, 1), to:endOfDay(now)}; }
+  if(v==='year'){ return {from:new Date(now.getFullYear(),0,1), to:endOfDay(now)}; }
   if(v==='fy'){ const y = now.getMonth()>=3 ? now.getFullYear() : now.getFullYear()-1; return {from:new Date(y,3,1), to:endOfDay(now)}; }
   if(v==='custom'){
     const f = document.getElementById('invDateFrom')?.value;
@@ -4275,10 +4310,14 @@ function invGetDateRange(){
   return {from:null, to:null}; // all time
 }
 
-function renderInvs(){
+async function renderInvs(){
   const tbody=document.getElementById('invTable');
   const mobList=document.getElementById('invMobList');
   if(!tbody) return;
+  const rangeVal = document.getElementById('invDateRange')?.value || 'year';
+  if(invRangeNeedsFullLoad(rangeVal)){
+    await ensureFullInvoicesLoaded();
+  }
   const q=(document.getElementById('invSearch')?.value||'').toLowerCase().trim();
   const {from, to} = invGetDateRange();
 
@@ -4558,9 +4597,10 @@ function getRecurringCustomers(recurDays){
 }
 
 // Dashboard card — chhota preview, "View All" link sathe (full list have dedicated 'Recurring' page par)
-function renderRecurringCustomers(){
+async function renderRecurringCustomers(){
   const el = document.getElementById('d-recurring');
   if(!el) return;
+  await ensureFullInvoicesLoaded(); // jūna varas ni purchase history pan joiye (recurring customer nakki karva mate)
   const list = getRecurringCustomers(90);
   const countEl = document.getElementById('d-recur-count');
   if(countEl) countEl.textContent = list.length;
@@ -4590,9 +4630,10 @@ function renderRecurringCustomers(){
 }
 
 // Dedicated full page — search + days-filter + customize-and-send
-function renderRecurringPage(){
+async function renderRecurringPage(){
   const container = document.getElementById('recurFullList');
   if(!container) return;
+  await ensureFullInvoicesLoaded(); // jūna varas ni purchase history pan joiye
   const days = parseInt(document.getElementById('recurDaysFilter')?.value) || 90;
   const q = (document.getElementById('recurSearch')?.value||'').toLowerCase().trim();
   let list = getRecurringCustomers(days);
