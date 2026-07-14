@@ -1815,7 +1815,7 @@ async function loadBranches(){
     const cached = localStorage.getItem('sb_branches');
     S.branches = cached ? JSON.parse(cached) : [{id:1, name:'Main Branch'}];
   }
-  localStorage.setItem('sb_branches', JSON.stringify(S.branches));
+  safeSetItem('sb_branches', JSON.stringify(S.branches));
 }
 
 function populateLoginBranches(){
@@ -1832,8 +1832,8 @@ function populateLoginBranches(){
 function setActiveBranch(id, name){
   S.activeBranchId   = parseInt(id);
   S.activeBranchName = name;
-  localStorage.setItem('sb_last_branch', id);
-  localStorage.setItem('sb_last_branch_name', name);
+  safeSetItem('sb_last_branch', id);
+  safeSetItem('sb_last_branch_name', name);
   // Topbar chip update
   const chip = document.getElementById('activeBranchChip');
   if(chip){ chip.textContent = '🏪 '+name; chip.style.display='inline-block'; }
@@ -1918,7 +1918,7 @@ async function fetchUsersFromServer(){
   try{
     const rows = await api('app_users?order=created_at');
     // Cache locally for offline
-    localStorage.setItem('sb_users_cache', JSON.stringify(rows));
+    safeSetItem('sb_users_cache', JSON.stringify(rows));
     return rows;
   } catch(e){
     // Offline fallback
@@ -2056,7 +2056,7 @@ async function changeMyPassword(){
     if(cached){
       const arr = JSON.parse(cached);
       const idx = arr.findIndex(x=>x.id===u.id);
-      if(idx>=0){ arr[idx].password_hash = newHash; localStorage.setItem('sb_users_cache', JSON.stringify(arr)); }
+      if(idx>=0){ arr[idx].password_hash = newHash; safeSetItem('sb_users_cache', JSON.stringify(arr)); }
     }
 
     document.getElementById('cpCurrent').value='';
@@ -2225,7 +2225,7 @@ function checkSession(){
 // Check existing session on page load
 function toggleTheme(){
   const isLight = document.body.classList.toggle('light-mode');
-  localStorage.setItem('sb_theme', isLight ? 'light' : 'dark');
+  safeSetItem('sb_theme', isLight ? 'light' : 'dark');
   document.getElementById('themeBtn').textContent = isLight ? '☀️' : '🌙';
 }
 
@@ -3368,7 +3368,7 @@ function buildVyaparMsg(items, t, customer, custPhone, billNum, dateStr, payment
   // ── PUBLIC BILL LINK — Vyapar style ──
   if(billToken){
     msg += bar + '\n';
-    msg += '📋 *તમારું Digital Bill જોવા માટે નીચે Click કરો:*\n';
+    msg += '📋 *YOUR DIGITAL BILL IS HERE:*\n';
     msg += '👇\n';
     msg += 'https://bill.eliitoze.in/#' + billToken + '\n';
   }
@@ -4513,6 +4513,12 @@ function fmtDMY(d){
   const dd = String(d.getDate()).padStart(2,'0');
   const mm = String(d.getMonth()+1).padStart(2,'0');
   return `${dd}/${mm}/${d.getFullYear()}`;
+}
+
+// Safe localStorage wrapper — koi pan setItem quota/error thi app kadi crash na thay
+function safeSetItem(key, val){
+  try{ localStorage.setItem(key, val); return true; }
+  catch(e){ console.error('localStorage.setItem failed for', key, ':', e.message); return false; }
 }
 
 function parseDMY(str){
