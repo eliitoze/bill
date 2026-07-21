@@ -90,10 +90,10 @@ body.light-mode {
   --card: #ffffff;
 }
 body.light-mode .sync-dot { background: #059669; }
-body.light-mode .stat-card.green { background: rgba(5,150,105,0.1); border-color: rgba(5,150,105,0.3); }
-body.light-mode .stat-card.yellow { background: rgba(217,119,6,0.1); border-color: rgba(217,119,6,0.3); }
-body.light-mode .stat-card.blue { background: rgba(37,99,235,0.1); border-color: rgba(37,99,235,0.3); }
-body.light-mode .stat-card.red { background: rgba(220,38,38,0.1); border-color: rgba(220,38,38,0.3); }
+body.light-mode .stat-card.green { background: linear-gradient(150deg, rgba(5,150,105,0.10), #ffffff 65%); border-color: rgba(5,150,105,0.3); }
+body.light-mode .stat-card.yellow { background: linear-gradient(150deg, rgba(217,119,6,0.10), #ffffff 65%); border-color: rgba(217,119,6,0.3); }
+body.light-mode .stat-card.blue { background: linear-gradient(150deg, rgba(37,99,235,0.10), #ffffff 65%); border-color: rgba(37,99,235,0.3); }
+body.light-mode .stat-card.red { background: linear-gradient(150deg, rgba(220,38,38,0.10), #ffffff 65%); border-color: rgba(220,38,38,0.3); }
 body.light-mode .btn-primary { background: #059669; }
 body.light-mode .nav-item.active { background: rgba(5,150,105,0.15); color: #059669; }
 body.light-mode .nav-item:hover { background: rgba(5,150,105,0.08); }
@@ -217,13 +217,27 @@ html, body {
 @media (min-width: 900px) { .stats-grid { grid-template-columns: repeat(4,1fr); } }
 
 .stat-card {
+  position: relative;
   background: var(--s1);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 14px 16px;
+  border-radius: 14px;
+  padding: 15px 16px 13px;
+  overflow: hidden;
+  transition: transform .15s ease, box-shadow .15s ease;
 }
+.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(0,0,0,0.22); }
+.stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; }
+.stat-card.green::before  { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+.stat-card.yellow::before { background: linear-gradient(90deg, var(--yellow), #f59e0b); }
+.stat-card.blue::before   { background: linear-gradient(90deg, var(--blue), #3b82f6); }
+.stat-card.red::before    { background: linear-gradient(90deg, var(--red), #ef4444); }
+.stat-card.green  { background: linear-gradient(150deg, rgba(110,231,183,0.12), var(--s1) 65%); }
+.stat-card.yellow { background: linear-gradient(150deg, rgba(251,191,36,0.12), var(--s1) 65%); }
+.stat-card.blue   { background: linear-gradient(150deg, rgba(96,165,250,0.12), var(--s1) 65%); }
+.stat-card.red    { background: linear-gradient(150deg, rgba(248,113,113,0.12), var(--s1) 65%); }
+.stat-icon { position: absolute; top: 13px; right: 14px; font-size: 19px; opacity: 0.5; }
 .stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; }
-.stat-value { font-family: 'DM Mono', monospace; font-size: 22px; font-weight: 500; color: var(--text); margin-top: 5px; }
+.stat-value { font-family: 'DM Mono', monospace; font-size: 24px; font-weight: 700; color: var(--text); margin-top: 6px; }
 .stat-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .stat-card.green .stat-value { color: var(--accent); }
 .stat-card.yellow .stat-value { color: var(--yellow); }
@@ -977,6 +991,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
     <div class="nav-item" onclick="showPage('products',this);renderProds()"><span class="nav-icon">▣</span> Products</div>
     <div class="nav-item" onclick="showPage('customers',this);renderCusts()"><span class="nav-icon">◎</span> Customers</div>
     <div class="nav-item" onclick="showPage('recurring',this);renderRecurringPage()"><span class="nav-icon">🔁</span> Recurring</div>
+    <div class="nav-item" onclick="showPage('birthday',this);renderBirthdayPage()"><span class="nav-icon">🎂</span> Birthdays</div>
     <div class="nav-item" onclick="showPage('invoices',this);renderInvs()"><span class="nav-icon">≡</span> Bill History</div>
     <div class="nav-item" onclick="askPIN('reports')"><span class="nav-icon">📊</span> Reports</div>
     <div class="nav-item" onclick="showPage('import',this)"><span class="nav-icon">⇪</span> Excel Import</div>
@@ -1003,25 +1018,24 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 
     <!-- DASHBOARD -->
     <div class="page active" id="page-dashboard">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <span style="font-size:13px;color:var(--muted);font-weight:600">Today's Overview</span>
-        <button onclick="toggleDashPrivacy()" id="dashPrivacyBtn" style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--muted);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;gap:5px">
-          👁 Hide
-        </button>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <span style="font-size:13px;color:var(--muted);font-weight:600" id="dashOverviewLabel">Today's Overview</span>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <input type="date" id="dashDateFilter" onchange="updateDash()" style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px;font-family:'DM Sans',sans-serif;outline:none">
+          <button onclick="toggleDashPrivacy()" id="dashPrivacyBtn" style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--muted);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;gap:5px">
+            👁 Hide
+          </button>
+        </div>
       </div>
       <div class="stats-grid">
-        <div class="stat-card green"><div class="stat-label">Today Sales</div><div class="stat-value" id="d-sale">₹0</div><div class="stat-sub"><span id="d-bills">0</span> bills</div></div>
-        <div class="stat-card yellow"><div class="stat-label">Today Profit</div><div class="stat-value" id="d-profit">🔐</div><div class="stat-sub" id="d-margin">PIN protected</div></div>
-        <div class="stat-card blue"><div class="stat-label">Products</div><div class="stat-value" id="d-prods">0</div><div class="stat-sub">in stock</div></div>
-        <div class="stat-card red"><div class="stat-label">Low Stock</div><div class="stat-value" id="d-low">0</div><div class="stat-sub">need restock</div></div>
+        <div class="stat-card green"><span class="stat-icon">💰</span><div class="stat-label" id="d-sale-label">Today Sales</div><div class="stat-value" id="d-sale">₹0</div><div class="stat-sub"><span id="d-bills">0</span> bills</div></div>
+        <div class="stat-card yellow"><span class="stat-icon">📈</span><div class="stat-label" id="d-profit-label">Today Profit</div><div class="stat-value" id="d-profit">🔐</div><div class="stat-sub" id="d-margin">PIN protected</div></div>
+        <div class="stat-card blue"><span class="stat-icon">💎</span><div class="stat-label">Products</div><div class="stat-value" id="d-prods">0</div><div class="stat-sub">in stock</div></div>
+        <div class="stat-card red"><span class="stat-icon">📦</span><div class="stat-label">Low Stock</div><div class="stat-value" id="d-low">0</div><div class="stat-sub">need restock</div></div>
       </div>
       <div class="two-col">
-        <div class="card"><div class="card-title">Recent Bills</div><div id="d-recent"><div class="empty"><div class="ei">🧾</div><p>No bills yet</p></div></div></div>
+        <div class="card"><div class="card-title" id="d-recent-title">🧾 Bills</div><div id="d-recent"><div class="empty"><div class="ei">🧾</div><p>No bills yet</p></div></div></div>
         <div class="card"><div class="card-title">⚠ Low Stock</div><div id="d-lowlist"><div class="empty"><div class="ei">✅</div><p>All in stock</p></div></div></div>
-      </div>
-      <div class="card" style="margin-top:12px">
-        <div class="card-title">🔁 Recurring Customers (<span id="d-recur-count">0</span> — 3+ mahina thi nathi aavya)</div>
-        <div id="d-recurring"><div class="empty"><div class="ei">🙌</div><p>Loading...</p></div></div>
       </div>
     </div>
 
@@ -1246,6 +1260,37 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
         <div class="modal-footer">
           <button class="btn btn-ghost" onclick="closeM('recurMsgModal')">Cancel</button>
           <button class="btn btn-primary" style="background:#25d366" onclick="confirmSendRecurringMsg()">💬 WhatsApp par Mokalo</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- BIRTHDAYS -->
+    <div class="page" id="page-birthday">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;position:relative;min-width:220px">
+          <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:15px">🔍</span>
+          <input type="text" id="bdaySearch" placeholder="Name ke phone thi search karo..." oninput="renderBirthdayPage()"
+            style="width:100%;padding:9px 12px 9px 34px;background:var(--s1);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box">
+        </div>
+        <select id="bdayDaysFilter" onchange="renderBirthdayPage()" style="padding:9px 12px;background:var(--s1);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:inherit;font-size:13px;outline:none">
+          <option value="7" selected>Aavta 7 din</option>
+          <option value="15">Aavta 15 din</option>
+          <option value="30">Aavta 30 din</option>
+        </select>
+      </div>
+      <div id="bdayCount" style="font-size:12px;color:var(--muted);margin-bottom:10px"></div>
+      <div id="bdayFullList"></div>
+    </div>
+
+    <!-- Birthday message customize modal -->
+    <div class="overlay" id="bdayMsgModal">
+      <div class="modal" style="max-width:440px">
+        <h3>🎂 Birthday Message Customize Karo</h3>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px" id="bdayMsgToLabel"></div>
+        <textarea id="bdayMsgText" rows="8" style="width:100%;padding:10px;background:var(--s2);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box;resize:vertical;margin-bottom:12px"></textarea>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" onclick="closeM('bdayMsgModal')">Cancel</button>
+          <button class="btn btn-primary" style="background:#25d366" onclick="confirmSendBdayMsg()">💬 WhatsApp par Mokalo</button>
         </div>
       </div>
     </div>
@@ -1659,7 +1704,17 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
       <div class="form-group"><label>Mobile *</label><input id="cPhone" placeholder="10-digit number" type="tel"></div>
     </div>
     <div class="form-group" style="margin-bottom:10px"><label>Address</label><input id="cAddr" placeholder="City, Area"></div>
-    <div class="form-group"><label>Email</label><input id="cEmail" placeholder="email@example.com" type="email"></div>
+    <div class="form-group" style="margin-bottom:10px"><label>Email</label><input id="cEmail" placeholder="email@example.com" type="email"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Birth Date</label><input id="cBirthDate" type="date"></div>
+      <div class="form-group"><label>Preferred Language</label>
+        <select id="cLang" style="width:100%;padding:10px 12px;background:var(--s2);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:inherit;font-size:13px;outline:none">
+          <option value="gujarati">Gujarati</option>
+          <option value="hindi">Hindi</option>
+          <option value="english">English</option>
+        </select>
+      </div>
+    </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeM('custModal')">Cancel</button>
       <button class="btn btn-primary" onclick="saveCust()">Save</button>
@@ -2491,7 +2546,7 @@ function showPage(page, el){
   document.getElementById('page-'+page).classList.add('active');
   closeSidebar();
   if(el) el.classList.add('active');
-  const t={dashboard:'Dashboard',billing:'New Bill',products:'Products',customers:'Customers',recurring:'Recurring Customers',invoices:'Bill History',reports:'Profit Report',import:'Excel Import',settings:'Settings'};
+  const t={dashboard:'Dashboard',billing:'New Bill',products:'Products',customers:'Customers',recurring:'Recurring Customers',birthday:'Birthdays',invoices:'Bill History',reports:'Profit Report',import:'Excel Import',settings:'Settings'};
   document.getElementById('pageTitle').textContent = t[page]||page;
   if(page==='reports') updateReports();
   if(page==='dashboard'){ updateDash(); }
@@ -4216,7 +4271,8 @@ function renderCusts(){
 function openAddCust(){
   document.getElementById('cmTitle').textContent='New Customer';
   document.getElementById('editCId').value='';
-  ['cName','cPhone','cAddr','cEmail'].forEach(id=>document.getElementById(id).value='');
+  ['cName','cPhone','cAddr','cEmail','cBirthDate'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('cLang').value='gujarati';
   document.getElementById('custModal').classList.add('open');
 }
 
@@ -4228,6 +4284,8 @@ function editCust(id){
   document.getElementById('cPhone').value=c.phone;
   document.getElementById('cAddr').value=c.address||'';
   document.getElementById('cEmail').value=c.email||'';
+  document.getElementById('cBirthDate').value=c.birth_date||'';
+  document.getElementById('cLang').value=c.preferred_language||'gujarati';
   document.getElementById('custModal').classList.add('open');
 }
 
@@ -4235,7 +4293,13 @@ async function saveCust(){
   const name=document.getElementById('cName').value.trim();
   const phone=document.getElementById('cPhone').value.trim();
   if(!name||!phone){ toast('Name & phone required!','error'); return; }
-  const data={name,phone,address:document.getElementById('cAddr').value,email:document.getElementById('cEmail').value};
+  const data={
+    name,phone,
+    address:document.getElementById('cAddr').value,
+    email:document.getElementById('cEmail').value,
+    birth_date:document.getElementById('cBirthDate').value||null,
+    preferred_language:document.getElementById('cLang').value
+  };
   try{
     const editId=document.getElementById('editCId').value;
     if(editId){
@@ -4513,33 +4577,58 @@ function toggleDashPrivacy(){
   updateDash();
 }
 
-function updateDash(){
+function toISODate(d){
+  d = d || new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+function isoToDMY(iso){
+  if(!iso) return fmtDMY();
+  const [y,m,d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+async function updateDash(){
   const priv = window._dashPrivacy || false;
   const mask = '••••';
-  const today=fmtDMY();
+  const dateInput = document.getElementById('dashDateFilter');
+  if(dateInput && !dateInput.value) dateInput.value = toISODate();
+  const selDate = dateInput ? isoToDMY(dateInput.value) : fmtDMY();
+  const isToday = selDate === fmtDMY();
+  const selYear = selDate.split('/')[2];
+  if(selYear && parseInt(selYear) !== new Date().getFullYear()){
+    await ensureFullInvoicesLoaded(); // pichhla varas ni tarikh hoy to purepuru data load karo
+  }
+  const lbl = document.getElementById('dashOverviewLabel');
+  if(lbl) lbl.textContent = isToday ? "Today's Overview" : selDate + "'s Overview";
   const bid = S.activeBranchId || 1;
   // Branch filter — sirf active branch na invoices dashboard ma
   const branchInvs = S.invoices.filter(i=>!i.branch_id || parseInt(i.branch_id)===parseInt(bid));
-  const todayInv=branchInvs.filter(i=>i.bill_date===today);
-  const sale=todayInv.reduce((s,i)=>s+parseFloat(i.total||0),0);
-  const profit=todayInv.reduce((s,i)=>s+parseFloat(i.profit||0),0);
+  const dayInv = branchInvs.filter(i=>i.bill_date===selDate)
+    .sort((a,b)=>(parseInt(b.bill_number)||0)-(parseInt(a.bill_number)||0));
+  const sale=dayInv.reduce((s,i)=>s+parseFloat(i.total||0),0);
+  const profit=dayInv.reduce((s,i)=>s+parseFloat(i.profit||0),0);
   const margin=sale>0?((profit/sale)*100).toFixed(1):0;
+  const saleLbl = document.getElementById('d-sale-label'); if(saleLbl) saleLbl.textContent = isToday ? 'Today Sales' : 'Sales';
+  const profitLbl = document.getElementById('d-profit-label'); if(profitLbl) profitLbl.textContent = isToday ? 'Today Profit' : 'Profit';
   document.getElementById('d-sale').textContent = priv ? mask : '₹'+sale.toFixed(0);
-  document.getElementById('d-bills').textContent = priv ? mask : todayInv.length;
+  document.getElementById('d-bills').textContent = priv ? mask : dayInv.length;
   document.getElementById('d-profit').textContent='🔐';
   document.getElementById('d-margin').textContent='PIN protected';
   document.getElementById('d-prods').textContent=S.products.length;
   const low=S.products.filter(p=>p.stock<=p.min_stock);
   document.getElementById('d-low').textContent=low.length;
+  const rt = document.getElementById('d-recent-title'); if(rt) rt.textContent = '🧾 Bills — ' + selDate;
   const rd=document.getElementById('d-recent');
   if(priv){
     rd.innerHTML='<div class="empty"><div class="ei">🙈</div><p>Privacy mode on</p></div>';
   } else {
-    rd.innerHTML=!branchInvs.length?'<div class="empty"><div class="ei">🧾</div><p>No bills</p></div>':'<table><thead><tr><th>Bill</th><th>Customer</th><th>Amount</th></tr></thead><tbody>'+branchInvs.slice(0,5).map(i=>`<tr><td>#${String(i.bill_number).padStart(4,'0')}</td><td>${i.customer_name}</td><td>₹${parseFloat(i.total).toFixed(2)}</td></tr>`).join('')+'</tbody></table>';
+    rd.innerHTML=!dayInv.length?'<div class="empty"><div class="ei">🧾</div><p>Aa tarikh ma koi bill nathi</p></div>':'<table><thead><tr><th>Bill</th><th>Customer</th><th>Amount</th></tr></thead><tbody>'+dayInv.map(i=>`<tr style="cursor:pointer" onclick="loadBillToNewBill(S.invoices.find(x=>x.id===${i.id}))" title="Click to edit this bill"><td>#${String(i.bill_number).padStart(4,'0')}</td><td>${i.customer_name}</td><td>₹${parseFloat(i.total).toFixed(2)}</td></tr>`).join('')+'</tbody></table>';
   }
   const ld=document.getElementById('d-lowlist');
   ld.innerHTML=!low.length?'<div class="empty"><div class="ei">✅</div><p>All in stock</p></div>':low.map(p=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px"><span>${p.name}</span><span class="badge badge-red">Stock: ${p.stock}</span></div>`).join('');
-  renderRecurringCustomers();
 }
 
 // ===== RECURRING / INACTIVE CUSTOMERS (3+ mahina thi nathi aavya) =====
@@ -4675,6 +4764,106 @@ function confirmSendRecurringMsg(){
   const msg = document.getElementById('recurMsgText').value;
   sendToWA(_recurMsgTarget.phone, msg);
   closeM('recurMsgModal');
+}
+
+// ===== BIRTHDAYS =====
+// birth_date customer form thi 'YYYY-MM-DD' (native date input) format ma save thay chhe
+function parseISODate(str){
+  if(!str) return null;
+  const parts = String(str).split('-');
+  if(parts.length!==3) return null;
+  const [y,m,d] = parts.map(Number);
+  if(!y||!m||!d) return null;
+  return {y,m,d};
+}
+
+function getUpcomingBirthdays(daysAhead){
+  daysAhead = daysAhead || 7;
+  const now = new Date(); now.setHours(0,0,0,0);
+  const list = [];
+  S.customers.forEach(c=>{
+    if(!c.birth_date || !c.phone) return;
+    const p = parseISODate(c.birth_date);
+    if(!p) return;
+    let next = new Date(now.getFullYear(), p.m-1, p.d);
+    next.setHours(0,0,0,0);
+    if(next < now) next = new Date(now.getFullYear()+1, p.m-1, p.d);
+    const daysUntil = Math.round((next-now)/(1000*60*60*24));
+    if(daysUntil >= 0 && daysUntil <= daysAhead){
+      list.push({
+        id: c.id, name: c.name||'Customer', phone: c.phone,
+        birth_date: c.birth_date,
+        preferred_language: c.preferred_language||'gujarati',
+        daysUntil, nextDate: next
+      });
+    }
+  });
+  list.sort((a,b)=>a.daysUntil-b.daysUntil);
+  return list;
+}
+
+function fmtBdayShort(d){
+  const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return d.getDate()+' '+months[d.getMonth()];
+}
+
+async function renderBirthdayPage(){
+  const container = document.getElementById('bdayFullList');
+  if(!container) return;
+  const days = parseInt(document.getElementById('bdayDaysFilter')?.value) || 7;
+  const q = (document.getElementById('bdaySearch')?.value||'').toLowerCase().trim();
+  let list = getUpcomingBirthdays(days);
+  if(q){
+    list = list.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q));
+  }
+  const countEl = document.getElementById('bdayCount');
+  if(countEl) countEl.textContent = list.length + ' birthday' + (list.length!==1?'s':'') + ' aavti ' + days + ' din ma';
+
+  if(!list.length){
+    container.innerHTML = '<div class="empty"><div class="ei">🎂</div><p>Aa period ma koi birthday nathi</p></div>';
+    return;
+  }
+  const langLabel={gujarati:'ગુજરાતી',hindi:'हिंदी',english:'English'};
+  container.innerHTML = list.map(c=>{
+    const safeName = String(c.name).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+    const whenStr = c.daysUntil===0 ? 'Aaje! 🎉' : (c.daysUntil===1 ? 'Kale' : c.daysUntil+' din ma');
+    return `<div class="card" style="display:flex;justify-content:space-between;align-items:center;padding:13px 16px;margin-bottom:8px;gap:10px">
+      <div style="min-width:0">
+        <div style="font-weight:700;font-size:14px">${c.name}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">📞 ${c.phone} · 🎂 ${fmtBdayShort(c.nextDate)} · <span style="color:var(--accent);font-weight:600">${whenStr}</span> · <span class="badge badge-yellow">${langLabel[c.preferred_language]||c.preferred_language}</span></div>
+      </div>
+      <button onclick="openBdayMsgModal(${c.id})" style="background:#25d366;border:none;color:#fff;padding:9px 14px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;display:flex;align-items:center;gap:5px">💬 Message</button>
+    </div>`;
+  }).join('');
+}
+
+// Language-wise default birthday + discount offer message
+function buildBdayMsg(custName, lang){
+  const shopName = (S.settings.shop_name||'Eliitoze Jewelz');
+  if(lang==='english'){
+    return `Happy Birthday, ${custName}! 🎉🎂\n\nWishing you a year full of happiness and sparkle, from all of us at ${shopName}.\n\nAs a birthday gift from us — enjoy a special 10% discount on your next purchase this month! 💎\n\nVisit us soon 🙏`;
+  }
+  if(lang==='hindi'){
+    return `जन्मदिन की हार्दिक शुभकामनाएं, ${custName} जी! 🎉🎂\n\n${shopName} की तरफ से आपको खुशियों और चमक से भरे साल की शुभकामनाएं।\n\nआपके जन्मदिन के उपहार स्वरूप, इस महीने आपकी अगली खरीदारी पर 10% की खास छूट! 💎\n\nजल्द ही हमसे मिलने आइए 🙏`;
+  }
+  // default: gujarati
+  return `Janmadivas ni khoob khoob shubhkamna, ${custName} ji! 🎉🎂\n\n${shopName} taraf thi tamne khushi ane chamak thi bharpur varas ni shubhkamna.\n\nTamara janmadivas ni ભેট taraike, aa mahina tamari aavti kharidi par 10% ni khas discount! 💎\n\nJaldi thi amara ahiya visit karo 🙏`;
+}
+
+let _bdayMsgTarget = null; // {name, phone}
+function openBdayMsgModal(custId){
+  const c = S.customers.find(x=>x.id===custId); if(!c) return;
+  _bdayMsgTarget = { name: c.name, phone: c.phone };
+  const lang = c.preferred_language||'gujarati';
+  document.getElementById('bdayMsgToLabel').textContent = 'Kone: ' + c.name + ' (' + c.phone + ')';
+  document.getElementById('bdayMsgText').value = buildBdayMsg(c.name, lang);
+  document.getElementById('bdayMsgModal').classList.add('open');
+}
+function confirmSendBdayMsg(){
+  if(!_bdayMsgTarget) return;
+  const msg = document.getElementById('bdayMsgText').value;
+  sendToWA(_bdayMsgTarget.phone, msg);
+  closeM('bdayMsgModal');
 }
 
 // ===== REPORTS (PIN protected) =====
