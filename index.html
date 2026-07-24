@@ -3097,14 +3097,16 @@ function thermalPrint(invData){
       grand: invData.total,
       gstRate: invData.gst_rate || 0
     };
-    customer = invData.customer_name;
-    billNum = invData.bill_number;
+    customer = invData.customer_name || 'Walk-in';
+    // Advance bill: AD series number, regular bill: normal number
+    const isAdv = invData.status === 'advance' || invData.status === 'advance_closed' || invData.advance_bill_number;
+    billNum = isAdv ? ('AD'+String(invData.advance_bill_number||invData.bill_number||'').padStart(3,'0')) : invData.bill_number;
     dateStr = invData.bill_date;
     billTime = invData.bill_time || '';
     payment = invData.payment_mode;
     note = invData.note;
-    const c = invData.customer_id ? S.customers.find(x=>x.id===invData.customer_id) : null;
-    custPhone = c ? c.phone : '';
+    const c = invData.customer_id ? S.customers.find(x=>x.id===invData.customer_id||String(x.id)===String(invData.customer_id)) : null;
+    custPhone = c ? c.phone : (invData.phone || '');
   } else {
     if(!S.billItems.length){ toast('Add items first!','error'); return; }
     items = S.billItems;
@@ -3124,7 +3126,7 @@ function thermalPrint(invData){
     note = document.getElementById('billNote').value;
   }
 
-  const billStr = String(billNum).padStart(4,'0');
+  const billStr = (typeof billNum === 'string' && billNum.startsWith('AD')) ? billNum : String(billNum).padStart(4,'0');
   const terms = (s.terms||'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>');
 
   const f = "font-family:'Courier New',monospace;";
