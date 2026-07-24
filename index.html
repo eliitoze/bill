@@ -5451,7 +5451,7 @@ async function vbSave(){
         custId = nc.id;
         saveOffline();
         toast('👤 '+custName+' customer ma add thaya!','success');
-      } catch(e){\
+      } catch(e){
         const nc = {id:Date.now(), name:custName, phone:phone||'', address:'', total_purchase:0};
         S.customers.push(nc);
         custId = nc.id;
