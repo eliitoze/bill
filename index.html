@@ -210,6 +210,9 @@ html, body {
 .page { display: none; position: relative; }
 .page.active { display: block; }
 #page-billing.active { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+@media (max-width: 768px) {
+  #page-billing.active { overflow-y: auto; height: auto; display: block; -webkit-overflow-scrolling: touch; }
+}
 
 /* STATS */
 .stats-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 12px; margin-bottom: 16px; }
@@ -857,8 +860,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
     box-shadow: 0 -6px 20px rgba(0,0,0,0.35);
   }
   .vb-actions button { flex: 1; padding: 13px; font-size: 14px; }
-  /* Billing page: let content div scroll normally */
-  #page-billing.active { overflow: visible; height: auto; display: block; }
+  /* Billing page scrolls via .content - no override needed */
 }
 
 /* Billing page takes full content area */
