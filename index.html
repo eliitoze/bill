@@ -957,6 +957,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
     <div class="nav-item" onclick="showPage('invoices',this);renderInvs()"><span class="nav-icon">≡</span> Bill History</div>
     <div class="nav-item" onclick="askPIN('reports')"><span class="nav-icon">📊</span> Reports</div>
     <div class="nav-item" onclick="showPage('advance',this);renderAdvanceBills()"><span class="nav-icon">💰</span> Advance Bills</div>
+    <div class="nav-item" onclick="showPage('birthdays',this);renderBirthdays()"><span class="nav-icon">🎂</span> Birthdays</div>
     <div class="nav-item" onclick="showPage('import',this)"><span class="nav-icon">⇪</span> Excel Import</div>
     <div class="nav-item" onclick="showPage('settings',this)"><span class="nav-icon">⚙</span> Settings</div>
   </nav>
@@ -1039,7 +1040,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
                 <input type="hidden" id="vbCustId">
               </div>
               <input type="tel" id="vbPhone" placeholder="Phone No." class="vb-input" maxlength="10">
-              <input type="text" id="vbDob" class="vb-input" placeholder="🎂 Date of Birth (Optional)" onfocus="if(!this.dataset.picked){this.type='date';}" onblur="if(!this.value){this.type='text';}" onchange="this.dataset.picked=this.value?'1':'';" style="color:var(--muted)">
+              <input type="text" id="vbDob" class="vb-input" placeholder="🎂 DD/MM (Optional)" maxlength="5" inputmode="numeric" oninput="vbDobFormat(this)" style="color:var(--muted)">
               <textarea id="vbAddress" placeholder="Billing Address" class="vb-input vb-textarea" rows="2"></textarea>
             </div>
           </div>
@@ -1354,6 +1355,20 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 
     <!-- IMPORT -->
     <!-- ADVANCE BILLS PAGE -->
+    <!-- BIRTHDAY REMINDERS PAGE -->
+    <div class="page" id="page-birthdays">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+        <span style="font-size:15px;font-weight:700;color:var(--accent)">🎂 Birthday Reminders</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" id="bdaySearch" placeholder="Search customer..." oninput="renderBirthdays()" style="padding:7px 11px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;width:160px">
+        </div>
+      </div>
+      <!-- Today's birthdays highlight -->
+      <div id="bdayToday" style="margin-bottom:14px"></div>
+      <!-- All customers with DOB -->
+      <div id="bdayList"></div>
+    </div>
+
     <div class="page" id="page-advance">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
         <span style="font-size:15px;font-weight:700;color:var(--accent)">💰 Advance Bills</span>
@@ -5393,7 +5408,7 @@ function vbClear(){
   document.getElementById('vbCustName').value='';
   document.getElementById('vbCustId').value='';
   document.getElementById('vbPhone').value='';
-  const dobEl2=document.getElementById('vbDob'); if(dobEl2){dobEl2.type='text';dobEl2.value='';dobEl2.removeAttribute('data-picked');}
+  const dobEl2=document.getElementById('vbDob'); if(dobEl2){dobEl2.value='';}
   document.getElementById('vbAddress').value='';
   document.getElementById('vbNote').value='';
   document.getElementById('vbDiscPct').value='';
@@ -6003,6 +6018,106 @@ function advShowPostSaveModal(inv, phone){
   document.body.appendChild(overlay);
   document.getElementById('advPrintBtn').onclick = function(){ thermalPrint(window._advLastInv); showWAStep(); };
   document.getElementById('advSkipPrintBtn').onclick = showWAStep;
+}
+
+// ===== DOB FORMAT HELPER (DDMM auto-slash) =====
+function vbDobFormat(el){
+  let v = el.value.replace(/\D/g,'');
+  if(v.length>2) v = v.slice(0,2)+'/'+v.slice(2,4);
+  el.value = v;
+}
+
+// ===== BIRTHDAY REMINDERS =====
+function renderBirthdays(){
+  const todayDiv  = document.getElementById('bdayToday');
+  const listDiv   = document.getElementById('bdayList');
+  if(!todayDiv||!listDiv) return;
+
+  const q = (document.getElementById('bdaySearch')?.value||'').toLowerCase().trim();
+  const now = new Date();
+  const todayDD = String(now.getDate()).padStart(2,'0');
+  const todayMM = String(now.getMonth()+1).padStart(2,'0');
+  const todayDDMM = todayDD+'/'+todayMM;
+
+  // customers with dob only
+  const withDob = S.customers.filter(c=>{
+    if(!c.dob) return false;
+    if(q && !c.name.toLowerCase().includes(q) && !(c.phone||'').includes(q)) return false;
+    return true;
+  });
+
+  // parse dob — support DD/MM, YYYY-MM-DD, DD-MM-YYYY
+  function parseDDMM(dob){
+    if(!dob) return null;
+    if(/^\d{2}\/\d{2}$/.test(dob)) return dob; // DD/MM
+    if(/^\d{4}-\d{2}-\d{2}$/.test(dob)){ const p=dob.split('-'); return p[2]+'/'+p[1]; } // YYYY-MM-DD
+    if(/^\d{2}-\d{2}-\d{4}$/.test(dob)){ const p=dob.split('-'); return p[0]+'/'+p[1]; } // DD-MM-YYYY
+    return dob.slice(0,5); // fallback
+  }
+
+  // Sort by upcoming birthday (month/day)
+  function daysUntil(ddmm){
+    const [dd,mm] = ddmm.split('/').map(Number);
+    if(!dd||!mm) return 999;
+    const today = new Date(); today.setHours(0,0,0,0);
+    let bday = new Date(today.getFullYear(), mm-1, dd);
+    if(bday < today) bday.setFullYear(today.getFullYear()+1);
+    return Math.round((bday-today)/(1000*60*60*24));
+  }
+
+  const custs = withDob.map(c=>({...c, ddmm: parseDDMM(c.dob)})).filter(c=>c.ddmm);
+  custs.sort((a,b)=>daysUntil(a.ddmm)-daysUntil(b.ddmm));
+
+  // Today's birthdays
+  const todayBdays = custs.filter(c=>c.ddmm===todayDDMM);
+  if(todayBdays.length){
+    todayDiv.innerHTML = `
+      <div style="background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.35);border-radius:12px;padding:12px 14px;margin-bottom:4px">
+        <div style="font-size:13px;font-weight:700;color:#fbbf24;margin-bottom:10px">🎉 આજે Birthday!</div>
+        ${todayBdays.map(c=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(251,191,36,0.15)">
+            <div>
+              <div style="font-weight:700;font-size:14px">${c.name}</div>
+              ${c.phone?`<div style="font-size:12px;color:var(--muted)">📞 ${c.phone}</div>`:''}
+            </div>
+            ${c.phone?`<button onclick="bdaySendWA('${c.id}')" style="padding:7px 12px;background:#25d366;border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer">📲 Wish</button>`:''}
+          </div>`).join('')}
+      </div>`;
+  } else {
+    todayDiv.innerHTML = '';
+  }
+
+  // All list
+  if(!custs.length){
+    listDiv.innerHTML='<div class="empty"><div class="ei">🎂</div>Koi customer ni DOB nathi.</div>';
+    return;
+  }
+
+  const monthNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  listDiv.innerHTML = custs.map(c=>{
+    const days = daysUntil(c.ddmm);
+    const [dd,mm] = c.ddmm.split('/');
+    const monthName = monthNames[(parseInt(mm)||1)-1]||mm;
+    const isToday = days===0;
+    const soon = days<=7 && !isToday;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);${isToday?'background:rgba(251,191,36,0.07);border-radius:8px;':''}">
+      <div>
+        <div style="font-weight:700;font-size:13.5px">${c.name} ${isToday?'🎉':soon?'🔔':''}</div>
+        <div style="font-size:12px;color:var(--muted)">${dd} ${monthName}${c.phone?' · 📞'+c.phone:''}</div>
+        <div style="font-size:11px;color:${isToday?'#fbbf24':soon?'#6ee7b7':'var(--muted)'}">${isToday?'આજે Birthday!':days===1?'કાલે Birthday':days+' days'}</div>
+      </div>
+      ${c.phone?`<button onclick="bdaySendWA('${c.id}')" style="padding:6px 11px;background:${isToday?'#25d366':'var(--s2)'};border:1px solid ${isToday?'#25d366':'var(--border)'};border-radius:8px;color:${isToday?'#fff':'var(--muted)'};font-size:12px;font-weight:600;cursor:pointer">📲</button>`:''}
+    </div>`;
+  }).join('');
+}
+
+function bdaySendWA(custId){
+  const c = S.customers.find(x=>String(x.id)===String(custId));
+  if(!c||!c.phone) return;
+  const s = S.settings||{};
+  const shop = (s.shop_name||'ELIITOZE JEWELZ').toUpperCase();
+  const msg = `🎂 *Happy Birthday ${c.name}!* 🎉\n\nEliitoze Jewelz તરફથી આપને જન્મ દિવસ ની ખૂબ ખૂબ શુભ કામનાઓ! 💍✨\n\n🛍 અમારી special jewelry collection જોવા આવો.\n\n— *${shop}*`;
+  sendToWA(c.phone, msg);
 }
 
 function advSendWADirect(inv, phone){
