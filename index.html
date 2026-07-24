@@ -12,7 +12,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 
 <style>
@@ -90,10 +89,10 @@ body.light-mode {
   --card: #ffffff;
 }
 body.light-mode .sync-dot { background: #059669; }
-body.light-mode .stat-card.green { background: linear-gradient(150deg, rgba(5,150,105,0.10), #ffffff 65%); border-color: rgba(5,150,105,0.3); }
-body.light-mode .stat-card.yellow { background: linear-gradient(150deg, rgba(217,119,6,0.10), #ffffff 65%); border-color: rgba(217,119,6,0.3); }
-body.light-mode .stat-card.blue { background: linear-gradient(150deg, rgba(37,99,235,0.10), #ffffff 65%); border-color: rgba(37,99,235,0.3); }
-body.light-mode .stat-card.red { background: linear-gradient(150deg, rgba(220,38,38,0.10), #ffffff 65%); border-color: rgba(220,38,38,0.3); }
+body.light-mode .stat-card.green { background: rgba(5,150,105,0.1); border-color: rgba(5,150,105,0.3); }
+body.light-mode .stat-card.yellow { background: rgba(217,119,6,0.1); border-color: rgba(217,119,6,0.3); }
+body.light-mode .stat-card.blue { background: rgba(37,99,235,0.1); border-color: rgba(37,99,235,0.3); }
+body.light-mode .stat-card.red { background: rgba(220,38,38,0.1); border-color: rgba(220,38,38,0.3); }
 body.light-mode .btn-primary { background: #059669; }
 body.light-mode .nav-item.active { background: rgba(5,150,105,0.15); color: #059669; }
 body.light-mode .nav-item:hover { background: rgba(5,150,105,0.08); }
@@ -217,27 +216,13 @@ html, body {
 @media (min-width: 900px) { .stats-grid { grid-template-columns: repeat(4,1fr); } }
 
 .stat-card {
-  position: relative;
   background: var(--s1);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 15px 16px 13px;
-  overflow: hidden;
-  transition: transform .15s ease, box-shadow .15s ease;
+  border-radius: 12px;
+  padding: 14px 16px;
 }
-.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(0,0,0,0.22); }
-.stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; }
-.stat-card.green::before  { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
-.stat-card.yellow::before { background: linear-gradient(90deg, var(--yellow), #f59e0b); }
-.stat-card.blue::before   { background: linear-gradient(90deg, var(--blue), #3b82f6); }
-.stat-card.red::before    { background: linear-gradient(90deg, var(--red), #ef4444); }
-.stat-card.green  { background: linear-gradient(150deg, rgba(110,231,183,0.12), var(--s1) 65%); }
-.stat-card.yellow { background: linear-gradient(150deg, rgba(251,191,36,0.12), var(--s1) 65%); }
-.stat-card.blue   { background: linear-gradient(150deg, rgba(96,165,250,0.12), var(--s1) 65%); }
-.stat-card.red    { background: linear-gradient(150deg, rgba(248,113,113,0.12), var(--s1) 65%); }
-.stat-icon { position: absolute; top: 13px; right: 14px; font-size: 19px; opacity: 0.5; }
 .stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; }
-.stat-value { font-family: 'DM Mono', monospace; font-size: 24px; font-weight: 700; color: var(--text); margin-top: 6px; }
+.stat-value { font-family: 'DM Mono', monospace; font-size: 22px; font-weight: 500; color: var(--text); margin-top: 5px; }
 .stat-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .stat-card.green .stat-value { color: var(--accent); }
 .stat-card.yellow .stat-value { color: var(--yellow); }
@@ -818,31 +803,6 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 .vbm-card-amt b { font-size: 14px; color: var(--accent); font-weight: 800; margin-left: 4px; }
 .vbm-empty { text-align: center; padding: 26px 10px; color: var(--muted); font-size: 13px; line-height: 1.6; }
 
-/* ===== BILL HISTORY — Vyapar-style mobile cards ===== */
-.inv-mob-list { display: none; }
-.inv-card {
-  background: var(--s1); border: 1px solid var(--border); border-radius: 12px;
-  padding: 13px 14px; margin-bottom: 10px; cursor: pointer;
-}
-.inv-card:active { background: var(--s2); }
-.inv-card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
-.inv-card-name { font-weight: 700; font-size: 14.5px; }
-.inv-card-badge { text-align: right; }
-.inv-card-billno { font-family: 'DM Mono', monospace; font-weight: 700; font-size: 12px; color: var(--accent); }
-.inv-card-datetime { font-size: 11px; color: var(--muted); margin-top: 2px; }
-.inv-card-row { display: flex; justify-content: space-between; border-top: 1px dashed var(--border); padding-top: 9px; }
-.inv-card-col { text-align: left; }
-.inv-card-col:last-child { text-align: right; }
-.inv-card-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
-.inv-card-val { font-size: 13.5px; font-weight: 700; font-family: 'DM Mono', monospace; }
-.inv-card-actions { display: flex; gap: 6px; margin-top: 10px; }
-.inv-card-actions button { flex: 1; padding: 8px; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; }
-
-@media (max-width: 768px) {
-  .inv-desk-table { display: none; }
-  .inv-mob-list { display: block; }
-}
-
 /* ITEM PICKER BOTTOM SHEET */
 #vbItemPickerOverlay {
   position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 400;
@@ -990,10 +950,9 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
     <div class="nav-item" onclick="showPage('billing',this)"><span class="nav-icon">◉</span> New Bill</div>
     <div class="nav-item" onclick="showPage('products',this);renderProds()"><span class="nav-icon">▣</span> Products</div>
     <div class="nav-item" onclick="showPage('customers',this);renderCusts()"><span class="nav-icon">◎</span> Customers</div>
-    <div class="nav-item" onclick="showPage('recurring',this);renderRecurringPage()"><span class="nav-icon">🔁</span> Recurring</div>
-    <div class="nav-item" onclick="showPage('birthday',this);renderBirthdayPage()"><span class="nav-icon">🎂</span> Birthdays</div>
     <div class="nav-item" onclick="showPage('invoices',this);renderInvs()"><span class="nav-icon">≡</span> Bill History</div>
     <div class="nav-item" onclick="askPIN('reports')"><span class="nav-icon">📊</span> Reports</div>
+    <div class="nav-item" onclick="showPage('advance',this);renderAdvanceBills()"><span class="nav-icon">💰</span> Advance Bills</div>
     <div class="nav-item" onclick="showPage('import',this)"><span class="nav-icon">⇪</span> Excel Import</div>
     <div class="nav-item" onclick="showPage('settings',this)"><span class="nav-icon">⚙</span> Settings</div>
   </nav>
@@ -1018,23 +977,31 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 
     <!-- DASHBOARD -->
     <div class="page active" id="page-dashboard">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-        <span style="font-size:13px;color:var(--muted);font-weight:600" id="dashOverviewLabel">Today's Overview</span>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <input type="date" id="dashDateFilter" onchange="updateDash()" style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px;font-family:'DM Sans',sans-serif;outline:none">
-          <button onclick="toggleDashPrivacy()" id="dashPrivacyBtn" style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--muted);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;gap:5px">
-            👁 Hide
-          </button>
-        </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-size:13px;color:var(--muted);font-weight:600">Today's Overview</span>
+        <button onclick="toggleDashPrivacy()" id="dashPrivacyBtn" style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--muted);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;gap:5px">
+          👁 Hide
+        </button>
       </div>
       <div class="stats-grid">
-        <div class="stat-card green"><span class="stat-icon">💰</span><div class="stat-label" id="d-sale-label">Today Sales</div><div class="stat-value" id="d-sale">₹0</div><div class="stat-sub"><span id="d-bills">0</span> bills</div></div>
-        <div class="stat-card yellow"><span class="stat-icon">📈</span><div class="stat-label" id="d-profit-label">Today Profit</div><div class="stat-value" id="d-profit">🔐</div><div class="stat-sub" id="d-margin">PIN protected</div></div>
-        <div class="stat-card blue"><span class="stat-icon">💎</span><div class="stat-label">Products</div><div class="stat-value" id="d-prods">0</div><div class="stat-sub">in stock</div></div>
-        <div class="stat-card red"><span class="stat-icon">📦</span><div class="stat-label">Low Stock</div><div class="stat-value" id="d-low">0</div><div class="stat-sub">need restock</div></div>
+        <div class="stat-card green"><div class="stat-label">Today Sales</div><div class="stat-value" id="d-sale">₹0</div><div class="stat-sub"><span id="d-bills">0</span> bills</div></div>
+        <div class="stat-card yellow"><div class="stat-label">Today Profit</div><div class="stat-value" id="d-profit">🔐</div><div class="stat-sub" id="d-margin">PIN protected</div></div>
+        <div class="stat-card blue"><div class="stat-label">Products</div><div class="stat-value" id="d-prods">0</div><div class="stat-sub">in stock</div></div>
+        <div class="stat-card red"><div class="stat-label">Low Stock</div><div class="stat-value" id="d-low">0</div><div class="stat-sub">need restock</div></div>
+      </div>
+      <!-- Advance Pending Card -->
+      <div id="d-advance-wrap" style="display:none;margin-bottom:12px">
+        <div class="card" style="border:1px solid rgba(251,191,36,0.4);background:rgba(251,191,36,0.06)">
+          <div class="card-title" style="color:#fbbf24;display:flex;justify-content:space-between;align-items:center">
+            💰 Pending Advances
+            <span id="d-advance-count" style="background:#fbbf24;color:#000;border-radius:20px;padding:2px 10px;font-size:12px;font-weight:700">0</span>
+          </div>
+          <div id="d-advance-list"></div>
+          <button onclick="showPage('advance',document.querySelector('.nav-item[onclick*=advance]'));renderAdvanceBills()" style="margin-top:10px;width:100%;padding:8px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);border-radius:8px;color:#fbbf24;font-size:13px;font-weight:600;cursor:pointer">View All Advances →</button>
+        </div>
       </div>
       <div class="two-col">
-        <div class="card"><div class="card-title" id="d-recent-title">🧾 Bills</div><div id="d-recent"><div class="empty"><div class="ei">🧾</div><p>No bills yet</p></div></div></div>
+        <div class="card"><div class="card-title">Recent Bills</div><div id="d-recent"><div class="empty"><div class="ei">🧾</div><p>No bills yet</p></div></div></div>
         <div class="card"><div class="card-title">⚠ Low Stock</div><div id="d-lowlist"><div class="empty"><div class="ei">✅</div><p>All in stock</p></div></div></div>
       </div>
     </div>
@@ -1069,6 +1036,10 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
               </div>
               <input type="tel" id="vbPhone" placeholder="Phone No." class="vb-input" maxlength="10">
               <input type="tel" id="vbMobile" placeholder="Mobile No." class="vb-input" maxlength="10">
+              <div style="position:relative">
+                <input type="date" id="vbDob" class="vb-input" style="color:var(--muted)" onchange="document.getElementById('vbDobLabel').style.display=this.value?'none':'block'">
+                <span id="vbDobLabel" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--muted);pointer-events:none">🎂 Date of Birth (Optional)</span>
+              </div>
               <textarea id="vbAddress" placeholder="Billing Address" class="vb-input vb-textarea" rows="2"></textarea>
             </div>
           </div>
@@ -1172,17 +1143,12 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
             <span>🔍 Item Pasand Karo</span>
             <button class="vbip-close" onclick="vbCloseItemPicker()">✕</button>
           </div>
-          <div style="display:flex;gap:8px;margin-bottom:9px">
-            <input type="text" id="vbipSearch" class="vbip-search" placeholder="Item name search karo..." oninput="vbFilterPicker(this.value)" style="flex:1;margin-bottom:0">
-            <button type="button" onclick="document.getElementById('vbCodeScanInput').click()" title="Handwritten code scan karo" style="flex-shrink:0;width:42px;background:var(--s2);border:1px solid var(--border);border-radius:9px;color:var(--accent);font-size:18px;cursor:pointer">📷</button>
-          </div>
-          <div id="vbScanStatus" style="display:none;font-size:11px;color:var(--accent);margin-bottom:8px">🔍 Code scan thai rahyu chhe...</div>
+          <input type="text" id="vbipSearch" class="vbip-search" placeholder="Item name search karo..." oninput="vbFilterPicker(this.value)">
           <div class="vbip-cats" id="vbipCats"></div>
         </div>
         <div class="vbip-list" id="vbipList"></div>
       </div>
     </div>
-    <input type="file" id="vbCodeScanInput" accept="image/*" capture="environment" style="display:none" onchange="vbHandleCodeScan(this.files[0])">
 
     <!-- PRODUCTS -->
     <div class="page" id="page-products">
@@ -1232,94 +1198,8 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
       </div>
     </div>
 
-    <!-- RECURRING CUSTOMERS -->
-    <div class="page" id="page-recurring">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;flex-wrap:wrap">
-        <div style="flex:1;position:relative;min-width:220px">
-          <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:15px">🔍</span>
-          <input type="text" id="recurSearch" placeholder="Name ke phone thi search karo..." oninput="renderRecurringPage()"
-            style="width:100%;padding:9px 12px 9px 34px;background:var(--s1);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box">
-        </div>
-        <select id="recurDaysFilter" onchange="renderRecurringPage()" style="padding:9px 12px;background:var(--s1);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:inherit;font-size:13px;outline:none">
-          <option value="90" selected>3+ mahina (90 din)</option>
-          <option value="30">1+ mahino (30 din)</option>
-          <option value="180">6+ mahina (180 din)</option>
-          <option value="365">1+ varas (365 din)</option>
-        </select>
-      </div>
-      <div id="recurCount" style="font-size:12px;color:var(--muted);margin-bottom:10px"></div>
-      <div id="recurFullList"></div>
-    </div>
-
-    <!-- Message customize modal -->
-    <div class="overlay" id="recurMsgModal">
-      <div class="modal" style="max-width:440px">
-        <h3>💬 Message Customize Karo</h3>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:10px" id="recurMsgToLabel"></div>
-        <textarea id="recurMsgText" rows="7" style="width:100%;padding:10px;background:var(--s2);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box;resize:vertical;margin-bottom:12px"></textarea>
-        <div class="modal-footer">
-          <button class="btn btn-ghost" onclick="closeM('recurMsgModal')">Cancel</button>
-          <button class="btn btn-primary" style="background:#25d366" onclick="confirmSendRecurringMsg()">💬 WhatsApp par Mokalo</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- BIRTHDAYS -->
-    <div class="page" id="page-birthday">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;flex-wrap:wrap">
-        <div style="flex:1;position:relative;min-width:220px">
-          <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:15px">🔍</span>
-          <input type="text" id="bdaySearch" placeholder="Name ke phone thi search karo..." oninput="renderBirthdayPage()"
-            style="width:100%;padding:9px 12px 9px 34px;background:var(--s1);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box">
-        </div>
-        <select id="bdayDaysFilter" onchange="renderBirthdayPage()" style="padding:9px 12px;background:var(--s1);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:inherit;font-size:13px;outline:none">
-          <option value="7" selected>Aavta 7 din</option>
-          <option value="15">Aavta 15 din</option>
-          <option value="30">Aavta 30 din</option>
-        </select>
-      </div>
-      <div id="bdayCount" style="font-size:12px;color:var(--muted);margin-bottom:10px"></div>
-      <div id="bdayFullList"></div>
-    </div>
-
-    <!-- Birthday message customize modal -->
-    <div class="overlay" id="bdayMsgModal">
-      <div class="modal" style="max-width:440px">
-        <h3>🎂 Birthday Message Customize Karo</h3>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:10px" id="bdayMsgToLabel"></div>
-        <textarea id="bdayMsgText" rows="8" style="width:100%;padding:10px;background:var(--s2);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:inherit;font-size:13px;outline:none;box-sizing:border-box;resize:vertical;margin-bottom:12px"></textarea>
-        <div class="modal-footer">
-          <button class="btn btn-ghost" onclick="closeM('bdayMsgModal')">Cancel</button>
-          <button class="btn btn-primary" style="background:#25d366" onclick="confirmSendBdayMsg()">💬 WhatsApp par Mokalo</button>
-        </div>
-      </div>
-    </div>
-
+    <!-- INVOICES -->
     <div class="page" id="page-invoices">
-      <!-- Date Range Filter -->
-      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
-        <select id="invDateRange" onchange="invRangeChanged()" style="padding:9px 12px;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none">
-          <option value="all">📋 All Time (badhu data)</option>
-          <option value="today">Today</option>
-          <option value="week">This Week</option>
-          <option value="month">This Month</option>
-          <option value="quarter">This Quarter</option>
-          <option value="year" selected>This Year</option>
-          <option value="fy">This Financial Year</option>
-          <option value="custom">Custom Range</option>
-        </select>
-        <input type="date" id="invDateFrom" onchange="renderInvs()" style="display:none;padding:8px 11px;background:var(--s2);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none">
-        <span id="invDateToLbl" style="display:none;color:var(--muted);font-size:12px">to</span>
-        <input type="date" id="invDateTo" onchange="renderInvs()" style="display:none;padding:8px 11px;background:var(--s2);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none">
-      </div>
-
-      <!-- Summary stat cards -->
-      <div class="stats-grid" style="margin-bottom:14px">
-        <div class="stat-card"><div class="stat-label">No of Bills</div><div class="stat-value" id="inv-stat-count">0</div></div>
-        <div class="stat-card green"><div class="stat-label">Total Sale</div><div class="stat-value" id="inv-stat-total">₹0</div></div>
-        <div class="stat-card yellow"><div class="stat-label">Avg Bill</div><div class="stat-value" id="inv-stat-avg">₹0</div></div>
-      </div>
-
       <!-- Search Bar -->
       <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center">
         <div style="flex:1;position:relative">
@@ -1332,7 +1212,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
         <button class="btn btn-ghost btn-sm" onclick="document.getElementById('invSearch').value='';renderInvs()">✕ Clear</button>
       </div>
       <div id="invCount" style="font-size:12px;color:var(--muted);margin-bottom:8px"></div>
-      <div class="card inv-desk-table">
+      <div class="card">
         <div class="tbl-wrap">
           <table>
             <thead><tr><th>Bill#</th><th>Date</th><th>Customer</th><th>Payment</th><th>Amount</th><th>Action</th></tr></thead>
@@ -1340,10 +1220,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
           </table>
         </div>
       </div>
-      <!-- Mobile card list (Vyapar-style) -->
-      <div class="inv-mob-list" id="invMobList"></div>
     </div>
-
 
     <!-- PROFIT REPORTS (PIN protected) -->
     <div class="page" id="page-reports">
@@ -1476,6 +1353,33 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
     </div>
 
     <!-- IMPORT -->
+    <!-- ADVANCE BILLS PAGE -->
+    <div class="page" id="page-advance">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+        <span style="font-size:15px;font-weight:700;color:var(--accent)">💰 Advance Bills</span>
+        <button onclick="openAdvanceModal()" class="btn btn-primary" style="padding:9px 18px;font-size:13px;font-weight:700">+ New Advance Bill</button>
+      </div>
+      <!-- Tabs -->
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <button id="adv-tab-pending" onclick="switchAdvTab('pending')" style="flex:1;padding:9px;border-radius:8px;border:none;background:var(--accent);color:#000;font-weight:700;font-size:13px;cursor:pointer">⏳ Pending</button>
+        <button id="adv-tab-closed" onclick="switchAdvTab('closed')" style="flex:1;padding:9px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:13px;cursor:pointer">✅ Closed</button>
+      </div>
+      <div id="adv-list-pending"></div>
+      <div id="adv-list-closed" style="display:none"></div>
+    </div>
+
+    <!-- ADVANCE BILL MODAL -->
+    <div class="overlay" id="advanceModal" style="z-index:600" onclick="if(event.target===this)closeAdvanceModal()">
+      <div class="modal" style="max-width:420px;padding:22px" id="advanceModalBody">
+      </div>
+    </div>
+
+    <!-- RECEIVE PAYMENT MODAL -->
+    <div class="overlay" id="receivePayModal" style="z-index:700" onclick="if(event.target===this)closeReceivePay()">
+      <div class="modal" style="max-width:380px;padding:22px" id="receivePayBody">
+      </div>
+    </div>
+
     <div class="page" id="page-import">
       <div class="two-col" style="margin-bottom:14px">
         <div class="card">
@@ -1704,17 +1608,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
       <div class="form-group"><label>Mobile *</label><input id="cPhone" placeholder="10-digit number" type="tel"></div>
     </div>
     <div class="form-group" style="margin-bottom:10px"><label>Address</label><input id="cAddr" placeholder="City, Area"></div>
-    <div class="form-group" style="margin-bottom:10px"><label>Email</label><input id="cEmail" placeholder="email@example.com" type="email"></div>
-    <div class="form-row">
-      <div class="form-group"><label>Birth Date</label><input id="cBirthDate" type="date"></div>
-      <div class="form-group"><label>Preferred Language</label>
-        <select id="cLang" style="width:100%;padding:10px 12px;background:var(--s2);border:1px solid var(--border);border-radius:9px;color:var(--text);font-family:inherit;font-size:13px;outline:none">
-          <option value="gujarati">Gujarati</option>
-          <option value="hindi">Hindi</option>
-          <option value="english">English</option>
-        </select>
-      </div>
-    </div>
+    <div class="form-group"><label>Email</label><input id="cEmail" placeholder="email@example.com" type="email"></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeM('custModal')">Cancel</button>
       <button class="btn btn-primary" onclick="saveCust()">Save</button>
@@ -1851,8 +1745,7 @@ let S = {
   products:[], customers:[], invoices:[],
   settings:{shop_name:'Eliitoze Jewelz',phone:'',address:'RELIANCE MALL, RELIANCE SMART MARKET, GROUND FLOOR, NR. NANA MAVA CIRCLE, RAJKOT 360005',email:'ELIITOZE@GMAIL.COM',gst_number:'',thank_you:'Thank you!',gst_rate:'0',paper_width:'58mm',profit_pin:'1234',bill_counter:'1',terms:'(1) No Cash Refund & No buy-back (2) Exchange within 7 days from the available stock only, If found any manufacturing defect (3) 3 Month warranty on all Silver Jewelry that covers any material defects or workmanship under normal use. (4) No Guarantee or Warranty on Imitation Jewelry (5) Silver Jewelry Exchange Price 40% of Purchasing Price. Only Exchange No Cash Return or Refund. (6) Small stone fixing is free for lifetime (7) Silver jewelry cleaning is free for lifetime Happy to help you always.... Visit again.'},
   billItems:[], importData:[], pinTarget:'',
-  branches:[], activeBranchId: null, activeBranchName: '',
-  allInvoicesLoaded: false
+  branches:[], activeBranchId: null, activeBranchName: ''
 };
 
 // ── BRANCH FUNCTIONS ──
@@ -1872,7 +1765,7 @@ async function loadBranches(){
     const cached = localStorage.getItem('sb_branches');
     S.branches = cached ? JSON.parse(cached) : [{id:1, name:'Main Branch'}];
   }
-  safeSetItem('sb_branches', JSON.stringify(S.branches));
+  localStorage.setItem('sb_branches', JSON.stringify(S.branches));
 }
 
 function populateLoginBranches(){
@@ -1889,8 +1782,8 @@ function populateLoginBranches(){
 function setActiveBranch(id, name){
   S.activeBranchId   = parseInt(id);
   S.activeBranchName = name;
-  safeSetItem('sb_last_branch', id);
-  safeSetItem('sb_last_branch_name', name);
+  localStorage.setItem('sb_last_branch', id);
+  localStorage.setItem('sb_last_branch_name', name);
   // Topbar chip update
   const chip = document.getElementById('activeBranchChip');
   if(chip){ chip.textContent = '🏪 '+name; chip.style.display='inline-block'; }
@@ -1975,7 +1868,7 @@ async function fetchUsersFromServer(){
   try{
     const rows = await api('app_users?order=created_at');
     // Cache locally for offline
-    safeSetItem('sb_users_cache', JSON.stringify(rows));
+    localStorage.setItem('sb_users_cache', JSON.stringify(rows));
     return rows;
   } catch(e){
     // Offline fallback
@@ -2113,7 +2006,7 @@ async function changeMyPassword(){
     if(cached){
       const arr = JSON.parse(cached);
       const idx = arr.findIndex(x=>x.id===u.id);
-      if(idx>=0){ arr[idx].password_hash = newHash; safeSetItem('sb_users_cache', JSON.stringify(arr)); }
+      if(idx>=0){ arr[idx].password_hash = newHash; localStorage.setItem('sb_users_cache', JSON.stringify(arr)); }
     }
 
     document.getElementById('cpCurrent').value='';
@@ -2282,7 +2175,7 @@ function checkSession(){
 // Check existing session on page load
 function toggleTheme(){
   const isLight = document.body.classList.toggle('light-mode');
-  safeSetItem('sb_theme', isLight ? 'light' : 'dark');
+  localStorage.setItem('sb_theme', isLight ? 'light' : 'dark');
   document.getElementById('themeBtn').textContent = isLight ? '☀️' : '🌙';
 }
 
@@ -2340,52 +2233,20 @@ async function init(){
 
 async function loadAll(){
   const bid = S.activeBranchId || 1;
-  const curYear = new Date().getFullYear();
   const [prods, custs, invs, sets] = await Promise.all([
     api('products?order=name&branch_id=eq.'+bid),
     api('customers?order=name'),
-    // Default mate SIRF chalu varas na j bills load karo (load ochho thay) —
-    // "All Time" ke jūna year select karta j badhu data on-demand load thashe
-    api('invoices?order=bill_number.desc&limit=20000&branch_id=eq.'+bid+'&bill_date=like.*/'+curYear),
+    api('invoices?order=created_at.desc&limit=200&branch_id=eq.'+bid),
     api('settings?branch_id=eq.'+bid)
   ]);
   S.products = prods;
   S.customers = custs;
   S.invoices = invs;
-  S.allInvoicesLoaded = false; // sirf chalu varas j load thayu chhe abhi
   sets.forEach(s => S.settings[s.key] = s.value);
 
   // Bill counter — branch-specific key thi explicitly fetch karo
   await refreshBillCounter();
   saveOffline();
-}
-
-// "All Time" / jūna varas / custom-old-date jevi range select thay tyare j
-// badha invoices (full history) ek vaar load kariye — dar vaar nahi
-async function ensureFullInvoicesLoaded(){
-  if(S.allInvoicesLoaded) return;
-  const bid = S.activeBranchId || 1;
-  toast('📥 Badhi history load thai rahi chhe...', 'success');
-  try{
-    const all = await api('invoices?order=bill_number.desc&limit=20000&branch_id=eq.'+bid);
-    S.invoices = all;
-    S.allInvoicesLoaded = true;
-  } catch(e){
-    console.error('Full invoice load failed:', e.message);
-    toast('History load na thai — internet check karo','error');
-  }
-}
-
-// Konsi range mate full (badha varas nu) data joiye chhe, ke chalu varas nu j chalse
-function invRangeNeedsFullLoad(v){
-  if(S.allInvoicesLoaded) return false; // already loaded, dobara jarur nathi
-  if(v==='all') return true;
-  if(v==='fy'){ const m=new Date().getMonth(); return m < 3; } // Jan-Mar ma FY pichhla varas thi shરૂ thay
-  if(v==='custom'){
-    const f = document.getElementById('invDateFrom')?.value;
-    if(f){ const y = new Date(f).getFullYear(); return y < new Date().getFullYear(); }
-  }
-  return false; // today/week/month/quarter/year — chalu varas ni andar j
 }
 
 // Worker thi fresh bill counter fetch karo
@@ -2450,28 +2311,10 @@ function loadOffline(){
 
 function saveOffline(){
   const bid = S.activeBranchId || 1;
-  // Offline cache mate sirf recent bills j rakho (badha 9000+ nahi) —
-  // localStorage ni size limit (~5-10MB) cross na thay e mate.
-  // Full history hammesha online (Supabase) thi j aave chhe, offline mode
-  // sirf recent kaam chalu rakhva mate chhe.
-  const OFFLINE_INV_LIMIT = 300;
-  const recentInvoices = [...S.invoices]
-    .sort((a,b)=> (parseInt(b.bill_number)||0) - (parseInt(a.bill_number)||0))
-    .slice(0, OFFLINE_INV_LIMIT);
-  const payload = JSON.stringify({products:S.products, customers:S.customers, invoices:recentInvoices, settings:S.settings});
-  try{
-    localStorage.setItem('shopbill_offline_b'+bid, payload);
-    localStorage.setItem('shopbill_offline', payload);
-  } catch(e){
-    console.error('Offline cache save failed (quota?), app chalu rakhe chhe:', e.message);
-    // Jagya khali karva jūna/legacy keys hatavva ni koshish karo, pachi ek vaar fari try karo
-    try{
-      localStorage.removeItem('shopbill_offline');
-      localStorage.setItem('shopbill_offline_b'+bid, payload);
-    } catch(e2){
-      console.error('Offline cache disabled — data bahu vadhare chhe localStorage mate:', e2.message);
-    }
-  }
+  // Branch-wise offline cache — mix na thay
+  localStorage.setItem('shopbill_offline_b'+bid, JSON.stringify({products:S.products, customers:S.customers, invoices:S.invoices, settings:S.settings}));
+  // Legacy key pan update kariye (backward compat)
+  localStorage.setItem('shopbill_offline', JSON.stringify({products:S.products, customers:S.customers, invoices:S.invoices, settings:S.settings}));
 }
 
 function setSyncStatus(status){
@@ -2546,10 +2389,9 @@ function showPage(page, el){
   document.getElementById('page-'+page).classList.add('active');
   closeSidebar();
   if(el) el.classList.add('active');
-  const t={dashboard:'Dashboard',billing:'New Bill',products:'Products',customers:'Customers',recurring:'Recurring Customers',birthday:'Birthdays',invoices:'Bill History',reports:'Profit Report',import:'Excel Import',settings:'Settings'};
+  const t={dashboard:'Dashboard',billing:'New Bill',products:'Products',customers:'Customers',invoices:'Bill History',reports:'Profit Report',import:'Excel Import',settings:'Settings'};
   document.getElementById('pageTitle').textContent = t[page]||page;
   if(page==='reports') updateReports();
-  if(page==='dashboard'){ updateDash(); }
   if(page==='billing'){ vbSyncOnOpen(); }
   if(page==='settings'){ renderUserList(); renderBranchList(); }
   document.getElementById('sidebar').classList.remove('open');
@@ -2927,7 +2769,7 @@ async function saveBill(){
     items:S.billItems, subtotal:t.sub, discount:t.discAmt, discount_pct:t.disc,
     gst:t.gst, gst_rate:t.gstRate, total:t.grand, profit:t.profit,
     note:document.getElementById('billNote').value,
-    bill_date:fmtDMY(now),
+    bill_date:now.toLocaleDateString('en-IN'),
     bill_time:now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}),
     status:'paid',
     branch_id: S.activeBranchId || 1,
@@ -3114,7 +2956,7 @@ function getBillData(invData){
     custPhone = cust ? cust.phone : '';
     mobile = custPhone;
     billNum = parseInt(S.settings.bill_counter)||1;
-    dateStr = fmtDMY();
+    dateStr = new Date().toLocaleDateString('en-IN');
     payment = getActivePayMode();
     note = document.getElementById('billNote').value||'';
   }
@@ -3276,7 +3118,7 @@ function thermalPrint(invData){
     customer = cust ? cust.name : 'Walk-in';
     custPhone = cust ? cust.phone : '';
     billNum = parseInt(S.settings.bill_counter) || 1;
-    dateStr = fmtDMY();
+    dateStr = new Date().toLocaleDateString('en-IN');
     billTime = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
     payment = getActivePayMode();
     note = document.getElementById('billNote').value;
@@ -3556,7 +3398,7 @@ function resolveBillData(invoiceId){
       items: S.billItems, t,
       customer: custName, custPhone,
       billNum: parseInt(S.settings.bill_counter)||1,
-      dateStr: fmtDMY(),
+      dateStr: new Date().toLocaleDateString('en-IN'),
       payment: getActivePayMode(), note: document.getElementById('billNote').value||''
     };
   }
@@ -4271,8 +4113,7 @@ function renderCusts(){
 function openAddCust(){
   document.getElementById('cmTitle').textContent='New Customer';
   document.getElementById('editCId').value='';
-  ['cName','cPhone','cAddr','cEmail','cBirthDate'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('cLang').value='gujarati';
+  ['cName','cPhone','cAddr','cEmail'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('custModal').classList.add('open');
 }
 
@@ -4284,8 +4125,6 @@ function editCust(id){
   document.getElementById('cPhone').value=c.phone;
   document.getElementById('cAddr').value=c.address||'';
   document.getElementById('cEmail').value=c.email||'';
-  document.getElementById('cBirthDate').value=c.birth_date||'';
-  document.getElementById('cLang').value=c.preferred_language||'gujarati';
   document.getElementById('custModal').classList.add('open');
 }
 
@@ -4293,13 +4132,7 @@ async function saveCust(){
   const name=document.getElementById('cName').value.trim();
   const phone=document.getElementById('cPhone').value.trim();
   if(!name||!phone){ toast('Name & phone required!','error'); return; }
-  const data={
-    name,phone,
-    address:document.getElementById('cAddr').value,
-    email:document.getElementById('cEmail').value,
-    birth_date:document.getElementById('cBirthDate').value||null,
-    preferred_language:document.getElementById('cLang').value
-  };
+  const data={name,phone,address:document.getElementById('cAddr').value,email:document.getElementById('cEmail').value};
   try{
     const editId=document.getElementById('editCId').value;
     if(editId){
@@ -4339,98 +4172,33 @@ async function deleteInvoice(id){
   }
 }
 
-function invRangeChanged(){
-  const v = document.getElementById('invDateRange').value;
-  const showCustom = v === 'custom';
-  document.getElementById('invDateFrom').style.display = showCustom ? 'block' : 'none';
-  document.getElementById('invDateToLbl').style.display = showCustom ? 'inline' : 'none';
-  document.getElementById('invDateTo').style.display = showCustom ? 'block' : 'none';
-  renderInvs();
-}
-
-function invGetDateRange(){
-  const v = document.getElementById('invDateRange')?.value || 'all';
-  const now = new Date();
-  const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const endOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23,59,59,999);
-  if(v==='today'){ const t=startOfDay(now); return {from:t, to:endOfDay(now)}; }
-  if(v==='week'){
-    const t=new Date(now);
-    // Monday ne week no first day ganvo (Sunday=0 hoy to 6 din pachhad javu, baki getDay()-1)
-    const dow = now.getDay();
-    const diffToMonday = dow===0 ? 6 : dow-1;
-    t.setDate(now.getDate()-diffToMonday);
-    return {from:startOfDay(t), to:endOfDay(now)};
-  }
-  if(v==='month'){ return {from:new Date(now.getFullYear(), now.getMonth(),1), to:endOfDay(now)}; }
-  if(v==='quarter'){ const q=Math.floor(now.getMonth()/3); return {from:new Date(now.getFullYear(), q*3, 1), to:endOfDay(now)}; }
-  if(v==='year'){ return {from:new Date(now.getFullYear(),0,1), to:endOfDay(now)}; }
-  if(v==='fy'){ const y = now.getMonth()>=3 ? now.getFullYear() : now.getFullYear()-1; return {from:new Date(y,3,1), to:endOfDay(now)}; }
-  if(v==='custom'){
-    const f = document.getElementById('invDateFrom')?.value;
-    const t = document.getElementById('invDateTo')?.value;
-    return { from: f ? startOfDay(new Date(f)) : null, to: t ? endOfDay(new Date(t)) : null };
-  }
-  return {from:null, to:null}; // all time
-}
-
-async function renderInvs(){
+function renderInvs(){
   const tbody=document.getElementById('invTable');
-  const mobList=document.getElementById('invMobList');
   if(!tbody) return;
-  const rangeVal = document.getElementById('invDateRange')?.value || 'year';
-  if(invRangeNeedsFullLoad(rangeVal)){
-    await ensureFullInvoicesLoaded();
-  }
   const q=(document.getElementById('invSearch')?.value||'').toLowerCase().trim();
-  const {from, to} = invGetDateRange();
 
-  // Date-range filter first
-  let byDate = S.invoices;
-  if(from || to){
-    byDate = S.invoices.filter(inv=>{
-      const d = parseDMY(inv.bill_date);
-      if(!d) return false;
-      if(from && d < from) return false;
-      if(to && d > to) return false;
-      return true;
-    });
-  }
-
-  // Then search filter
-  let filtered = q ? byDate.filter(inv=>{
+  // Filter invoices by search query
+  const filtered = q ? S.invoices.filter(inv=>{
     const billNo = String(inv.bill_number).padStart(4,'0');
     const name   = (inv.customer_name||'').toLowerCase();
+    // Check customer phone
     const cust   = inv.customer_id ? S.customers.find(c=>c.id===inv.customer_id) : null;
     const phone  = (cust?.phone||'').toLowerCase();
     return billNo.includes(q) || name.includes(q) || phone.includes(q);
-  }) : byDate;
-
-  // Serial order — hammesha bill number pramane, navu bill upar (DB thi je order ma aave e bharoso rakhva jevo nathi)
-  filtered = [...filtered].sort((a,b)=> (parseInt(b.bill_number)||0) - (parseInt(a.bill_number)||0));
-
-  // Summary stat cards
-  const totalSale = filtered.reduce((s,inv)=>s+parseFloat(inv.total||0),0);
-  const avgBill = filtered.length ? totalSale/filtered.length : 0;
-  const cEl=document.getElementById('inv-stat-count'); if(cEl) cEl.textContent=filtered.length;
-  const tEl=document.getElementById('inv-stat-total'); if(tEl) tEl.textContent='₹'+totalSale.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,',');
-  const aEl=document.getElementById('inv-stat-avg'); if(aEl) aEl.textContent='₹'+avgBill.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+  }) : S.invoices;
 
   // Update count label
   const countEl = document.getElementById('invCount');
   if(countEl){
     if(q) countEl.textContent = filtered.length + ' result' + (filtered.length!==1?'s':'') + ' found for "' + q + '"';
-    else  countEl.textContent = filtered.length + ' bills';
+    else  countEl.textContent = S.invoices.length + ' bills total';
   }
-
-  const pm={cash:'💵 Cash',upi:'📱 UPI',card:'💳 Card',credit:'📝 Credit'};
 
   if(!filtered.length){
-    tbody.innerHTML='<tr><td colspan="6" class="empty">'+(q?'No bills found for "'+q+'"':'No bills in this range')+'</td></tr>';
-    if(mobList) mobList.innerHTML='<div class="vbm-empty">🧾 Koi bill nathi</div>';
+    tbody.innerHTML='<tr><td colspan="6" class="empty">'+(q?'No bills found for "'+q+'"':'No bills yet')+'</td></tr>';
     return;
   }
-
+  const pm={cash:'💵 Cash',upi:'📱 UPI',card:'💳 Card',credit:'📝 Credit'};
   tbody.innerHTML=filtered.map(inv=>`
     <tr style="cursor:pointer" onclick="loadBillToNewBill(S.invoices.find(x=>x.id===${inv.id}))" title="Click to edit this bill">
       <td><strong style="font-family:'DM Mono',monospace">#${String(inv.bill_number).padStart(4,'0')}</strong></td>
@@ -4445,36 +4213,6 @@ async function renderInvs(){
         <button class="btn btn-red btn-sm" onclick="deleteInvoice(${inv.id})" title="Delete">🗑</button>
       </td>
     </tr>`).join('');
-
-  // Mobile Vyapar-style cards
-  if(mobList){
-    mobList.innerHTML = filtered.map(inv=>`
-      <div class="inv-card" onclick="loadBillToNewBill(S.invoices.find(x=>x.id===${inv.id}))">
-        <div class="inv-card-top">
-          <div class="inv-card-name">${inv.customer_name}</div>
-          <div class="inv-card-badge">
-            <div class="inv-card-billno">BILL #${String(inv.bill_number).padStart(4,'0')}</div>
-            <div class="inv-card-datetime">${inv.bill_date||'—'}${inv.bill_time?' · '+inv.bill_time:''}</div>
-          </div>
-        </div>
-        <div class="inv-card-row">
-          <div class="inv-card-col">
-            <div class="inv-card-label">Amount</div>
-            <div class="inv-card-val">₹${parseFloat(inv.total).toFixed(0)}</div>
-          </div>
-          <div class="inv-card-col">
-            <div class="inv-card-label">Payment</div>
-            <div class="inv-card-val" style="font-family:inherit;font-size:12px">${pm[inv.payment_mode]||inv.payment_mode}</div>
-          </div>
-        </div>
-        <div class="inv-card-actions" onclick="event.stopPropagation()">
-          <button style="background:var(--s2);color:var(--text)" onclick="thermalPrint(S.invoices.find(x=>x.id==${inv.id}))">🖨️</button>
-          <button style="background:#25d366;color:#fff" onclick="shareImageWA(${inv.id})">💬</button>
-          <button style="background:var(--accent);color:#0a0a0f" onclick="openFullInvoice(${inv.id})">🔗</button>
-          <button style="background:rgba(248,113,113,0.15);color:var(--red)" onclick="deleteInvoice(${inv.id})">🗑️</button>
-        </div>
-      </div>`).join('');
-  }
 }
 
 function openBillDetail(id){
@@ -4577,294 +4315,47 @@ function toggleDashPrivacy(){
   updateDash();
 }
 
-function toISODate(d){
-  d = d || new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth()+1).padStart(2,'0');
-  const dd = String(d.getDate()).padStart(2,'0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-function isoToDMY(iso){
-  if(!iso) return fmtDMY();
-  const [y,m,d] = iso.split('-');
-  return `${d}/${m}/${y}`;
-}
-
-async function updateDash(){
+function updateDash(){
   const priv = window._dashPrivacy || false;
   const mask = '••••';
-  const dateInput = document.getElementById('dashDateFilter');
-  if(dateInput && !dateInput.value) dateInput.value = toISODate();
-  const selDate = dateInput ? isoToDMY(dateInput.value) : fmtDMY();
-  const isToday = selDate === fmtDMY();
-  const selYear = selDate.split('/')[2];
-  if(selYear && parseInt(selYear) !== new Date().getFullYear()){
-    await ensureFullInvoicesLoaded(); // pichhla varas ni tarikh hoy to purepuru data load karo
-  }
-  const lbl = document.getElementById('dashOverviewLabel');
-  if(lbl) lbl.textContent = isToday ? "Today's Overview" : selDate + "'s Overview";
+  const today=new Date().toLocaleDateString('en-IN');
   const bid = S.activeBranchId || 1;
-  // Branch filter — sirf active branch na invoices dashboard ma
   const branchInvs = S.invoices.filter(i=>!i.branch_id || parseInt(i.branch_id)===parseInt(bid));
-  const dayInv = branchInvs.filter(i=>i.bill_date===selDate)
-    .sort((a,b)=>(parseInt(b.bill_number)||0)-(parseInt(a.bill_number)||0));
-  const sale=dayInv.reduce((s,i)=>s+parseFloat(i.total||0),0);
-  const profit=dayInv.reduce((s,i)=>s+parseFloat(i.profit||0),0);
-  const margin=sale>0?((profit/sale)*100).toFixed(1):0;
-  const saleLbl = document.getElementById('d-sale-label'); if(saleLbl) saleLbl.textContent = isToday ? 'Today Sales' : 'Sales';
-  const profitLbl = document.getElementById('d-profit-label'); if(profitLbl) profitLbl.textContent = isToday ? 'Today Profit' : 'Profit';
+  const paidInvs = branchInvs.filter(i=>!i.status||i.status==='paid');
+  const todayInv=paidInvs.filter(i=>i.bill_date===today);
+  const sale=todayInv.reduce((s,i)=>s+parseFloat(i.total||0),0);
+  const profit=todayInv.reduce((s,i)=>s+parseFloat(i.profit||0),0);
   document.getElementById('d-sale').textContent = priv ? mask : '₹'+sale.toFixed(0);
-  document.getElementById('d-bills').textContent = priv ? mask : dayInv.length;
+  document.getElementById('d-bills').textContent = priv ? mask : todayInv.length;
   document.getElementById('d-profit').textContent='🔐';
   document.getElementById('d-margin').textContent='PIN protected';
   document.getElementById('d-prods').textContent=S.products.length;
   const low=S.products.filter(p=>p.stock<=p.min_stock);
   document.getElementById('d-low').textContent=low.length;
-  const rt = document.getElementById('d-recent-title'); if(rt) rt.textContent = '🧾 Bills — ' + selDate;
   const rd=document.getElementById('d-recent');
   if(priv){
-    rd.innerHTML='<div class="empty"><div class="ei">🙈</div><p>Privacy mode on</p></div>';
+    rd.innerHTML='<div class=\"empty\"><div class=\"ei\">🙈</div><p>Privacy mode on</p></div>';
   } else {
-    rd.innerHTML=!dayInv.length?'<div class="empty"><div class="ei">🧾</div><p>Aa tarikh ma koi bill nathi</p></div>':'<table><thead><tr><th>Bill</th><th>Customer</th><th>Amount</th></tr></thead><tbody>'+dayInv.map(i=>`<tr style="cursor:pointer" onclick="loadBillToNewBill(S.invoices.find(x=>x.id===${i.id}))" title="Click to edit this bill"><td>#${String(i.bill_number).padStart(4,'0')}</td><td>${i.customer_name}</td><td>₹${parseFloat(i.total).toFixed(2)}</td></tr>`).join('')+'</tbody></table>';
+    rd.innerHTML=!paidInvs.length?'<div class=\"empty\"><div class=\"ei\">🧾</div><p>No bills</p></div>':'<table><thead><tr><th>Bill</th><th>Customer</th><th>Amount</th></tr></thead><tbody>'+paidInvs.slice(0,5).map(i=>`<tr><td>#${String(i.bill_number).padStart(4,'0')}</td><td>${i.customer_name}</td><td>₹${parseFloat(i.total).toFixed(2)}</td></tr>`).join('')+'</tbody></table>';
   }
   const ld=document.getElementById('d-lowlist');
-  ld.innerHTML=!low.length?'<div class="empty"><div class="ei">✅</div><p>All in stock</p></div>':low.map(p=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px"><span>${p.name}</span><span class="badge badge-red">Stock: ${p.stock}</span></div>`).join('');
-}
-
-// ===== RECURRING / INACTIVE CUSTOMERS (3+ mahina thi nathi aavya) =====
-// Locale-independent date formatter — browser/device na locale par bharoso na karo,
-// kem ke toLocaleDateString('en-IN') alag-alag phone/browser ma alag format aapi shake
-// (kayarek '12/07/2026', kayarek '12/7/2026' ke alag separator) — je filter ne todi nakhe.
-// Aa function hammesha ek j 'DD/MM/YYYY' (zero-padded) format aape chhe.
-function fmtDMY(d){
-  d = d || new Date();
-  const dd = String(d.getDate()).padStart(2,'0');
-  const mm = String(d.getMonth()+1).padStart(2,'0');
-  return `${dd}/${mm}/${d.getFullYear()}`;
-}
-
-// Safe localStorage wrapper — koi pan setItem quota/error thi app kadi crash na thay
-function safeSetItem(key, val){
-  try{ localStorage.setItem(key, val); return true; }
-  catch(e){ console.error('localStorage.setItem failed for', key, ':', e.message); return false; }
-}
-
-function parseDMY(str){
-  // bill_date 'en-IN' locale ma DD/MM/YYYY format ma save thay chhe
-  if(!str) return null;
-  const parts = String(str).split('/');
-  if(parts.length!==3) { const d=new Date(str); return isNaN(d)?null:d; }
-  const [d,m,y] = parts.map(Number);
-  const dt = new Date(y, m-1, d);
-  return isNaN(dt) ? null : dt;
-}
-
-function getRecurringCustomers(recurDays){
-  const RECUR_DAYS = recurDays || 90; // default 3 mahina
-  const bid = S.activeBranchId || 1;
-  const branchInvs = S.invoices.filter(i=>!i.branch_id || parseInt(i.branch_id)===parseInt(bid));
-  const lastByCust = {};
-  branchInvs.forEach(i=>{
-    if(!i.customer_id) return;
-    const d = parseDMY(i.bill_date);
-    if(!d) return;
-    if(!lastByCust[i.customer_id] || d > lastByCust[i.customer_id]) lastByCust[i.customer_id] = d;
-  });
-  const now = new Date();
-  const list = [];
-  Object.keys(lastByCust).forEach(cid=>{
-    const c = S.customers.find(x=>String(x.id)===String(cid));
-    if(!c || !c.phone) return;
-    const lastDate = lastByCust[cid];
-    const days = Math.floor((now - lastDate)/(1000*60*60*24));
-    if(days >= RECUR_DAYS){
-      list.push({ id:c.id, name:c.name||'Customer', phone:c.phone, lastDate, days });
+  ld.innerHTML=!low.length?'<div class=\"empty\"><div class=\"ei\">✅</div><p>All in stock</p></div>':low.map(p=>`<div style=\"display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px\"><span>${p.name}</span><span class=\"badge badge-red\">Stock: ${p.stock}</span></div>`).join('');
+  // Advance Pending
+  const pendingAdv=(S.advanceBills||[]).filter(a=>a.status==='advance');
+  const advWrap=document.getElementById('d-advance-wrap');
+  const advList=document.getElementById('d-advance-list');
+  const advCount=document.getElementById('d-advance-count');
+  if(advWrap){
+    if(pendingAdv.length>0){
+      advWrap.style.display='block';
+      if(advCount) advCount.textContent=pendingAdv.length;
+      if(advList) advList.innerHTML=pendingAdv.slice(0,3).map(a=>`<div style=\"display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(251,191,36,0.15);font-size:13px;cursor:pointer\" onclick=\"openReceivePay('${a.id}')\"><div><div style=\"font-weight:600;color:var(--text)\">${a.customer_name}</div><div style=\"font-size:11px;color:var(--muted)\">AD${String(a.advance_bill_number||'').padStart(3,'0')} · Advance: ₹${parseFloat(a.advance_amount||0).toFixed(0)}</div></div><div style=\"text-align:right\"><div style=\"color:#fbbf24;font-weight:700\">₹${parseFloat(a.balance_amount||0).toFixed(0)}</div><div style=\"font-size:10px;color:var(--muted)\">pending</div></div></div>`).join('');
+    } else {
+      advWrap.style.display='none';
     }
-  });
-  list.sort((a,b)=>b.days-a.days);
-  return list;
-}
-
-// Dashboard card — chhota preview, "View All" link sathe (full list have dedicated 'Recurring' page par)
-async function renderRecurringCustomers(){
-  const el = document.getElementById('d-recurring');
-  if(!el) return;
-  await ensureFullInvoicesLoaded(); // jūna varas ni purchase history pan joiye (recurring customer nakki karva mate)
-  const list = getRecurringCustomers(90);
-  const countEl = document.getElementById('d-recur-count');
-  if(countEl) countEl.textContent = list.length;
-  if(!list.length){
-    el.innerHTML = '<div class="empty"><div class="ei">🙌</div><p>Koi inactive customer nathi</p></div>';
-    return;
-  }
-  const PREVIEW = 5;
-  el.innerHTML = list.slice(0,PREVIEW).map(c=>{
-    const lastStr = fmtDMY(c.lastDate);
-    const safeName = String(c.name).replace(/'/g,"\\'").replace(/"/g,'&quot;');
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);gap:8px">
-      <div style="min-width:0">
-        <div style="font-weight:600;font-size:13px">${c.name}</div>
-        <div style="font-size:11px;color:var(--muted)">📞 ${c.phone} · Last visit: ${lastStr} (${c.days} din pehla)</div>
-      </div>
-      <button onclick="openRecurMsgModal('${safeName}','${c.phone}')" style="background:#25d366;border:none;color:#fff;padding:7px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;display:flex;align-items:center;gap:4px">💬 Msg</button>
-    </div>`;
-  }).join('');
-  if(list.length > PREVIEW){
-    el.innerHTML += `<div style="text-align:center;padding-top:10px">
-      <button class="btn btn-ghost btn-sm" onclick="showPage('recurring', document.querySelector('.nav-item[onclick*=recurring]'));renderRecurringPage()">
-        📋 Badha ${list.length} joo (View All) →
-      </button>
-    </div>`;
   }
 }
 
-// Dedicated full page — search + days-filter + customize-and-send
-async function renderRecurringPage(){
-  const container = document.getElementById('recurFullList');
-  if(!container) return;
-  await ensureFullInvoicesLoaded(); // jūna varas ni purchase history pan joiye
-  const days = parseInt(document.getElementById('recurDaysFilter')?.value) || 90;
-  const q = (document.getElementById('recurSearch')?.value||'').toLowerCase().trim();
-  let list = getRecurringCustomers(days);
-  if(q){
-    list = list.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q));
-  }
-  const countEl = document.getElementById('recurCount');
-  if(countEl) countEl.textContent = list.length + ' customer' + (list.length!==1?'s':'') + ' malya (' + days + '+ din thi nathi aavya)';
-
-  if(!list.length){
-    container.innerHTML = '<div class="empty"><div class="ei">🙌</div><p>Koi inactive customer nathi</p></div>';
-    return;
-  }
-  container.innerHTML = list.map(c=>{
-    const lastStr = fmtDMY(c.lastDate);
-    const safeName = String(c.name).replace(/'/g,"\\'").replace(/"/g,'&quot;');
-    return `<div class="card" style="display:flex;justify-content:space-between;align-items:center;padding:13px 16px;margin-bottom:8px;gap:10px">
-      <div style="min-width:0">
-        <div style="font-weight:700;font-size:14px">${c.name}</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px">📞 ${c.phone} · Last visit: ${lastStr} · <span style="color:var(--red);font-weight:600">${c.days} din pehla</span></div>
-      </div>
-      <button onclick="openRecurMsgModal('${safeName}','${c.phone}')" style="background:#25d366;border:none;color:#fff;padding:9px 14px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;display:flex;align-items:center;gap:5px">💬 Message</button>
-    </div>`;
-  }).join('');
-}
-
-// Message customize modal
-let _recurMsgTarget = null; // {name, phone}
-function openRecurMsgModal(custName, phone){
-  _recurMsgTarget = { name: custName, phone };
-  const shopName = (S.settings.shop_name||'Eliitoze Jewelz');
-  const defaultMsg = `Namaste ${custName} ji,\n\n${shopName} taraf thi tamne yaad karva mate aa message. Ketla samay thi tame amara ahiya nathi aavya!\n\nNava design ane offers joova mate ek vaar visit karo. Tamari raah joi rahiya chhe 🙏`;
-  document.getElementById('recurMsgToLabel').textContent = 'Kone: ' + custName + ' (' + phone + ')';
-  document.getElementById('recurMsgText').value = defaultMsg;
-  document.getElementById('recurMsgModal').classList.add('open');
-}
-function confirmSendRecurringMsg(){
-  if(!_recurMsgTarget) return;
-  const msg = document.getElementById('recurMsgText').value;
-  sendToWA(_recurMsgTarget.phone, msg);
-  closeM('recurMsgModal');
-}
-
-// ===== BIRTHDAYS =====
-// birth_date customer form thi 'YYYY-MM-DD' (native date input) format ma save thay chhe
-function parseISODate(str){
-  if(!str) return null;
-  const parts = String(str).split('-');
-  if(parts.length!==3) return null;
-  const [y,m,d] = parts.map(Number);
-  if(!y||!m||!d) return null;
-  return {y,m,d};
-}
-
-function getUpcomingBirthdays(daysAhead){
-  daysAhead = daysAhead || 7;
-  const now = new Date(); now.setHours(0,0,0,0);
-  const list = [];
-  S.customers.forEach(c=>{
-    if(!c.birth_date || !c.phone) return;
-    const p = parseISODate(c.birth_date);
-    if(!p) return;
-    let next = new Date(now.getFullYear(), p.m-1, p.d);
-    next.setHours(0,0,0,0);
-    if(next < now) next = new Date(now.getFullYear()+1, p.m-1, p.d);
-    const daysUntil = Math.round((next-now)/(1000*60*60*24));
-    if(daysUntil >= 0 && daysUntil <= daysAhead){
-      list.push({
-        id: c.id, name: c.name||'Customer', phone: c.phone,
-        birth_date: c.birth_date,
-        preferred_language: c.preferred_language||'gujarati',
-        daysUntil, nextDate: next
-      });
-    }
-  });
-  list.sort((a,b)=>a.daysUntil-b.daysUntil);
-  return list;
-}
-
-function fmtBdayShort(d){
-  const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return d.getDate()+' '+months[d.getMonth()];
-}
-
-async function renderBirthdayPage(){
-  const container = document.getElementById('bdayFullList');
-  if(!container) return;
-  const days = parseInt(document.getElementById('bdayDaysFilter')?.value) || 7;
-  const q = (document.getElementById('bdaySearch')?.value||'').toLowerCase().trim();
-  let list = getUpcomingBirthdays(days);
-  if(q){
-    list = list.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q));
-  }
-  const countEl = document.getElementById('bdayCount');
-  if(countEl) countEl.textContent = list.length + ' birthday' + (list.length!==1?'s':'') + ' aavti ' + days + ' din ma';
-
-  if(!list.length){
-    container.innerHTML = '<div class="empty"><div class="ei">🎂</div><p>Aa period ma koi birthday nathi</p></div>';
-    return;
-  }
-  const langLabel={gujarati:'ગુજરાતી',hindi:'हिंदी',english:'English'};
-  container.innerHTML = list.map(c=>{
-    const safeName = String(c.name).replace(/'/g,"\\'").replace(/"/g,'&quot;');
-    const whenStr = c.daysUntil===0 ? 'Aaje! 🎉' : (c.daysUntil===1 ? 'Kale' : c.daysUntil+' din ma');
-    return `<div class="card" style="display:flex;justify-content:space-between;align-items:center;padding:13px 16px;margin-bottom:8px;gap:10px">
-      <div style="min-width:0">
-        <div style="font-weight:700;font-size:14px">${c.name}</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px">📞 ${c.phone} · 🎂 ${fmtBdayShort(c.nextDate)} · <span style="color:var(--accent);font-weight:600">${whenStr}</span> · <span class="badge badge-yellow">${langLabel[c.preferred_language]||c.preferred_language}</span></div>
-      </div>
-      <button onclick="openBdayMsgModal(${c.id})" style="background:#25d366;border:none;color:#fff;padding:9px 14px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;display:flex;align-items:center;gap:5px">💬 Message</button>
-    </div>`;
-  }).join('');
-}
-
-// Language-wise default birthday + discount offer message
-function buildBdayMsg(custName, lang){
-  const shopName = (S.settings.shop_name||'Eliitoze Jewelz');
-  if(lang==='english'){
-    return `Happy Birthday, ${custName}! 🎉🎂\n\nWishing you a year full of happiness and sparkle, from all of us at ${shopName}.\n\nAs a birthday gift from us — enjoy a special 10% discount on your next purchase this month! 💎\n\nVisit us soon 🙏`;
-  }
-  if(lang==='hindi'){
-    return `जन्मदिन की हार्दिक शुभकामनाएं, ${custName} जी! 🎉🎂\n\n${shopName} की तरफ से आपको खुशियों और चमक से भरे साल की शुभकामनाएं।\n\nआपके जन्मदिन के उपहार स्वरूप, इस महीने आपकी अगली खरीदारी पर 10% की खास छूट! 💎\n\nजल्द ही हमसे मिलने आइए 🙏`;
-  }
-  // default: gujarati
-  return `Janmadivas ni khoob khoob shubhkamna, ${custName} ji! 🎉🎂\n\n${shopName} taraf thi tamne khushi ane chamak thi bharpur varas ni shubhkamna.\n\nTamara janmadivas ni ભેট taraike, aa mahina tamari aavti kharidi par 10% ni khas discount! 💎\n\nJaldi thi amara ahiya visit karo 🙏`;
-}
-
-let _bdayMsgTarget = null; // {name, phone}
-function openBdayMsgModal(custId){
-  const c = S.customers.find(x=>x.id===custId); if(!c) return;
-  _bdayMsgTarget = { name: c.name, phone: c.phone };
-  const lang = c.preferred_language||'gujarati';
-  document.getElementById('bdayMsgToLabel').textContent = 'Kone: ' + c.name + ' (' + c.phone + ')';
-  document.getElementById('bdayMsgText').value = buildBdayMsg(c.name, lang);
-  document.getElementById('bdayMsgModal').classList.add('open');
-}
-function confirmSendBdayMsg(){
-  if(!_bdayMsgTarget) return;
-  const msg = document.getElementById('bdayMsgText').value;
-  sendToWA(_bdayMsgTarget.phone, msg);
-  closeM('bdayMsgModal');
-}
 
 // ===== REPORTS (PIN protected) =====
 // ===== REPORT TABS =====
@@ -5689,40 +5180,6 @@ function vbSelectPickerCat(cat){
   document.querySelectorAll('.vbip-cat-chip').forEach(ch=>ch.classList.toggle('active', ch.getAttribute('data-cat')===cat));
   vbFilterPicker(document.getElementById('vbipSearch').value);
 }
-
-// Handwritten code camera scan (OCR) — result ne search box ma bharine
-// existing dropdown list j confirm/select mate vaparie chhiye (kai auto-add nathi thatu)
-async function vbHandleCodeScan(file){
-  if(!file) return;
-  const statusEl = document.getElementById('vbScanStatus');
-  const searchEl = document.getElementById('vbipSearch');
-  if(statusEl) statusEl.style.display = 'block';
-  try{
-    if(typeof Tesseract === 'undefined'){
-      toast('OCR library load nathi thayu, internet check karo','error');
-      return;
-    }
-    const { data:{ text } } = await Tesseract.recognize(file, 'eng', {
-      tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
-    });
-    // Sirf letters/numbers rakho, baki (space/newline/junk) hatavi do
-    const cleaned = (text||'').replace(/[^a-zA-Z0-9]/g,'').toUpperCase();
-    if(!cleaned){
-      toast('Code vanchay nathi — clear photo lai ne try karo','error');
-      return;
-    }
-    if(searchEl){ searchEl.value = cleaned; searchEl.focus(); }
-    vbFilterPicker(cleaned);
-    toast('📷 Scan result: "'+cleaned+'" — niche list ma sachu item pasand karo', 'success');
-  } catch(e){
-    console.error('OCR error:', e);
-    toast('Scan fail thayu — manual search karo','error');
-  } finally {
-    if(statusEl) statusEl.style.display = 'none';
-    document.getElementById('vbCodeScanInput').value = ''; // same photo re-select mate reset
-  }
-}
-
 function vbFilterPicker(query){
   const list = document.getElementById('vbipList');
   if(!list) return;
@@ -5730,15 +5187,6 @@ function vbFilterPicker(query){
   let items = S.products.filter(p=> vbPickerCat==='ALL' || (p.category||'General')===vbPickerCat);
   if(q){
     items = items.filter(p=>p.name.toLowerCase().includes(q) || (p.sku||'').toLowerCase().includes(q));
-    // Code hammesha item name/sku no PREFIX hoy chhe (dat: A704000 -> A704000R2400, A704000R5000)
-    // etle prefix-match wala items ne top par batavo, pachi baki matches
-    items.sort((a,b)=>{
-      const aStarts = a.name.toLowerCase().startsWith(q) || (a.sku||'').toLowerCase().startsWith(q);
-      const bStarts = b.name.toLowerCase().startsWith(q) || (b.sku||'').toLowerCase().startsWith(q);
-      if(aStarts && !bStarts) return -1;
-      if(!aStarts && bStarts) return 1;
-      return a.name.localeCompare(b.name);
-    });
   }
   items = items.slice(0,50);
   let html = '';
@@ -5947,6 +5395,8 @@ function vbClear(){
   document.getElementById('vbDiscAmt').value='';
   document.getElementById('vbTotal').textContent='₹0';
   document.getElementById('vbRowTotal').textContent='0';
+  const dobEl=document.getElementById('vbDob'); if(dobEl) dobEl.value='';
+  const dobLbl=document.getElementById('vbDobLabel'); if(dobLbl) dobLbl.style.display='block';
   vbUpdateInvInfo();
   vbAddRow();
   vbAddRow();
@@ -5983,23 +5433,25 @@ async function vbSave(){
       c.name.toLowerCase() === custName.toLowerCase()
     );
     if(existing){
-      // Already chhe — reuse karo, phone update karo jо navu hoy
+      // Already chhe — reuse karo, phone/dob update karo jо navu hoy
       custId = existing.id;
-      if(phone && !existing.phone){
-        existing.phone = phone;
-        api('customers/'+existing.id,'PATCH',{phone}).catch(()=>{});
-      }
+      const dobVal = (document.getElementById('vbDob')||{value:''}).value;
+      const custUpdates = {};
+      if(phone && !existing.phone) { custUpdates.phone=phone; existing.phone=phone; }
+      if(dobVal && !existing.dob) { custUpdates.dob=dobVal; existing.dob=dobVal; }
+      if(Object.keys(custUpdates).length) api('customers/'+existing.id,'PATCH',custUpdates).catch(()=>{});
     } else {
-      // Navo customer — name+phone sathe save karo
+      // Navo customer — name+phone+dob sathe save karo
       try{
-        const newCust = {name: custName, phone: phone||'', address:'', total_purchase:0};
+        const dobVal2 = (document.getElementById('vbDob')||{value:''}).value;
+        const newCust = {name: custName, phone: phone||'', address:'', total_purchase:0, dob: dobVal2||null};
         const saved = await api('customers','POST', newCust);
         const nc = saved&&saved[0] ? saved[0] : {...newCust, id:Date.now()};
         S.customers.push(nc);
         custId = nc.id;
         saveOffline();
         toast('👤 '+custName+' customer ma add thaya!','success');
-      } catch(e){
+      } catch(e){\
         const nc = {id:Date.now(), name:custName, phone:phone||'', address:'', total_purchase:0};
         S.customers.push(nc);
         custId = nc.id;
@@ -6039,7 +5491,7 @@ async function vbSave(){
     bill_number: billNum, customer_name: custName, customer_id: custId,
     payment_mode: payMode, items, subtotal, discount: discAmt, discount_pct: discPct,
     gst: 0, gst_rate: 0, total: grand, profit,
-    note, bill_date: fmtDMY(nowVb),
+    note, bill_date: nowVb.toLocaleDateString('en-IN'),
     bill_time: nowVb.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}),
     status:'paid', branch_id: S.activeBranchId || 1,
     public_token: vbToken
@@ -6250,7 +5702,7 @@ function vbPrint(){
     gst:0, gst_rate:0,
     total: parseInt((document.getElementById('vbTotal').textContent||'₹0').replace('₹','')),
     note: document.getElementById('vbNote').value,
-    bill_date: fmtDMY()
+    bill_date: new Date().toLocaleDateString('en-IN')
   };
   thermalPrint(fakeInv);
 }
@@ -6301,6 +5753,371 @@ function vbPrint(){
     await init();
   }
 })();
+
+// ══════════════════════════════════════════════════════════
+// ── ADVANCE BILLS ──
+// ══════════════════════════════════════════════════════════
+
+// S.advanceBills = [] — localStorage + API thi load
+function initAdvanceBills(){
+  try{ S.advanceBills = JSON.parse(localStorage.getItem('sb_advance_bills')||'[]'); } catch(e){ S.advanceBills=[]; }
+}
+
+function saveAdvanceOffline(){
+  try{ localStorage.setItem('sb_advance_bills', JSON.stringify(S.advanceBills||[])); } catch(e){}
+}
+
+async function loadAdvanceBills(){
+  try{
+    const res = await api('invoices','GET','status=eq.advance&order=created_at.desc');
+    if(res && res.invoices) S.advanceBills = res.invoices;
+    else if(Array.isArray(res)) S.advanceBills = res;
+    saveAdvanceOffline();
+  } catch(e){ initAdvanceBills(); }
+  updateDash();
+}
+
+function switchAdvTab(tab){
+  document.getElementById('adv-list-pending').style.display = tab==='pending'?'block':'none';
+  document.getElementById('adv-list-closed').style.display  = tab==='closed'?'block':'none';
+  document.getElementById('adv-tab-pending').style.background = tab==='pending'?'var(--accent)':'transparent';
+  document.getElementById('adv-tab-pending').style.color = tab==='pending'?'#000':'var(--muted)';
+  document.getElementById('adv-tab-closed').style.background = tab==='closed'?'var(--accent)':'transparent';
+  document.getElementById('adv-tab-closed').style.color = tab==='closed'?'#000':'var(--muted)';
+}
+
+function renderAdvanceBills(){
+  loadAdvanceBills().then(()=>{
+    const pending = (S.advanceBills||[]).filter(a=>a.status==='advance');
+    const closed  = (S.advanceBills||[]).filter(a=>a.status==='advance_closed');
+    const fmt = n=>'₹'+parseFloat(n||0).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+
+    const renderCard = (a, isPending) => `
+      <div style="background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:var(--accent)">AD${String(a.advance_bill_number||'').padStart(3,'0')}</div>
+            <div style="font-size:15px;font-weight:700;color:var(--text);margin-top:2px">${a.customer_name||'Walk-in'}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">${a.bill_date||''} · ${a.payment_mode||''}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:13px;color:var(--muted)">Total: <b>${fmt(a.total)}</b></div>
+            <div style="font-size:13px;color:#6ee7b7">Advance: <b>${fmt(a.advance_amount)}</b></div>
+            ${isPending ? `<div style="font-size:14px;font-weight:700;color:#fbbf24;margin-top:4px">Pending: ${fmt(a.balance_amount)}</div>` : '<div style="font-size:12px;color:#6ee7b7;margin-top:4px">✅ Closed</div>'}
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px">${(a.items||[]).map(i=>i.name).join(', ')}</div>
+        <div style="display:flex;gap:8px">
+          ${isPending ? `<button onclick="openReceivePay('${a.id}')" style="flex:1;padding:9px;background:var(--accent);border:none;border-radius:8px;color:#000;font-weight:700;font-size:13px;cursor:pointer">💳 Receive Payment</button>` : ''}
+          <button onclick="advSendWA('${a.id}')" style="padding:9px 14px;background:#25D366;border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer">💬</button>
+          <button onclick="thermalPrint(S.advanceBills.find(x=>x.id==='${a.id}'))" style="padding:9px 14px;background:var(--s3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;cursor:pointer">🖨</button>
+        </div>
+      </div>`;
+
+    document.getElementById('adv-list-pending').innerHTML = pending.length
+      ? pending.map(a=>renderCard(a,true)).join('')
+      : '<div class="empty"><div class="ei">💰</div><p>No pending advances</p></div>';
+    document.getElementById('adv-list-closed').innerHTML = closed.length
+      ? closed.map(a=>renderCard(a,false)).join('')
+      : '<div class="empty"><div class="ei">✅</div><p>No closed advances</p></div>';
+  });
+}
+
+function openAdvanceModal(){
+  const modal = document.getElementById('advanceModal');
+  const body  = document.getElementById('advanceModalBody');
+  const custs = S.customers.map(c=>`<option value="${c.id}">${c.name}${c.phone?' · '+c.phone:''}</option>`).join('');
+  body.innerHTML = `
+    <div style="font-family:'Syne',sans-serif;font-size:17px;font-weight:700;color:var(--accent);margin-bottom:16px">💰 New Advance Bill</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <input type="text" id="adv-cust-name" placeholder="Customer Name" class="form-input" style="padding:10px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px">
+      <input type="tel" id="adv-cust-phone" placeholder="Phone No." class="form-input" maxlength="10" style="padding:10px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px">
+      <textarea id="adv-items-desc" placeholder="Items description (e.g. Gold Ring, Silver Necklace)" rows="2" style="padding:10px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;resize:vertical"></textarea>
+      <input type="number" id="adv-total" placeholder="Total Bill Amount ₹" style="padding:10px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px" oninput="advCalcBalance()">
+      <input type="number" id="adv-advance" placeholder="Advance Amount Received ₹" style="padding:10px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px" oninput="advCalcBalance()">
+      <div id="adv-balance-show" style="padding:10px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);border-radius:8px;font-size:14px;font-weight:700;color:#fbbf24;display:none">
+        Balance Pending: ₹<span id="adv-balance-val">0</span>
+      </div>
+      <select id="adv-pay-mode" style="padding:10px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px">
+        <option value="cash">Cash</option>
+        <option value="upi">UPI</option>
+        <option value="card">Card</option>
+      </select>
+      <input type="date" id="adv-delivery-date" style="padding:10px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px">
+      <div style="font-size:11px;color:var(--muted);margin-top:-6px">Delivery Date (Optional)</div>
+      <textarea id="adv-note" placeholder="Note (optional)" rows="2" style="padding:10px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;resize:vertical"></textarea>
+      <div style="display:flex;gap:10px;margin-top:6px">
+        <button onclick="saveAdvanceBill()" class="btn btn-primary" style="flex:1;padding:12px;font-weight:700;font-size:15px">💾 Save Advance Bill</button>
+        <button onclick="closeAdvanceModal()" class="btn" style="padding:12px 18px;background:var(--s2);color:var(--muted)">✕</button>
+      </div>
+    </div>`;
+  modal.classList.add('open');
+}
+
+function advCalcBalance(){
+  const total = parseFloat(document.getElementById('adv-total').value)||0;
+  const adv   = parseFloat(document.getElementById('adv-advance').value)||0;
+  const bal   = total - adv;
+  const show  = document.getElementById('adv-balance-show');
+  if(show){
+    show.style.display = (total>0&&adv>0) ? 'block' : 'none';
+    document.getElementById('adv-balance-val').textContent = bal.toFixed(0);
+  }
+}
+
+function closeAdvanceModal(){
+  document.getElementById('advanceModal').classList.remove('open');
+}
+
+async function saveAdvanceBill(){
+  const custName = document.getElementById('adv-cust-name').value.trim();
+  const custPhone = document.getElementById('adv-cust-phone').value.trim();
+  const itemsDesc = document.getElementById('adv-items-desc').value.trim();
+  const total     = parseFloat(document.getElementById('adv-total').value)||0;
+  const advAmt    = parseFloat(document.getElementById('adv-advance').value)||0;
+  const payMode   = document.getElementById('adv-pay-mode').value;
+  const delDate   = document.getElementById('adv-delivery-date').value;
+  const note      = document.getElementById('adv-note').value.trim();
+
+  if(!custName){ toast('Customer name nakho!','error'); return; }
+  if(!total || !advAmt){ toast('Total ane Advance amount nakho!','error'); return; }
+  if(advAmt>total){ toast('Advance total thi vadhu na hoy!','error'); return; }
+
+  const balance = total - advAmt;
+  const bid = S.activeBranchId||1;
+
+  // Advance counter
+  const cntKey = 'advance_counter_'+bid;
+  let advNum = 1;
+  try{
+    const cnt = await api('settings','GET','key=eq.'+cntKey+'&branch_id=eq.'+bid);
+    const rows = cnt.settings||cnt||[];
+    advNum = rows.length ? parseInt(rows[0].value||'1') : 1;
+  }catch(e){}
+
+  // Token
+  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let tok=''; for(let i=0;i<11;i++) tok+=chars[Math.floor(Math.random()*chars.length)];
+
+  // Customer save/find
+  let custId=null;
+  if(custName){
+    const ex=S.customers.find(c=>c.phone===custPhone||c.name.toLowerCase()===custName.toLowerCase());
+    if(ex){ custId=ex.id; }
+    else if(custName){
+      try{
+        const nc=await api('customers','POST',{name:custName,phone:custPhone||'',address:'',total_purchase:0});
+        const ncs=nc&&nc[0]?nc[0]:{id:Date.now(),name:custName,phone:custPhone||''};
+        S.customers.push(ncs); custId=ncs.id; saveOffline();
+      }catch(e){}
+    }
+  }
+
+  const now=new Date();
+  const inv={
+    bill_number: advNum,
+    advance_bill_number: advNum,
+    customer_name: custName,
+    customer_id: custId,
+    payment_mode: payMode,
+    items: [{name:itemsDesc||'Advance Bill',qty:1,price:total,total,cost:0}],
+    subtotal: total, discount:0, discount_pct:0,
+    gst:0, gst_rate:0,
+    total, advance_amount:advAmt, balance_amount:balance,
+    profit:0,
+    note: (delDate?'Delivery: '+delDate+'\n':'') + note,
+    bill_date: now.toLocaleDateString('en-IN'),
+    bill_time: now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}),
+    status:'advance',
+    branch_id: bid,
+    public_token: tok
+  };
+
+  try{
+    const saved = await api('invoices','POST',inv);
+    const savedInv = saved&&saved[0] ? saved[0] : {...inv, id:Date.now()};
+    if(!S.advanceBills) S.advanceBills=[];
+    S.advanceBills.unshift(savedInv);
+    saveAdvanceOffline();
+
+    // Advance counter increment
+    try{
+      const cnt=await api('settings','GET','key=eq.'+cntKey+'&branch_id=eq.'+bid);
+      const rows=cnt.settings||cnt||[];
+      if(rows.length) await api('settings/'+cntKey+'?branch_id='+bid,'PATCH',{value:String(advNum+1)});
+      else await api('settings','POST',[{key:cntKey,value:String(advNum+1)}]+'?branch_id='+bid);
+    }catch(e){}
+
+    closeAdvanceModal();
+    toast('✅ Advance Bill AD'+String(advNum).padStart(3,'0')+' saved!','success');
+    renderAdvanceBills();
+    updateDash();
+
+    // WhatsApp send
+    setTimeout(()=>{ advSendWADirect(savedInv, custPhone); }, 400);
+
+  }catch(e){
+    toast('Error: '+e.message,'error');
+  }
+}
+
+function advSendWADirect(inv, phone){
+  const s = S.settings||{};
+  const shopName = (s.shop_name||'ELIITOZE JEWELZ').toUpperCase();
+  const advStr = 'AD'+String(inv.advance_bill_number||'').padStart(3,'0');
+  const bar='━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+  let msg = `*${shopName}*\n`;
+  if(s.address) msg+=s.address+'\n';
+  msg+=bar+'\n';
+  msg+=`*Advance Bill ${advStr}*\n`;
+  msg+=`Customer: *${inv.customer_name}*\n`;
+  msg+=`Date: *${inv.bill_date}*\n`;
+  msg+=bar+'\n';
+  msg+=`Items: ${(inv.items||[]).map(i=>i.name).join(', ')}\n`;
+  msg+=bar+'\n';
+  msg+=`Total Bill:    *₹${parseFloat(inv.total||0).toFixed(0)}*\n`;
+  msg+=`Advance Paid:  *₹${parseFloat(inv.advance_amount||0).toFixed(0)}*\n`;
+  msg+=`*Balance Due:   ₹${parseFloat(inv.balance_amount||0).toFixed(0)}*\n`;
+  msg+=bar+'\n';
+  if(inv.note) msg+=`Note: ${inv.note}\n`+bar+'\n';
+  msg+=`🧾 *View Bill Online:*\nhttps://bill.eliitoze.in/#${inv.public_token||''}\n`;
+  const waNum=(phone||'').replace(/\D/g,'');
+  sendToWA(waNum, msg);
+}
+
+function advSendWA(invId){
+  const inv=(S.advanceBills||[]).find(a=>String(a.id)===String(invId));
+  if(!inv) return;
+  const cust=S.customers.find(c=>c.id===inv.customer_id);
+  const phone=cust?cust.phone||'':'';
+  advSendWADirect(inv, phone);
+}
+
+function openReceivePay(invId){
+  const inv=(S.advanceBills||[]).find(a=>String(a.id)===String(invId));
+  if(!inv) return;
+  const modal=document.getElementById('receivePayModal');
+  const body=document.getElementById('receivePayBody');
+  const balance=parseFloat(inv.balance_amount||0);
+  body.innerHTML=`
+    <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--accent);margin-bottom:4px">💳 Receive Payment</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px">AD${String(inv.advance_bill_number||'').padStart(3,'0')} · ${inv.customer_name}</div>
+    <div style="background:var(--s2);border-radius:10px;padding:12px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0"><span style="color:var(--muted)">Total Bill</span><span style="font-weight:600">₹${parseFloat(inv.total||0).toFixed(0)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0"><span style="color:var(--muted)">Advance Paid</span><span style="font-weight:600;color:#6ee7b7">₹${parseFloat(inv.advance_amount||0).toFixed(0)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:14px;padding:6px 0 3px;border-top:1px solid var(--border);margin-top:6px"><span style="font-weight:700">Balance Due</span><span style="font-weight:800;color:#fbbf24">₹${balance.toFixed(0)}</span></div>
+    </div>
+    <input type="number" id="recv-amount" placeholder="Amount Receiving ₹" value="${balance}" style="width:100%;padding:11px;background:var(--s2);border:1px solid var(--accent);border-radius:8px;color:var(--text);font-size:15px;font-weight:700;margin-bottom:10px">
+    <select id="recv-pay-mode" style="width:100%;padding:10px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;margin-bottom:14px">
+      <option value="cash">Cash</option>
+      <option value="upi">UPI</option>
+      <option value="card">Card</option>
+    </select>
+    <div style="display:flex;gap:10px">
+      <button onclick="confirmReceivePay('${inv.id}')" class="btn btn-primary" style="flex:1;padding:12px;font-weight:700;font-size:15px">✅ Confirm & Close</button>
+      <button onclick="closeReceivePay()" class="btn" style="padding:12px 16px;background:var(--s2);color:var(--muted)">✕</button>
+    </div>`;
+  modal.classList.add('open');
+}
+
+function closeReceivePay(){
+  document.getElementById('receivePayModal').classList.remove('open');
+}
+
+async function confirmReceivePay(invId){
+  const inv=(S.advanceBills||[]).find(a=>String(a.id)===String(invId));
+  if(!inv){ toast('Bill not found','error'); return; }
+
+  const recvAmt=parseFloat(document.getElementById('recv-amount').value)||0;
+  const payMode=document.getElementById('recv-pay-mode').value;
+  const balance=parseFloat(inv.balance_amount||0);
+
+  if(recvAmt<=0){ toast('Amount nakho!','error'); return; }
+
+  // Advance bill close + Regular bill generate
+  const now=new Date();
+  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let tok=''; for(let i=0;i<11;i++) tok+=chars[Math.floor(Math.random()*chars.length)];
+
+  // Regular bill counter
+  const bid=S.activeBranchId||1;
+  const cntKey='bill_counter_'+bid;
+  let billNum=parseInt(S.settings.bill_counter)||1;
+
+  // Regular bill — full amount
+  const regularInv={
+    bill_number: billNum,
+    customer_name: inv.customer_name,
+    customer_id: inv.customer_id,
+    payment_mode: payMode,
+    items: inv.items||[],
+    subtotal: parseFloat(inv.total||0),
+    discount:0, discount_pct:0,
+    gst:0, gst_rate:0,
+    total: parseFloat(inv.total||0),
+    profit:0,
+    note: 'Advance: AD'+String(inv.advance_bill_number||'').padStart(3,'0')+' · Balance Received: ₹'+recvAmt,
+    bill_date: now.toLocaleDateString('en-IN'),
+    bill_time: now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}),
+    status:'paid',
+    branch_id: bid,
+    public_token: tok
+  };
+
+  try{
+    // 1. Advance bill close karo
+    await api('invoices/'+invId,'PATCH',{
+      status:'advance_closed',
+      balance_amount:0,
+      note:(inv.note||'')+'\nClosed: ₹'+recvAmt+' received on '+now.toLocaleDateString('en-IN')
+    });
+
+    // 2. Regular bill save karo
+    const saved=await api('invoices','POST',regularInv);
+    const savedReg=saved&&saved[0]?saved[0]:{...regularInv,id:Date.now()};
+    S.invoices.unshift(savedReg);
+
+    // 3. Local update
+    const idx=(S.advanceBills||[]).findIndex(a=>String(a.id)===String(invId));
+    if(idx>=0){ S.advanceBills[idx].status='advance_closed'; S.advanceBills[idx].balance_amount=0; }
+    saveAdvanceOffline(); saveOffline();
+
+    // 4. Bill counter refresh
+    await refreshBillCounter();
+
+    closeReceivePay();
+    updateDash(); renderInvs(); renderAdvanceBills();
+    toast('✅ Payment received! Regular Bill #'+String(savedReg.bill_number||billNum).padStart(4,'0')+' created!','success');
+
+    // 5. WhatsApp
+    setTimeout(()=>{
+      const cust=S.customers.find(c=>c.id===inv.customer_id);
+      const phone=cust?cust.phone||'':'';
+      const s=S.settings||{};
+      const shopName=(s.shop_name||'ELIITOZE JEWELZ').toUpperCase();
+      const bar='━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+      let msg=`*${shopName}*\n${bar}\n`;
+      msg+=`*Payment Received — Full Bill Closed!*\n`;
+      msg+=`Customer: *${inv.customer_name}*\n`;
+      msg+=`Bill #: *${String(savedReg.bill_number||billNum).padStart(4,'0')}*\n`;
+      msg+=`Date: *${now.toLocaleDateString('en-IN')}*\n`;
+      msg+=bar+'\n';
+      msg+=`Total Bill:  *₹${parseFloat(inv.total||0).toFixed(0)}*\n`;
+      msg+=`Advance Paid: ₹${parseFloat(inv.advance_amount||0).toFixed(0)}\n`;
+      msg+=`Balance Received: *₹${recvAmt.toFixed(0)}*\n`;
+      msg+=bar+'\n';
+      msg+=`🧾 *View Bill Online:*\nhttps://bill.eliitoze.in/#${tok}\n`;
+      sendToWA(phone, msg);
+    }, 500);
+
+  }catch(e){
+    toast('Error: '+e.message,'error');
+  }
+}
+
+// Init advance bills on load
+if(!S.advanceBills) S.advanceBills=[];
+initAdvanceBills();
 </script>
 <!-- AFTER SAVE MODAL -->
 <div class="overlay" id="afterSaveModal" style="z-index:500" onclick="if(event.target===this)closeAfterSave()">
