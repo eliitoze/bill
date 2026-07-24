@@ -3185,7 +3185,11 @@ function thermalPrint(invData){
       <td style="${f}font-size:12px;font-weight:bold;padding:2px 0;text-align:right">Rs.${parseFloat(t.grand).toFixed(0)}</td>
     </tr>
     ${tRow('Payment', payment)}
-    ${t.disc>0?tRow('You Saved', 'Rs.'+parseFloat(t.discAmt).toFixed(0)):''} 
+    ${t.disc>0?tRow('You Saved', 'Rs.'+parseFloat(t.discAmt).toFixed(0)):''}
+    ${invData&&invData.advance_amount?`
+    <tr><td colspan="2"><div class="tp-solid" style="margin:2px 0"></div></td></tr>
+    <tr><td style="${f}font-size:11px;padding:2px 0">Advance Paid</td><td style="${f}font-size:11px;padding:2px 0;text-align:right">Rs.${parseFloat(invData.advance_amount).toFixed(0)}</td></tr>
+    <tr><td style="${f}font-size:12px;font-weight:bold;padding:2px 0">Balance Due</td><td style="${f}font-size:12px;font-weight:bold;padding:2px 0;text-align:right">Rs.${parseFloat(invData.balance_amount||0).toFixed(0)}</td></tr>`:''}
   </table>
   ${note?`<div class="tp-solid"></div><div style="${f}font-size:9px">Note: ${note}</div>`:''}
   <div class="tp-solid"></div>
@@ -5958,27 +5962,56 @@ async function saveAdvanceBill(){
 }
 
 function advShowPostSaveModal(inv, phone){
-  // Same style as regular bill post-save: Print / WhatsApp / Close
   const advStr = 'AD'+String(inv.advance_bill_number||inv.bill_number||'').padStart(3,'0');
+  window._advLastInv = inv;
+  window._advLastPhone = phone;
+
+  function removeOverlay(){ const o=document.getElementById('advPostSaveOverlay'); if(o) o.remove(); }
+
+  function showWAStep(){
+    removeOverlay();
+    const overlay = document.createElement('div');
+    overlay.id = 'advPostSaveOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:900;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.innerHTML = `
+      <div style="background:var(--s1);border-radius:16px;padding:24px;max-width:320px;width:100%;text-align:center">
+        <div style="font-size:32px;margin-bottom:8px">📲</div>
+        <div style="font-family:'Syne',sans-serif;font-size:17px;font-weight:800;color:var(--accent);margin-bottom:4px">WhatsApp Share?</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:20px">${advStr} · ${inv.customer_name}</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <button onclick="advSendWADirect(window._advLastInv,window._advLastPhone);document.getElementById('advPostSaveOverlay').remove()"
+            style="width:100%;padding:13px;background:#25d366;border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer">📲 WhatsApp મોકલો</button>
+          <button onclick="document.getElementById('advPostSaveOverlay').remove()"
+            style="width:100%;padding:11px;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-size:13px;cursor:pointer">Skip → Close</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+  }
+
+  // Step 1: Print card
   const overlay = document.createElement('div');
   overlay.id = 'advPostSaveOverlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:900;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:900;display:flex;align-items:center;justify-content:center;padding:20px';
   overlay.innerHTML = `
     <div style="background:var(--s1);border-radius:16px;padding:24px;max-width:320px;width:100%;text-align:center">
       <div style="font-size:36px;margin-bottom:8px">✅</div>
       <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--accent);margin-bottom:4px">Advance Bill Saved!</div>
-      <div style="font-size:13px;color:var(--muted);margin-bottom:20px">${advStr} · ${inv.customer_name}</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:6px">${advStr} · ${inv.customer_name}</div>
+      <div style="display:flex;justify-content:space-between;background:var(--s2);border-radius:10px;padding:10px 14px;margin-bottom:18px;font-size:13px">
+        <span style="color:var(--muted)">Advance</span><span style="color:#6ee7b7;font-weight:700">₹${parseFloat(inv.advance_amount||0).toFixed(0)}</span>
+        <span style="color:var(--muted);margin:0 4px">|</span>
+        <span style="color:var(--muted)">Balance</span><span style="color:#fbbf24;font-weight:700">₹${parseFloat(inv.balance_amount||0).toFixed(0)}</span>
+      </div>
       <div style="display:flex;flex-direction:column;gap:10px">
-        <button onclick="thermalPrint(window._advLastInv);document.getElementById('advPostSaveOverlay').remove()" 
-          style="width:100%;padding:13px;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;font-weight:700;cursor:pointer">🖨 Print Bill</button>
-        <button onclick="advSendWADirect(window._advLastInv,'${phone}');document.getElementById('advPostSaveOverlay').remove()"
-          style="width:100%;padding:13px;background:#25d366;border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;cursor:pointer">📲 WhatsApp</button>
-        <button onclick="document.getElementById('advPostSaveOverlay').remove()"
-          style="width:100%;padding:11px;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-size:13px;cursor:pointer">✕ Close</button>
+        <button id="advPrintBtn"
+          style="width:100%;padding:13px;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:15px;font-weight:700;cursor:pointer">🖨 Print Bill</button>
+        <button id="advSkipPrintBtn"
+          style="width:100%;padding:11px;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-size:13px;cursor:pointer">Skip → WhatsApp</button>
       </div>
     </div>`;
-  window._advLastInv = inv;
   document.body.appendChild(overlay);
+  document.getElementById('advPrintBtn').onclick = function(){ thermalPrint(window._advLastInv); showWAStep(); };
+  document.getElementById('advSkipPrintBtn').onclick = showWAStep;
 }
 
 function advSendWADirect(inv, phone){
