@@ -5762,7 +5762,7 @@ function saveAdvanceOffline(){
 
 async function loadAdvanceBills(){
   try{
-    const res = await api('invoices','GET','status=eq.advance&order=created_at.desc');
+    const res = await api('invoices?status=eq.advance&order=created_at.desc','GET');
     if(res && res.invoices) S.advanceBills = res.invoices;
     else if(Array.isArray(res)) S.advanceBills = res;
     saveAdvanceOffline();
