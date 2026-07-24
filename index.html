@@ -839,7 +839,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 
 /* Everything below is scoped to mobile screens only — desktop (>768px) is 100% unaffected */
 @media (max-width: 768px) {
-  #vyaparBill { height: auto; }
+  #vyaparBill { height: auto; min-height: 100%; }
   .vb-top { grid-template-columns: 1fr; }
   .vb-cust-section { border-right: none; border-bottom: 1px solid var(--border); }
   .vb-cust-fields { grid-template-columns: 1fr; }
@@ -857,6 +857,8 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
     box-shadow: 0 -6px 20px rgba(0,0,0,0.35);
   }
   .vb-actions button { flex: 1; padding: 13px; font-size: 14px; }
+  /* Billing page: let content div scroll normally */
+  #page-billing.active { overflow: visible; height: auto; display: block; }
 }
 
 /* Billing page takes full content area */
@@ -1035,11 +1037,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
                 <input type="hidden" id="vbCustId">
               </div>
               <input type="tel" id="vbPhone" placeholder="Phone No." class="vb-input" maxlength="10">
-              <input type="tel" id="vbMobile" placeholder="Mobile No." class="vb-input" maxlength="10">
-              <div style="position:relative">
-                <input type="date" id="vbDob" class="vb-input" style="color:var(--muted)" onchange="document.getElementById('vbDobLabel').style.display=this.value?'none':'block'">
-                <span id="vbDobLabel" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--muted);pointer-events:none">🎂 Date of Birth (Optional)</span>
-              </div>
+              <input type="text" id="vbDob" class="vb-input" placeholder="🎂 Date of Birth (Optional)" onfocus="if(!this.dataset.picked){this.type='date';}" onblur="if(!this.value){this.type='text';}" onchange="this.dataset.picked=this.value?'1':'';" style="color:var(--muted)">
               <textarea id="vbAddress" placeholder="Billing Address" class="vb-input vb-textarea" rows="2"></textarea>
             </div>
           </div>
@@ -5000,7 +4998,6 @@ let VB = {
 function vbInit(){
   vbUpdateInvInfo();
   vbAddRow();
-  vbAddRow();
   // Update time every minute
   setInterval(vbUpdateTime, 60000);
 }
@@ -5388,15 +5385,14 @@ function vbClear(){
   document.getElementById('vbCustName').value='';
   document.getElementById('vbCustId').value='';
   document.getElementById('vbPhone').value='';
-  document.getElementById('vbMobile').value='';
+  const dobEl2=document.getElementById('vbDob'); if(dobEl2){dobEl2.type='text';dobEl2.value='';dobEl2.removeAttribute('data-picked');}
   document.getElementById('vbAddress').value='';
   document.getElementById('vbNote').value='';
   document.getElementById('vbDiscPct').value='';
   document.getElementById('vbDiscAmt').value='';
   document.getElementById('vbTotal').textContent='₹0';
   document.getElementById('vbRowTotal').textContent='0';
-  const dobEl=document.getElementById('vbDob'); if(dobEl) dobEl.value='';
-  const dobLbl=document.getElementById('vbDobLabel'); if(dobLbl) dobLbl.style.display='block';
+
   vbUpdateInvInfo();
   vbAddRow();
   vbAddRow();
@@ -5417,10 +5413,7 @@ async function vbSave(){
 
   const custId_raw = parseInt(document.getElementById('vbCustId').value)||null;
   const custName = document.getElementById('vbCustName').value.trim() || 'Walk-in';
-  // vbPhone OR vbMobile — banne check karo
-  const phoneRaw = document.getElementById('vbPhone').value.trim();
-  const mobileRaw = document.getElementById('vbMobile').value.trim();
-  const phone = phoneRaw || mobileRaw;
+  const phone = document.getElementById('vbPhone').value.trim();
   const note = document.getElementById('vbNote').value.trim();
   const payMode = vbGetPayMode();
 
@@ -5890,8 +5883,8 @@ async function saveAdvanceBill(){
   const cntKey = 'advance_counter_'+bid;
   let advNum = 1;
   try{
-    const cnt = await api('settings','GET','key=eq.'+cntKey+'&branch_id=eq.'+bid);
-    const rows = cnt.settings||cnt||[];
+    const cnt = await api('settings?key=eq.'+cntKey+'&branch_id=eq.'+bid,'GET');
+    const rows = Array.isArray(cnt)?cnt:(cnt.settings||cnt||[]);
     advNum = rows.length ? parseInt(rows[0].value||'1') : 1;
   }catch(e){}
 
@@ -5942,10 +5935,10 @@ async function saveAdvanceBill(){
 
     // Advance counter increment
     try{
-      const cnt=await api('settings','GET','key=eq.'+cntKey+'&branch_id=eq.'+bid);
-      const rows=cnt.settings||cnt||[];
-      if(rows.length) await api('settings/'+cntKey+'?branch_id='+bid,'PATCH',{value:String(advNum+1)});
-      else await api('settings','POST',[{key:cntKey,value:String(advNum+1)}]+'?branch_id='+bid);
+      const cnt2=await api('settings?key=eq.'+cntKey+'&branch_id=eq.'+bid,'GET');
+      const rows2=Array.isArray(cnt2)?cnt2:(cnt2.settings||cnt2||[]);
+      if(rows2.length) await api('settings?key=eq.'+cntKey+'&branch_id=eq.'+bid,'PATCH',{value:String(advNum+1)});
+      else await api('settings','POST',{key:cntKey,value:String(advNum+1),branch_id:bid});
     }catch(e){}
 
     closeAdvanceModal();
@@ -5953,12 +5946,37 @@ async function saveAdvanceBill(){
     renderAdvanceBills();
     updateDash();
 
-    // WhatsApp send
-    setTimeout(()=>{ advSendWADirect(savedInv, custPhone); }, 400);
+    // Save/Print/WhatsApp modal — same as regular bill
+    const custPhoneFinal = custPhone || (S.customers.find(c=>c.id===custId)||{}).phone || '';
+    advShowPostSaveModal(savedInv, custPhoneFinal);
 
   }catch(e){
     toast('Error: '+e.message,'error');
   }
+}
+
+function advShowPostSaveModal(inv, phone){
+  // Same style as regular bill post-save: Print / WhatsApp / Close
+  const advStr = 'AD'+String(inv.advance_bill_number||inv.bill_number||'').padStart(3,'0');
+  const overlay = document.createElement('div');
+  overlay.id = 'advPostSaveOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:900;display:flex;align-items:center;justify-content:center;padding:20px';
+  overlay.innerHTML = `
+    <div style="background:var(--s1);border-radius:16px;padding:24px;max-width:320px;width:100%;text-align:center">
+      <div style="font-size:36px;margin-bottom:8px">✅</div>
+      <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--accent);margin-bottom:4px">Advance Bill Saved!</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:20px">${advStr} · ${inv.customer_name}</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button onclick="thermalPrint(window._advLastInv);document.getElementById('advPostSaveOverlay').remove()" 
+          style="width:100%;padding:13px;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:14px;font-weight:700;cursor:pointer">🖨 Print Bill</button>
+        <button onclick="advSendWADirect(window._advLastInv,'${phone}');document.getElementById('advPostSaveOverlay').remove()"
+          style="width:100%;padding:13px;background:#25d366;border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;cursor:pointer">📲 WhatsApp</button>
+        <button onclick="document.getElementById('advPostSaveOverlay').remove()"
+          style="width:100%;padding:11px;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-size:13px;cursor:pointer">✕ Close</button>
+      </div>
+    </div>`;
+  window._advLastInv = inv;
+  document.body.appendChild(overlay);
 }
 
 function advSendWADirect(inv, phone){
