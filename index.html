@@ -2858,11 +2858,11 @@ function loadBillToNewBill(inv){
   document.getElementById('billDetailModal').style.display='none';
 
   // New Bill page par jao
-  const navItem = document.querySelector('.nav-item[onclick*="newbill"]') ||
-                  document.querySelector('[onclick*="newbill"]');
-  showPage('newbill', navItem);
-  const mobItem = document.getElementById('mbn-newbill');
-  if(mobItem) mobNav('newbill', mobItem);
+  const navItem = document.querySelector('.nav-item[onclick*="billing"]') ||
+                  document.querySelector('[onclick*="billing"]');
+  showPage('billing', navItem);
+  const mobItem = document.getElementById('mbn-billing');
+  if(mobItem) mobNav('billing', mobItem);
 
   setTimeout(()=>{
     clearBill();
@@ -6074,12 +6074,17 @@ function openReceivePay(invId){
 }
 
 function closeReceivePay(){
+  window._recvSaving = false;
   document.getElementById('receivePayModal').classList.remove('open');
 }
 
 async function confirmReceivePay(invId){
+  if(window._recvSaving){ return; }
+  window._recvSaving = true;
+  const btn = document.querySelector('#receivePayBody .btn.btn-primary');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Saving...'; }
   const inv=(S.advanceBills||[]).find(a=>String(a.id)===String(invId));
-  if(!inv){ toast('Bill not found','error'); return; }
+  if(!inv){ window._recvSaving=false; toast('Bill not found','error'); return; }
 
   const recvAmt=parseFloat(document.getElementById('recv-amount').value)||0;
   const payMode=document.getElementById('recv-pay-mode').value;
@@ -6164,6 +6169,9 @@ async function confirmReceivePay(invId){
     }, 500);
 
   }catch(e){
+    window._recvSaving = false;
+    const btn2 = document.querySelector('#receivePayBody .btn.btn-primary');
+    if(btn2){ btn2.disabled=false; btn2.textContent='✅ Confirm & Close'; }
     toast('Error: '+e.message,'error');
   }
 }
