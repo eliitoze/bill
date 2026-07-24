@@ -5887,14 +5887,11 @@ async function saveAdvanceBill(){
   const balance = total - advAmt;
   const bid = S.activeBranchId||1;
 
-  // Advance counter
-  const cntKey = 'advance_counter_'+bid;
-  let advNum = 1;
-  try{
-    const cnt = await api('settings?key=eq.'+cntKey+'&branch_id=eq.'+bid,'GET');
-    const rows = Array.isArray(cnt)?cnt:(cnt.settings||cnt||[]);
-    advNum = rows.length ? parseInt(rows[0].value||'1') : 1;
-  }catch(e){}
+  // Advance counter — S.advanceBills na max advance_bill_number + 1
+  const existingNums = (S.advanceBills||[])
+    .map(a=>parseInt(a.advance_bill_number||a.bill_number||0))
+    .filter(n=>!isNaN(n)&&n>0);
+  let advNum = existingNums.length ? Math.max(...existingNums)+1 : 1;
 
   // Token
   const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -5940,14 +5937,6 @@ async function saveAdvanceBill(){
     if(!S.advanceBills) S.advanceBills=[];
     S.advanceBills.unshift(savedInv);
     saveAdvanceOffline();
-
-    // Advance counter increment
-    try{
-      const cnt2=await api('settings?key=eq.'+cntKey+'&branch_id=eq.'+bid,'GET');
-      const rows2=Array.isArray(cnt2)?cnt2:(cnt2.settings||cnt2||[]);
-      if(rows2.length) await api('settings?key=eq.'+cntKey+'&branch_id=eq.'+bid,'PATCH',{value:String(advNum+1)});
-      else await api('settings','POST',{key:cntKey,value:String(advNum+1),branch_id:bid});
-    }catch(e){}
 
     closeAdvanceModal();
     toast('✅ Advance Bill AD'+String(advNum).padStart(3,'0')+' saved!','success');
