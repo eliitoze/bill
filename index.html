@@ -953,7 +953,6 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
     <div class="nav-item" onclick="showPage('invoices',this);renderInvs()"><span class="nav-icon">≡</span> Bill History</div>
     <div class="nav-item" onclick="askPIN('reports')"><span class="nav-icon">📊</span> Reports</div>
     <div class="nav-item" onclick="showPage('advance',this);renderAdvanceBills()"><span class="nav-icon">💰</span> Advance Bills</div>
-    <div class="nav-item" onclick="showPage('birthday',this);renderBirthdays()"><span class="nav-icon">🎂</span> Birthdays</div>
     <div class="nav-item" onclick="showPage('import',this)"><span class="nav-icon">⇪</span> Excel Import</div>
     <div class="nav-item" onclick="showPage('settings',this)"><span class="nav-icon">⚙</span> Settings</div>
   </nav>
@@ -1194,27 +1193,6 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
           <table>
             <thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Address</th><th>Total Spent</th><th>Action</th></tr></thead>
             <tbody id="custTable"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- BIRTHDAYS -->
-    <div class="page" id="page-birthday">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;flex-wrap:wrap">
-        <div style="font-size:13px;color:var(--muted)">🎂 Customer birthdays — WhatsApp par wish moklo</div>
-        <select id="bdayFilter" onchange="renderBirthdays()" style="padding:9px 13px;background:var(--s1);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;outline:none">
-          <option value="today">🎉 Today</option>
-          <option value="month" selected>This Month</option>
-          <option value="upcoming">Next 30 Days</option>
-          <option value="all">All Customers</option>
-        </select>
-      </div>
-      <div class="card">
-        <div class="tbl-wrap">
-          <table>
-            <thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Birthday</th><th>Status</th><th>Turns</th><th>Action</th></tr></thead>
-            <tbody id="bdayTable"></tbody>
           </table>
         </div>
       </div>
@@ -1630,10 +1608,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
       <div class="form-group"><label>Mobile *</label><input id="cPhone" placeholder="10-digit number" type="tel"></div>
     </div>
     <div class="form-group" style="margin-bottom:10px"><label>Address</label><input id="cAddr" placeholder="City, Area"></div>
-    <div class="form-row">
-      <div class="form-group"><label>Email</label><input id="cEmail" placeholder="email@example.com" type="email"></div>
-      <div class="form-group"><label>🎂 Date of Birth</label><input id="cDob" type="date"></div>
-    </div>
+    <div class="form-group"><label>Email</label><input id="cEmail" placeholder="email@example.com" type="email"></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeM('custModal')">Cancel</button>
       <button class="btn btn-primary" onclick="saveCust()">Save</button>
@@ -2414,10 +2389,9 @@ function showPage(page, el){
   document.getElementById('page-'+page).classList.add('active');
   closeSidebar();
   if(el) el.classList.add('active');
-  const t={dashboard:'Dashboard',billing:'New Bill',products:'Products',customers:'Customers',invoices:'Bill History',reports:'Profit Report',advance:'Advance Bills',birthday:'Birthdays',import:'Excel Import',settings:'Settings'};
+  const t={dashboard:'Dashboard',billing:'New Bill',products:'Products',customers:'Customers',invoices:'Bill History',reports:'Profit Report',import:'Excel Import',settings:'Settings'};
   document.getElementById('pageTitle').textContent = t[page]||page;
   if(page==='reports') updateReports();
-  if(page==='birthday') renderBirthdays();
   if(page==='billing'){ vbSyncOnOpen(); }
   if(page==='settings'){ renderUserList(); renderBranchList(); }
   document.getElementById('sidebar').classList.remove('open');
@@ -4139,7 +4113,7 @@ function renderCusts(){
 function openAddCust(){
   document.getElementById('cmTitle').textContent='New Customer';
   document.getElementById('editCId').value='';
-  ['cName','cPhone','cAddr','cEmail','cDob'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  ['cName','cPhone','cAddr','cEmail'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('custModal').classList.add('open');
 }
 
@@ -4151,68 +4125,14 @@ function editCust(id){
   document.getElementById('cPhone').value=c.phone;
   document.getElementById('cAddr').value=c.address||'';
   document.getElementById('cEmail').value=c.email||'';
-  const dobEl=document.getElementById('cDob'); if(dobEl) dobEl.value=c.dob||'';
   document.getElementById('custModal').classList.add('open');
-}
-
-function renderBirthdays(){
-  const filter = document.getElementById('bdayFilter')?.value || 'month';
-  const now = new Date(); now.setHours(0,0,0,0);
-  const todayM = now.getMonth();
-  const monthNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
-  let list = (S.customers||[]).filter(c=>c.dob).map(c=>{
-    const d = new Date(c.dob+'T00:00:00');
-    const month=d.getMonth(), day=d.getDate(), byear=d.getFullYear();
-    let next = new Date(now.getFullYear(), month, day);
-    if(next<now) next = new Date(now.getFullYear()+1, month, day);
-    const daysUntil = Math.round((next-now)/86400000);
-    const turningAge = next.getFullYear()-byear;
-    return {...c, _month:month, _day:day, _daysUntil:daysUntil, _turningAge:turningAge};
-  });
-
-  if(filter==='today') list = list.filter(c=>c._daysUntil===0);
-  else if(filter==='month') list = list.filter(c=>c._month===todayM);
-  else if(filter==='upcoming') list = list.filter(c=>c._daysUntil<=30);
-  // 'all' — no filter
-
-  list.sort((a,b)=> filter==='month' ? a._day-b._day : a._daysUntil-b._daysUntil);
-
-  const tbody=document.getElementById('bdayTable');
-  if(!tbody) return;
-  if(!list.length){ tbody.innerHTML='<tr><td colspan="7" class="empty">Koi birthday nathi malyu — customers ma DOB add karo</td></tr>'; return; }
-
-  tbody.innerHTML=list.map((c,i)=>`
-    <tr>
-      <td>${i+1}</td>
-      <td><strong>${c.name||'—'}</strong></td>
-      <td style="font-family:'DM Mono',monospace">${c.phone||'—'}</td>
-      <td>${String(c._day).padStart(2,'0')} ${monthNames[c._month]}</td>
-      <td>${c._daysUntil===0 ? '<span style="color:var(--accent);font-weight:700">🎉 Today!</span>' : c._daysUntil+' days'}</td>
-      <td>Turns ${c._turningAge}</td>
-      <td>
-        <button class="btn btn-primary btn-sm" onclick="sendBirthdayWA(${c.id})" ${c.phone?'':'disabled'}>💬 Wish</button>
-      </td>
-    </tr>`).join('');
-}
-
-function sendBirthdayWA(custId){
-  const c=(S.customers||[]).find(x=>x.id===custId); if(!c) return;
-  if(!c.phone){ toast('Phone number nathi!','error'); return; }
-  const s=S.settings||{};
-  const shopName=(s.shop_name||'ELIITOZE JEWELZ').toUpperCase();
-  let msg = `🎂 *Happy Birthday, ${c.name}!* 🎉\n\n`;
-  msg += `Wishing you a very Happy Birthday from all of us at *${shopName}*!\n`;
-  msg += `May your year ahead be filled with health, happiness and success. 🎁✨\n\n`;
-  msg += `With warm wishes,\n*${shopName}*`;
-  sendToWA(c.phone, msg);
 }
 
 async function saveCust(){
   const name=document.getElementById('cName').value.trim();
   const phone=document.getElementById('cPhone').value.trim();
   if(!name||!phone){ toast('Name & phone required!','error'); return; }
-  const data={name,phone,address:document.getElementById('cAddr').value,email:document.getElementById('cEmail').value,dob:document.getElementById('cDob').value||null};
+  const data={name,phone,address:document.getElementById('cAddr').value,email:document.getElementById('cEmail').value};
   try{
     const editId=document.getElementById('editCId').value;
     if(editId){
