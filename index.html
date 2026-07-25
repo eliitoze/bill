@@ -5618,12 +5618,17 @@ async function vbSave(){
   const custObjForPhone = custId ? S.customers.find(c=>c.id===custId) : null;
   const custPhoneForInv = phone || (custObjForPhone ? custObjForPhone.phone||'' : '');
 
+  // Edit mode ma original date preserve karo, navi bill ma current date
+  const origInvForDate = S.editingInvoiceId ? (S.invoices.find(x=>x.id===S.editingInvoiceId)||{}) : {};
+  const billDate = origInvForDate.bill_date || nowVb.toLocaleDateString('en-IN');
+  const billTime = origInvForDate.bill_time || nowVb.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
+
   const inv = {
     bill_number: billNum, customer_name: custName, customer_id: custId,
     payment_mode: payMode, items, subtotal, discount: discAmt, discount_pct: discPct,
     gst: 0, gst_rate: 0, total: grand, profit,
-    note, bill_date: nowVb.toLocaleDateString('en-IN'),
-    bill_time: nowVb.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}),
+    note, bill_date: billDate,
+    bill_time: billTime,
     status:'paid', branch_id: S.activeBranchId || 1,
     public_token: vbToken
   };
