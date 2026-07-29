@@ -965,7 +965,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
   <div class="mob-nav-item" id="mbn-billing" onclick="mobNav('billing',this)">
     <span class="mob-icon">🧾</span><span>Bill</span>
   </div>
-  <div class="mob-nav-item" id="mbn-invoices" onclick="mobNav('invoices',this);renderInvs()">
+  <div class="mob-nav-item" id="mbn-invoices" onclick="mobNav('invoices',this);invSetToday();renderInvs()">
     <span class="mob-icon">📋</span><span>History</span>
   </div>
   <div class="mob-nav-item" id="mbn-reports" onclick="mobNavReport(this)">
@@ -1005,7 +1005,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
     <div class="nav-item nav-billing" onclick="showPage('billing',this)"><span class="nav-icon">🧾</span> New Bill</div>
     <div class="nav-item nav-products" onclick="showPage('products',this);renderProds()"><span class="nav-icon">💎</span> Products</div>
     <div class="nav-item nav-customers" onclick="showPage('customers',this);renderCusts()"><span class="nav-icon">👥</span> Customers</div>
-    <div class="nav-item nav-invoices" onclick="showPage('invoices',this);renderInvs()"><span class="nav-icon">📋</span> Bill History</div>
+    <div class="nav-item nav-invoices" onclick="showPage('invoices',this);invSetToday();renderInvs()"><span class="nav-icon">📋</span> Bill History</div>
     <div class="nav-item nav-reports" onclick="askPIN('reports')"><span class="nav-icon">📊</span> Reports</div>
     <div class="nav-item nav-advance" onclick="showPage('advance',this);renderAdvanceBills()"><span class="nav-icon">💰</span> Advance Bills</div>
     <div class="nav-item nav-birthdays" onclick="showPage('birthdays',this);renderBirthdays()"><span class="nav-icon">🎂</span> Birthdays</div>
@@ -1272,6 +1272,19 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 
     <!-- INVOICES -->
     <div class="page" id="page-invoices">
+      <!-- Date Filter Row -->
+      <div style="display:flex;gap:8px;margin-bottom:10px;align-items:flex-end;flex-wrap:wrap">
+        <div>
+          <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:3px">FROM</div>
+          <input type="date" id="invFrom" onchange="renderInvs()" style="padding:7px 10px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none">
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);font-weight:700;margin-bottom:3px">TO</div>
+          <input type="date" id="invTo" onchange="renderInvs()" style="padding:7px 10px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none">
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="invSetToday()" style="padding:7px 12px">📅 Today</button>
+        <button class="btn btn-ghost btn-sm" onclick="invSetAll()" style="padding:7px 12px">📋 All</button>
+      </div>
       <!-- Search Bar -->
       <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center">
         <div style="flex:1;position:relative">
@@ -4308,20 +4321,48 @@ async function deleteInvoice(id){
   }
 }
 
+function invSetToday(){
+  const t = new Date().toISOString().split('T')[0];
+  document.getElementById('invFrom').value = t;
+  document.getElementById('invTo').value   = t;
+  renderInvs();
+}
+function invSetAll(){
+  document.getElementById('invFrom').value = '';
+  document.getElementById('invTo').value   = '';
+  renderInvs();
+}
+
 function renderInvs(){
   const tbody=document.getElementById('invTable');
   if(!tbody) return;
   const q=(document.getElementById('invSearch')?.value||'').toLowerCase().trim();
+  const fromVal = document.getElementById('invFrom')?.value||'';
+  const toVal   = document.getElementById('invTo')?.value||'';
 
-  // Filter invoices by search query
-  const filtered = q ? S.invoices.filter(inv=>{
-    const billNo = String(inv.bill_number).padStart(4,'0');
-    const name   = (inv.customer_name||'').toLowerCase();
-    // Check customer phone
-    const cust   = inv.customer_id ? S.customers.find(c=>c.id===inv.customer_id) : null;
-    const phone  = (cust?.phone||'').toLowerCase();
-    return billNo.includes(q) || name.includes(q) || phone.includes(q);
-  }) : S.invoices;
+  let filtered = S.invoices;
+
+  // Date filter
+  if(fromVal||toVal){
+    const fromD = fromVal ? new Date(fromVal) : new Date(0);
+    const toD   = toVal   ? new Date(toVal)   : new Date('2099-12-31');
+    toD.setHours(23,59,59,999);
+    filtered = filtered.filter(inv=>{
+      const bd = dateFromNorm(normDate(inv.bill_date||''));
+      return bd >= fromD && bd <= toD;
+    });
+  }
+
+  // Search filter
+  if(q){
+    filtered = filtered.filter(inv=>{
+      const billNo = String(inv.bill_number).padStart(4,'0');
+      const name   = (inv.customer_name||'').toLowerCase();
+      const cust   = inv.customer_id ? S.customers.find(c=>c.id===inv.customer_id) : null;
+      const phone  = (cust?.phone||'').toLowerCase();
+      return billNo.includes(q) || name.includes(q) || phone.includes(q);
+    });
+  }
 
   // Update count label
   const countEl = document.getElementById('invCount');
@@ -4454,29 +4495,37 @@ function toggleDashPrivacy(){
 function updateDash(){
   const priv = window._dashPrivacy || false;
   const mask = '••••';
-  const today=new Date().toLocaleDateString('en-IN');
+  const todayNorm = normDate(new Date().toLocaleDateString('en-IN'));
   const bid = S.activeBranchId || 1;
   const branchInvs = S.invoices.filter(i=>!i.branch_id || parseInt(i.branch_id)===parseInt(bid));
   const paidInvs = branchInvs.filter(i=>!i.status||i.status==='paid');
-  const todayInv=paidInvs.filter(i=>i.bill_date===today);
+  const todayInv = paidInvs.filter(i=> normDate(i.bill_date||'') === todayNorm);
   const sale=todayInv.reduce((s,i)=>s+parseFloat(i.total||0),0);
-  const profit=todayInv.reduce((s,i)=>s+parseFloat(i.profit||0),0);
-  document.getElementById('d-sale').textContent = priv ? mask : '₹'+sale.toFixed(0);
+  document.getElementById('d-sale').textContent = priv ? mask : '\u20b9'+sale.toFixed(0);
   document.getElementById('d-bills').textContent = priv ? mask : todayInv.length;
-  document.getElementById('d-profit').textContent='🔐';
+  document.getElementById('d-profit').textContent='\ud83d\udd10';
   document.getElementById('d-margin').textContent='PIN protected';
   document.getElementById('d-prods').textContent=S.products.length;
   const low=S.products.filter(p=>p.stock<=p.min_stock);
   document.getElementById('d-low').textContent=low.length;
   const rd=document.getElementById('d-recent');
   if(priv){
-    rd.innerHTML='<div class=\"empty\"><div class=\"ei\">🙈</div><p>Privacy mode on</p></div>';
+    rd.innerHTML='<div class="empty"><div class="ei">\ud83d\ude48</div><p>Privacy mode on</p></div>';
   } else {
-    rd.innerHTML=!paidInvs.length?'<div class=\"empty\"><div class=\"ei\">🧾</div><p>No bills</p></div>':'<table><thead><tr><th>Bill</th><th>Customer</th><th>Amount</th></tr></thead><tbody>'+paidInvs.slice(0,5).map(i=>`<tr><td>#${String(i.bill_number).padStart(4,'0')}</td><td>${i.customer_name}</td><td>₹${parseFloat(i.total).toFixed(2)}</td></tr>`).join('')+'</tbody></table>';
+    const recentList = todayInv.length ? todayInv : paidInvs.slice(0,5);
+    const label = todayInv.length ? '\ud83d\uddd3 \u0a06\u0a1c\u0a28\u0a3e '+todayInv.length+' Bill' : 'Recent Bills';
+    if(!recentList.length){
+      rd.innerHTML='<div class="empty"><div class="ei">\ud83e\uddfe</div><p>No bills yet</p></div>';
+    } else {
+      const pm={cash:'\ud83d\udcb5',upi:'\ud83d\udcf1',card:'\ud83d\udcb3',credit:'\ud83d\udcdd'};
+      rd.innerHTML='<div style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:8px;letter-spacing:0.5px">'+label+'</div>'+
+        '<table><thead><tr><th>Bill#</th><th>Customer</th><th>Pay</th><th>Amount</th></tr></thead><tbody>'+
+        recentList.slice(0,8).map(i=>'<tr style="cursor:pointer" onclick="loadBillToNewBill(S.invoices.find(x=>x.id==='+i.id+'))"><td><strong style="font-family:\'DM Mono\',monospace;color:var(--accent)">#'+String(i.bill_number).padStart(4,'0')+'</strong></td><td>'+i.customer_name+'</td><td>'+(pm[i.payment_mode]||'')+'</td><td><strong>\u20b9'+parseFloat(i.total).toFixed(0)+'</strong></td></tr>').join('')+
+        '</tbody></table>';
+    }
   }
   const ld=document.getElementById('d-lowlist');
-  ld.innerHTML=!low.length?'<div class=\"empty\"><div class=\"ei\">✅</div><p>All in stock</p></div>':low.map(p=>`<div style=\"display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px\"><span>${p.name}</span><span class=\"badge badge-red\">Stock: ${p.stock}</span></div>`).join('');
-  // Advance Pending
+  ld.innerHTML=!low.length?'<div class="empty"><div class="ei">\u2705</div><p>All in stock</p></div>':low.map(p=>'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px"><span>'+p.name+'</span><span class="badge badge-red">Stock: '+p.stock+'</span></div>').join('');
   const pendingAdv=(S.advanceBills||[]).filter(a=>a.status==='advance');
   const advWrap=document.getElementById('d-advance-wrap');
   const advList=document.getElementById('d-advance-list');
@@ -4485,13 +4534,12 @@ function updateDash(){
     if(pendingAdv.length>0){
       advWrap.style.display='block';
       if(advCount) advCount.textContent=pendingAdv.length;
-      if(advList) advList.innerHTML=pendingAdv.slice(0,3).map(a=>`<div style=\"display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(251,191,36,0.15);font-size:13px;cursor:pointer\" onclick=\"openReceivePay('${a.id}')\"><div><div style=\"font-weight:600;color:var(--text)\">${a.customer_name}</div><div style=\"font-size:11px;color:var(--muted)\">AD${String(a.advance_bill_number||'').padStart(3,'0')} · Advance: ₹${parseFloat(a.advance_amount||0).toFixed(0)}</div></div><div style=\"text-align:right\"><div style=\"color:#fbbf24;font-weight:700\">₹${parseFloat(a.balance_amount||0).toFixed(0)}</div><div style=\"font-size:10px;color:var(--muted)\">pending</div></div></div>`).join('');
+      if(advList) advList.innerHTML=pendingAdv.slice(0,3).map(a=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(251,191,36,0.15);font-size:13px;cursor:pointer" onclick="openReceivePay(\''+a.id+'\')"><div><div style="font-weight:600;color:var(--text)">'+a.customer_name+'</div><div style="font-size:11px;color:var(--muted)">AD'+String(a.advance_bill_number||'').padStart(3,'0')+' \u00b7 Advance: \u20b9'+parseFloat(a.advance_amount||0).toFixed(0)+'</div></div><div style="text-align:right"><div style="color:#fbbf24;font-weight:700">\u20b9'+parseFloat(a.balance_amount||0).toFixed(0)+'</div><div style="font-size:10px;color:var(--muted)">pending</div></div></div>').join('');
     } else {
       advWrap.style.display='none';
     }
   }
 }
-
 
 // ===== REPORTS (PIN protected) =====
 // ===== REPORT TABS =====
