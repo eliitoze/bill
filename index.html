@@ -2488,7 +2488,7 @@ function showPage(page, el){
   document.getElementById('page-'+page).classList.add('active');
   closeSidebar();
   if(el) el.classList.add('active');
-  const t={dashboard:'Dashboard',billing:'New Bill',products:'Products',customers:'Customers',invoices:'Bill History',reports:'Profit Report',import:'Excel Import',settings:'Settings'};
+  const t={dashboard:'Dashboard',billing:'New Bill',products:'Products',customers:'Customers',invoices:'Bill History',reports:'Profit Report',import:'Excel Import',settings:'Settings',advance:'Advance Bills',birthdays:'Birthdays'};
   document.getElementById('pageTitle').textContent = t[page]||page;
   if(page==='reports') updateReports();
   if(page==='billing'){ vbSyncOnOpen(); }
@@ -2507,7 +2507,32 @@ function showPage(page, el){
     contentEl.style.display = '';
     contentEl.style.flexDirection = '';
   }
+  // Back button: dashboard = base state, baki pages = push state
+  if(page === 'dashboard'){
+    history.replaceState({page:'dashboard'}, '', '');
+  } else {
+    history.pushState({page}, '', '');
+  }
 }
+
+// Back button intercept
+window.addEventListener('popstate', function(e){
+  const page = e.state?.page || 'dashboard';
+  const navEl = document.querySelector('.nav-item.nav-'+page);
+  showPage(page, navEl);
+  // Mobile nav sync
+  const mobEl = document.getElementById('mbn-'+page);
+  if(mobEl){
+    document.querySelectorAll('.mob-nav-item').forEach(m=>m.classList.remove('active'));
+    mobEl.classList.add('active');
+  }
+  // dashboard base state replace karo jethhi next back app exit kare
+  if(page === 'dashboard'){
+    history.replaceState({page:'dashboard'}, '', '');
+  }
+});
+// Initial state set
+history.replaceState({page:'dashboard'}, '', '');
 
 function toggleSidebar(){
   const sb = document.getElementById('sidebar');
