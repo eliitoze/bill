@@ -4364,11 +4364,14 @@ function renderInvs(){
     });
   }
 
-  // Update count label
+  // Update count label with total sale
+  const totalSale = filtered.reduce((s,i)=>s+parseFloat(i.total||0),0);
   const countEl = document.getElementById('invCount');
   if(countEl){
-    if(q) countEl.textContent = filtered.length + ' result' + (filtered.length!==1?'s':'') + ' found for "' + q + '"';
-    else  countEl.textContent = S.invoices.length + ' bills total';
+    const fromVal2 = document.getElementById('invFrom')?.value||'';
+    const toVal2   = document.getElementById('invTo')?.value||'';
+    let rangeLabel = q ? (' · "'+q+'"') : (fromVal2&&toVal2&&fromVal2===toVal2 ? ' · Today' : (fromVal2||toVal2 ? ' · Filtered' : ''));
+    countEl.innerHTML = '<span style="color:var(--muted)">'+filtered.length+' bills'+rangeLabel+'</span>  |  <span style="color:var(--accent);font-weight:700">Total: ₹'+totalSale.toFixed(0)+'</span>';
   }
 
   if(!filtered.length){
