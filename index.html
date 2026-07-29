@@ -4342,14 +4342,20 @@ function renderInvs(){
 
   let filtered = S.invoices;
 
-  // Date filter
+  // Date filter — string compare to avoid UTC timezone issue
   if(fromVal||toVal){
-    const fromD = fromVal ? new Date(fromVal) : new Date(0);
-    const toD   = toVal   ? new Date(toVal)   : new Date('2099-12-31');
-    toD.setHours(23,59,59,999);
+    // fromVal/toVal = "YYYY-MM-DD" from input[type=date]
+    const toNum = s => s ? parseInt(s.replace(/-/g,'')) : 0; // YYYYMMDD number
+    const fromN = fromVal ? toNum(fromVal) : 0;
+    const toN   = toVal   ? toNum(toVal)   : 99991231;
     filtered = filtered.filter(inv=>{
-      const bd = dateFromNorm(normDate(inv.bill_date||''));
-      return bd >= fromD && bd <= toD;
+      // inv.bill_date = "29/07/2026" or "29/7/2026" → normalize to YYYY-MM-DD number
+      const nd = normDate(inv.bill_date||''); // "29/7/2026"
+      if(!nd) return false;
+      const p = nd.split('/');
+      if(p.length!==3) return false;
+      const invN = parseInt(p[2])*10000 + parseInt(p[1])*100 + parseInt(p[0]); // YYYYMMDD
+      return invN >= fromN && invN <= toN;
     });
   }
 
