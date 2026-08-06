@@ -4546,8 +4546,8 @@ function updateDash(){
   const sale=todayInv.reduce((s,i)=>s+parseFloat(i.total||0),0);
   document.getElementById('d-sale').textContent = priv ? mask : '\u20b9'+sale.toFixed(0);
   document.getElementById('d-bills').textContent = priv ? mask : todayInv.length;
-  document.getElementById('d-profit').textContent='\ud83d\udd10';
-  document.getElementById('d-margin').textContent='PIN protected';
+  const dp=document.getElementById('d-profit'); if(dp) dp.textContent='\ud83d\udd10';
+  const dm=document.getElementById('d-margin'); if(dm) dm.textContent='PIN protected';
   document.getElementById('d-prods').textContent=S.products.length;
   const low=S.products.filter(p=>p.stock<=p.min_stock);
   document.getElementById('d-low').textContent=low.length;
