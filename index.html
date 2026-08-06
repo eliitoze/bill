@@ -1003,7 +1003,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
   <nav class="nav">
     <div class="nav-item nav-dashboard active" onclick="showPage('dashboard',this)"><span class="nav-icon">🏠</span> Dashboard</div>
     <div class="nav-item nav-billing" onclick="showPage('billing',this)"><span class="nav-icon">🧾</span> New Bill</div>
-    <div class="nav-item nav-products" onclick="showPage('products',this);renderProds()"><span class="nav-icon">💎</span> Products</div>
+    <div class="nav-item nav-products" onclick="askPIN('products')"><span class="nav-icon">💎</span> Products</div>
     <div class="nav-item nav-customers" onclick="showPage('customers',this);renderCusts()"><span class="nav-icon">👥</span> Customers</div>
     <div class="nav-item nav-invoices" onclick="showPage('invoices',this);invSetToday();renderInvs()"><span class="nav-icon">📋</span> Bill History</div>
     <div class="nav-item nav-reports" onclick="askPIN('reports')"><span class="nav-icon">📊</span> Reports</div>
@@ -1046,12 +1046,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
             <span style="font-size:28px;opacity:0.7">💰</span>
           </div>
         </div>
-        <div class="stat-card yellow" style="background:linear-gradient(135deg,rgba(251,191,36,0.18) 0%,rgba(120,53,15,0.10) 100%);border-color:rgba(251,191,36,0.35)">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start">
-            <div><div class="stat-label">Today Profit</div><div class="stat-value" id="d-profit">🔐</div><div class="stat-sub" id="d-margin">PIN protected</div></div>
-            <span style="font-size:28px;opacity:0.7">📈</span>
-          </div>
-        </div>
+
         <div class="stat-card blue" style="background:linear-gradient(135deg,rgba(96,165,250,0.18) 0%,rgba(30,58,138,0.10) 100%);border-color:rgba(96,165,250,0.35)">
           <div style="display:flex;justify-content:space-between;align-items:flex-start">
             <div><div class="stat-label">Products</div><div class="stat-value" id="d-prods">0</div><div class="stat-sub">in stock</div></div>
@@ -1549,8 +1544,8 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
           <button class="btn btn-primary" onclick="saveSettings()">💾 Save</button>
         </div>
         <div class="card">
-          <div class="card-title">🔐 Profit Report PIN</div>
-          <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Profit reports are PIN protected. Default PIN: 1234</p>
+          <div class="card-title">🔐 Products &amp; Reports PIN</div>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Products અને Reports PIN protected છે. Default PIN: 0208</p>
           <div class="form-row">
             <div class="form-group"><label>New PIN (4 digits)</label><input type="password" id="sNewPIN" placeholder="••••" maxlength="4"></div>
             <div class="form-group"><label>Confirm PIN</label><input type="password" id="sConfPIN" placeholder="••••" maxlength="4"></div>
@@ -1719,7 +1714,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 <div class="overlay" id="pinModal">
   <div class="pin-modal">
     <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:15px;color:var(--text)">🔐 Enter PIN</div>
-    <div style="font-size:12px;color:var(--muted);margin-top:4px">Profit Report is protected</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:4px">Products &amp; Reports are PIN protected</div>
     <div class="pin-display" id="pinDisplay">_ _ _ _</div>
     <div class="pin-grid">
       <button class="pin-btn" onclick="pinKey('1')">1</button>
@@ -2549,7 +2544,9 @@ function closeSidebar(){
 function askPIN(target){
   S.pinTarget = target; pinEntry = '';
   document.getElementById('pinDisplay').textContent = '_ _ _ _';
+  document.getElementById('pinDisplay').style.color = 'var(--accent)';
   document.getElementById('pinModal').classList.add('open');
+  setTimeout(()=>{ const hi=document.getElementById('pinHiddenInput'); if(hi){hi.value='';hi.focus();} },100);
 }
 function pinKey(k){
   if(pinEntry.length>=4) return;
@@ -2557,9 +2554,15 @@ function pinKey(k){
   document.getElementById('pinDisplay').textContent = '●'.repeat(pinEntry.length).padEnd(4,'_').split('').join(' ');
   if(pinEntry.length===4){
     setTimeout(()=>{
-      if(pinEntry === (S.settings.profit_pin||'1234')){
+      const correctPin = S.settings.profit_pin || '0208';
+      if(pinEntry === correctPin){
         closeM('pinModal'); pinEntry='';
-        showPage(S.pinTarget, document.querySelectorAll('.nav-item')[5]);
+        if(S.pinTarget==='reports'){
+          showPage('reports', document.querySelector('.nav-reports'));
+        } else if(S.pinTarget==='products'){
+          showPage('products', document.querySelector('.nav-products'));
+          renderProds();
+        }
       } else {
         pinEntry='';
         document.getElementById('pinDisplay').textContent = '✕ Wrong PIN';
@@ -2571,7 +2574,13 @@ function pinKey(k){
 }
 function pinDel(){ pinEntry=pinEntry.slice(0,-1); document.getElementById('pinDisplay').textContent='●'.repeat(pinEntry.length).padEnd(4,'_').split('').join(' '); }
 function pinClear(){ pinEntry=''; document.getElementById('pinDisplay').textContent='_ _ _ _'; }
-
+// Keyboard support
+document.addEventListener('keydown', function(e){
+  if(!document.getElementById('pinModal').classList.contains('open')) return;
+  if(e.key>='0'&&e.key<='9') pinKey(e.key);
+  else if(e.key==='Backspace') pinDel();
+  else if(e.key==='Escape') closeM('pinModal');
+});
 // ===== BILLING =====
 function updateBillNo(){
   const n = parseInt(S.settings.bill_counter)||1;
