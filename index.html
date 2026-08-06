@@ -2327,12 +2327,16 @@ async function init(){
 
 async function loadAll(){
   const bid = S.activeBranchId || 1;
-  const [prods, custs, invs, sets] = await Promise.all([
+  const [prods, custs, invs] = await Promise.all([
     api('products?order=name&branch_id=eq.'+bid),
     api('customers?order=name'),
     api('invoices?order=created_at.desc&limit=200&branch_id=eq.'+bid),
-    api('settings?branch_id=eq.'+bid)
   ]);
+  // Settings — Supabase direct (Worker route nathi)
+  const setsRes = await fetch(`${SUPA_URL}/rest/v1/settings?branch_id=eq.${bid}`,{
+    headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+  });
+  const sets = setsRes.ok ? await setsRes.json() : [];
   S.products = prods;
   S.customers = custs;
   S.invoices = invs;
@@ -2347,7 +2351,10 @@ async function loadAll(){
 async function refreshBillCounter(){
   const bid = S.activeBranchId || 1;
   try{
-    const cntRows = await api('settings?key=eq.bill_counter_'+bid+'&branch_id=eq.'+bid);
+    const cntFetch = await fetch(`${SUPA_URL}/rest/v1/settings?key=eq.bill_counter_${bid}&branch_id=eq.${bid}`,{
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+    });
+    const cntRows = cntFetch.ok ? await cntFetch.json() : [];
     if(cntRows && cntRows.length){
       const dbVal = parseInt(cntRows[0].value)||1;
       // Safety check: DB value, loaded invoices ma max bill_number — jo bemo compare kariye
@@ -5030,10 +5037,14 @@ async function saveSettings(){
   Object.assign(S.settings, updates);
   saveOffline(); applySettings();
   try{
-    // UPSERT — works for both new keys (email,terms) and existing ones
     const bid = S.activeBranchId || 1;
     const rows = Object.entries(updates).map(([k,v])=>({key:k, value:v, branch_id:bid, updated_at:new Date().toISOString()}));
-    await api('settings','POST', rows, {'Prefer':'resolution=merge-duplicates'});
+    // Settings Worker route nathi — Supabase direct UPSERT
+    await fetch(`${SUPA_URL}/rest/v1/settings`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Prefer':'resolution=merge-duplicates'},
+      body: JSON.stringify(rows)
+    });
     toast('✅ Settings saved!','success');
   } catch(e){
     toast('✅ Saved locally (sync later)','success');
@@ -5052,7 +5063,11 @@ async function savePIN(){
   try{
     // UPSERT — works even if row doesn't exist yet
     const pinBid = S.activeBranchId || 1;
-    await api('settings','POST',[{key:'profit_pin',value:np,branch_id:pinBid,updated_at:new Date().toISOString()}],{'Prefer':'resolution=merge-duplicates'});
+    await fetch(`${SUPA_URL}/rest/v1/settings`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Prefer':'resolution=merge-duplicates'},
+      body: JSON.stringify([{key:'profit_pin',value:np,branch_id:pinBid,updated_at:new Date().toISOString()}])
+    });
     toast('✅ PIN updated!','success');
   } catch(e){
     toast('✅ PIN saved locally','success');
