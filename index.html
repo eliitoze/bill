@@ -2333,10 +2333,13 @@ async function loadAll(){
     api('invoices?order=created_at.desc&limit=200&branch_id=eq.'+bid),
   ]);
   // Settings — Supabase direct (Worker route nathi)
-  const setsRes = await fetch(`${SUPA_URL}/rest/v1/settings?branch_id=eq.${bid}`,{
-    headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
-  });
-  const sets = setsRes.ok ? await setsRes.json() : [];
+  let sets = [];
+  try{
+    const setsRes = await fetch(`${SUPA_URL}/rest/v1/settings?branch_id=eq.${bid}`,{
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+    });
+    if(setsRes.ok) sets = await setsRes.json();
+  }catch(e){ console.warn('Settings fetch failed, using local cache:', e.message); }
   S.products = prods;
   S.customers = custs;
   S.invoices = invs;
