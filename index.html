@@ -1359,12 +1359,16 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
         </div>
         <!-- Missing Cost Price -->
         <div class="card" id="missingCostCard" style="margin-top:14px;display:none;border:1px solid rgba(251,191,36,0.4)">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-            <span style="font-size:18px">⚠️</span>
-            <div>
-              <div class="card-title" style="margin:0;color:#f59e0b">Purchase Price Missing</div>
-              <div style="font-size:11px;color:var(--muted)">Aa items ni purchase price nathi — profit correct nahi aavse</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:18px">⚠️</span>
+              <div>
+                <div class="card-title" style="margin:0;color:#f59e0b">Purchase Price Missing</div>
+                <div style="font-size:11px;color:var(--muted)">Cost ભરો → item product list ma save & profit calculate થશે</div>
+              </div>
             </div>
+            <button class="btn btn-sm" style="background:#f59e0b;color:#000;font-weight:700;white-space:nowrap"
+              onclick="saveAllMissingCosts()">💾 Save All</button>
           </div>
           <div id="missingCostList"></div>
         </div>
@@ -4752,19 +4756,22 @@ function renderDailyReport(){
     missingCard.style.display='block';
     missingList.innerHTML = missingItems.map(([name,d])=>{
       const prod = d.pid ? S.products.find(p=>p.id===d.pid) : null;
+      const isNew = !prod && !d.pid;
+      const safeKey = (d.pid||name.replace(/\s/g,'_')).toString().replace(/['"]/g,'');
       return `
       <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
         <div style="flex:1;min-width:120px">
           <div style="font-size:13px;font-weight:600">${name}</div>
           <div style="font-size:11px;color:var(--muted)">Sold: ${d.qty} pcs · Revenue: ₹${d.revenue.toFixed(0)}</div>
+          ${isNew ? '<div style="font-size:10px;color:#6ee7b7;margin-top:2px">✨ Save થતાં New Product list ma add થશે (1 pc)</div>' : ''}
         </div>
         <div style="display:flex;align-items:center;gap:6px">
-          <input type="number" id="cost_${d.pid||name.replace(/\s/g,'_')}"
-            placeholder="Purchase price"
-            style="width:120px;padding:7px 10px;background:var(--s2);border:1px solid #f59e0b;border-radius:8px;color:var(--text);font-size:13px;outline:none;"
+          <input type="number" id="cost_${safeKey}"
+            placeholder="Purchase price ₹"
+            style="width:130px;padding:7px 10px;background:var(--s2);border:1px solid #f59e0b;border-radius:8px;color:var(--text);font-size:13px;outline:none;"
             onkeydown="if(event.key==='Enter') saveMissingCost('${d.pid||''}','${name}',this.value)">
           <button class="btn btn-sm" style="background:#f59e0b;color:#000;font-weight:700;white-space:nowrap"
-            onclick="saveMissingCost('${d.pid||''}','${name}',document.getElementById('cost_${d.pid||name.replace(/\s/g,'_')}').value)">
+            onclick="saveMissingCost('${d.pid||''}','${name}',document.getElementById('cost_${safeKey}').value)">
             💾 Save
           </button>
         </div>
@@ -4779,8 +4786,9 @@ async function saveMissingCost(pid, name, costVal){
   const cost = parseFloat(costVal);
   if(isNaN(cost)||cost<=0){ toast('Valid price nakho!','error'); return; }
 
-  // 1. Update product cost
+  // 1. Update OR create product
   if(pid){
+    // Existing product — just update cost
     const prod = S.products.find(p=>p.id===parseInt(pid));
     if(prod){
       prod.cost = cost;
@@ -4788,35 +4796,70 @@ async function saveMissingCost(pid, name, costVal){
         await api(`products/${prod.id}`,'PATCH',{cost});
       } catch(e){ /* offline ok */ }
     }
+  } else {
+    // No pid — item was manual/custom → create as new product (stock=1, price from invoice)
+    // Find sale price from invoices
+    let salePrice = 0;
+    for(const inv of S.invoices){
+      const found = (inv.items||[]).find(i=>i.name===name && (!i.cost||parseFloat(i.cost)===0));
+      if(found){ salePrice = parseFloat(found.price||0); break; }
+    }
+    const newProd = {
+      name: name,
+      sku: '',
+      price: salePrice || cost,
+      cost: cost,
+      stock: 1,
+      min_stock: 5,
+      category: 'General',
+      branch_id: S.activeBranchId || 1
+    };
+    try{
+      const saved = await api('products','POST', newProd);
+      const savedProd = (saved && saved[0]) ? saved[0] : {id: Date.now(), ...newProd};
+      S.products.push(savedProd);
+      pid = savedProd.id; // now update invoices by name → assign pid too
+      // Backfill pid in invoices
+      S.invoices.forEach(inv=>{
+        (inv.items||[]).forEach(item=>{
+          if(item.name===name && (!item.pid)){
+            item.pid = savedProd.id;
+          }
+        });
+      });
+      if(typeof populateSels==='function') populateSels();
+      if(typeof renderProds==='function') renderProds();
+    } catch(e){
+      // offline fallback — create locally
+      const localProd = {id: Date.now(), ...newProd};
+      S.products.push(localProd);
+      pid = localProd.id;
+    }
+    toast('✨ "'+name+'" new product tarike add thayu!','success');
   }
 
   // 2. Update cost in ALL invoices that have this item (by pid or name)
-  //    and recalculate profit for those invoices
   S.invoices.forEach(inv => {
     let invProfitChanged = false;
     (inv.items||[]).forEach(item => {
-      const match = pid
-        ? (item.pid && parseInt(item.pid)===parseInt(pid))
-        : (item.name === name && (!item.cost || parseFloat(item.cost)===0));
-      if(match && (!item.cost || parseFloat(item.cost)===0)){
+      const matchByPid = pid && item.pid && parseInt(item.pid)===parseInt(pid);
+      const matchByName = !matchByPid && item.name === name && (!item.cost || parseFloat(item.cost)===0);
+      if((matchByPid || matchByName) && (!item.cost || parseFloat(item.cost)===0)){
         item.cost = cost;
         invProfitChanged = true;
       }
     });
-    // Recalculate invoice profit if any item was updated
     if(invProfitChanged){
-      const subtotal    = parseFloat(inv.subtotal||inv.total||0);
-      const discAmt     = parseFloat(inv.discount||0);
-      const afterDisc   = subtotal - discAmt;
-      const totalCost   = (inv.items||[]).reduce((s,i)=>s+(parseFloat(i.cost||0)*parseInt(i.qty||1)),0);
-      inv.profit        = afterDisc - totalCost;
+      const subtotal  = parseFloat(inv.subtotal||inv.total||0);
+      const discAmt   = parseFloat(inv.discount||0);
+      const afterDisc = subtotal - discAmt;
+      const totalCost = (inv.items||[]).reduce((s,i)=>s+(parseFloat(i.cost||0)*parseInt(i.qty||1)),0);
+      inv.profit      = afterDisc - totalCost;
     }
   });
 
-  // 3. Save everything offline + sync invoices with updated profit to Supabase
+  // 3. Save offline + sync invoices
   saveOffline();
-
-  // Try to sync updated invoices to Supabase in background
   const updatedInvs = S.invoices.filter(inv=>
     (inv.items||[]).some(item=> pid
       ? (item.pid && parseInt(item.pid)===parseInt(pid))
@@ -4824,17 +4867,35 @@ async function saveMissingCost(pid, name, costVal){
   );
   for(const inv of updatedInvs){
     try{
-      await api(`invoices/${inv.id}`,'PATCH',{
-        items: inv.items,
-        profit: inv.profit
-      });
-    } catch(e){ /* offline ok, already saved locally */ }
+      await api(`invoices/${inv.id}`,'PATCH',{ items: inv.items, profit: inv.profit });
+    } catch(e){ /* offline ok */ }
   }
 
-  toast('✅ '+name+' ni purchase price saved! Profit updated.','success');
-
-  // 4. Re-render — item should disappear from missing list now
+  toast('✅ '+name+' ni cost saved! Profit updated.','success');
   renderDailyReport();
+}
+
+// Save All missing costs at once
+async function saveAllMissingCosts(){
+  const inputs = document.querySelectorAll('#missingCostList input[id^="cost_"]');
+  let saved = 0, skipped = 0;
+  for(const inp of inputs){
+    const val = inp.value.trim();
+    if(!val || parseFloat(val)<=0){ skipped++; continue; }
+    // Extract name and pid from the button's onclick next to this input
+    const row = inp.closest('div[style*="border-bottom"]');
+    if(!row) continue;
+    const btn = row.querySelector('button');
+    if(!btn) continue;
+    const match = btn.getAttribute('onclick').match(/saveMissingCost\('([^']*)','([^']*)'/);
+    if(!match) continue;
+    const pid = match[1];
+    const name = match[2];
+    await saveMissingCost(pid, name, val);
+    saved++;
+  }
+  if(saved===0 && skipped>0) toast('Cost fields blank chhe — fill karo!','error');
+  else if(saved>0) toast('✅ '+saved+' items saved!','success');
 }
 
 function renderSummaryReport(){
@@ -5041,13 +5102,33 @@ async function saveSettings(){
   saveOffline(); applySettings();
   try{
     const bid = S.activeBranchId || 1;
-    const rows = Object.entries(updates).map(([k,v])=>({key:k, value:v, branch_id:bid, updated_at:new Date().toISOString()}));
-    // Settings Worker route nathi — Supabase direct UPSERT
-    await fetch(`${SUPA_URL}/rest/v1/settings`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Prefer':'resolution=merge-duplicates'},
-      body: JSON.stringify(rows)
-    });
+    // Existing rows fetch karo
+    let existingKeys = [];
+    try{
+      const ex = await fetch(`${SUPA_URL}/rest/v1/settings?branch_id=eq.${bid}&select=key`,{
+        headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+      });
+      if(ex.ok){ const rows = await ex.json(); existingKeys = rows.map(r=>r.key); }
+    }catch(e){}
+
+    for(const [k,v] of Object.entries(updates)){
+      const row = {key:k, value:v, branch_id:bid, updated_at:new Date().toISOString()};
+      if(existingKeys.includes(k)){
+        // PATCH existing row
+        await fetch(`${SUPA_URL}/rest/v1/settings?key=eq.${k}&branch_id=eq.${bid}`,{
+          method:'PATCH',
+          headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Prefer':'return=minimal'},
+          body: JSON.stringify({value:v, updated_at:row.updated_at})
+        });
+      } else {
+        // POST new row
+        await fetch(`${SUPA_URL}/rest/v1/settings`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Prefer':'return=minimal'},
+          body: JSON.stringify(row)
+        });
+      }
+    }
     toast('✅ Settings saved!','success');
   } catch(e){
     toast('✅ Saved locally (sync later)','success');
@@ -5064,13 +5145,17 @@ async function savePIN(){
   document.getElementById('sNewPIN').value='';
   document.getElementById('sConfPIN').value='';
   try{
-    // UPSERT — works even if row doesn't exist yet
-    const pinBid = S.activeBranchId || 1;
-    await fetch(`${SUPA_URL}/rest/v1/settings`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Prefer':'resolution=merge-duplicates'},
-      body: JSON.stringify([{key:'profit_pin',value:np,branch_id:pinBid,updated_at:new Date().toISOString()}])
-    });
+    const pinBid = S.activeBranchId||1;
+    let pinExists=false;
+    try{
+      const ex=await fetch(`${SUPA_URL}/rest/v1/settings?key=eq.profit_pin&branch_id=eq.${pinBid}&select=key`,{headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}});
+      if(ex.ok){const rows=await ex.json();pinExists=rows.length>0;}
+    }catch(e){}
+    if(pinExists){
+      await fetch(`${SUPA_URL}/rest/v1/settings?key=eq.profit_pin&branch_id=eq.${pinBid}`,{method:'PATCH',headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Prefer':'return=minimal'},body:JSON.stringify({value:np,updated_at:new Date().toISOString()})});
+    } else {
+      await fetch(`${SUPA_URL}/rest/v1/settings`,{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Prefer':'return=minimal'},body:JSON.stringify({key:'profit_pin',value:np,branch_id:pinBid,updated_at:new Date().toISOString()})});
+    }
     toast('✅ PIN updated!','success');
   } catch(e){
     toast('✅ PIN saved locally','success');
@@ -5460,7 +5545,7 @@ function vbPickerSelectProduct(pid){
   vbCloseItemPicker();
   setTimeout(()=>{ const el=document.getElementById('vbm-qty-'+rowId); if(el){ el.focus(); el.select(); } }, 150);
 }
-function vbAddCustomItemMobile(name){
+async function vbAddCustomItemMobile(name){
   if(!name || !name.trim()) return;
   let rowId = vbPickerRowId;
   if(!rowId){
@@ -5468,9 +5553,34 @@ function vbAddCustomItemMobile(name){
     rowId = VB.rows[VB.rows.length-1].id;
   }
   const r = VB.rows.find(r=>r.id===rowId);
-  if(r){ r.itemName = name.trim(); r.pid = null; }
+  // Auto-save as new product (stock=1, cost=0 — user will add cost later in reports)
+  const newProd = {
+    name: name.trim(),
+    sku: '',
+    price: 0,
+    cost: 0,
+    stock: 1,
+    min_stock: 5,
+    category: 'General',
+    branch_id: S.activeBranchId || 1
+  };
+  let savedPid = null;
+  try{
+    const saved = await api('products','POST', newProd);
+    const sp = (saved && saved[0]) ? saved[0] : {id: Date.now(), ...newProd};
+    S.products.push(sp);
+    savedPid = sp.id;
+    if(typeof populateSels==='function') populateSels();
+  } catch(e){
+    const sp = {id: Date.now(), ...newProd};
+    S.products.push(sp);
+    savedPid = sp.id;
+  }
+  if(r){ r.itemName = name.trim(); r.pid = savedPid; r.cost = 0; }
+  saveOffline();
   vbRender();
   vbCloseItemPicker();
+  toast('✨ "'+name.trim()+'" product list ma save thayu!','success');
   setTimeout(()=>{ const el=document.getElementById('vbm-price-'+rowId); if(el){ el.focus(); } }, 150);
 }
 
@@ -5519,17 +5629,60 @@ function vbItemSearch(id, query){
 }
 
 function vbShowItemDrop(id, items, drop){
-  if(!items.length){
-    drop.innerHTML = '<div style="padding:10px;color:var(--muted);font-size:12px">No items found</div>';
-    drop.style.display = 'block';
-    return;
+  const r = VB.rows.find(r=>r.id===id);
+  const query = r ? (r.itemName||'').trim() : '';
+  let html = '';
+  if(query){
+    const safeQ = query.replace(/'/g,"\'");
+    html += `<div class="vb-item-drop-item" style="border-left:3px solid var(--accent);background:rgba(110,231,183,0.07)" onmousedown="vbSaveAsNewProduct(${id},'${safeQ}')">
+      <span style="color:var(--accent);font-weight:600">✨ "${query}" — New Product trike save & add</span>
+      <span style="color:var(--muted);font-size:10px">1 pc · cost pachi reports ma add kari sakasho</span>
+    </div>`;
   }
-  drop.innerHTML = items.map(p=>`
-    <div class="vb-item-drop-item" onmousedown="vbSelectItem(${id},${p.id},'${p.name.replace(/'/g,"\'")}',${p.price||0},${p.cost||0})">
-      <span>${p.name}</span>
-      <span style="color:var(--muted);font-size:11px">₹${p.price||0} ${p.stock>0?'· Stock:'+p.stock:''}</span>
-    </div>`).join('');
+  if(!items.length){
+    html += '<div style="padding:8px 10px;color:var(--muted);font-size:12px">Koi match nathi</div>';
+  } else {
+    html += items.map(p=>`
+      <div class="vb-item-drop-item" onmousedown="vbSelectItem(${id},${p.id},'${p.name.replace(/'/g,"\'")}',${p.price||0},${p.cost||0})">
+        <span>${p.name}</span>
+        <span style="color:var(--muted);font-size:11px">₹${p.price||0} ${p.stock>0?'· Stock:'+p.stock:''}</span>
+      </div>`).join('');
+  }
+  drop.innerHTML = html;
   drop.style.display = 'block';
+}
+
+async function vbSaveAsNewProduct(rowId, name){
+  vbHideItemDrop(rowId);
+  const r = VB.rows.find(r=>r.id===rowId);
+  if(!r) return;
+  const price = parseFloat(r.price||0);
+  const newProd = {
+    name: name,
+    sku: '',
+    price: price || 0,
+    cost: 0,
+    stock: 1,
+    min_stock: 5,
+    category: 'General',
+    branch_id: S.activeBranchId || 1
+  };
+  let savedId = null;
+  try{
+    const saved = await api('products','POST', newProd);
+    const sp = (saved && saved[0]) ? saved[0] : {id: Date.now(), ...newProd};
+    S.products.push(sp);
+    savedId = sp.id;
+    if(typeof populateSels==='function') populateSels();
+    if(typeof renderProds==='function') renderProds();
+  } catch(e){
+    const sp = {id: Date.now(), ...newProd};
+    S.products.push(sp);
+    savedId = sp.id;
+  }
+  vbSelectItem(rowId, savedId, name, price, 0);
+  saveOffline();
+  toast('✨ "'+name+'" product list ma save thayu! Cost reports ma jaaine add kari shakasho.','success');
 }
 
 function vbSelectItem(rowId, pid, name, price, cost){
