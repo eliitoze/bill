@@ -2278,8 +2278,7 @@ async function addUser(){
     const passwordHash = await hashPass(password);
     await apiDirect('app_users','POST',{
       username, password_hash: passwordHash,
-      role, approved: false,
-      branch_id: S.activeBranchId||1
+      role, approved: false
     });
     document.getElementById('nuUser').value='';
     document.getElementById('nuPass').value='';
@@ -2577,7 +2576,7 @@ function showPage(page, el){
   document.getElementById('pageTitle').textContent = t[page]||page;
   if(page==='reports') updateReports();
   if(page==='billing'){ vbSyncOnOpen(); }
-  if(page==='settings'){ renderUserList(); renderBranchList(); renderBranchToggle(); }
+  if(page==='settings'){ renderUserList(); loadBranches().then(()=>{ renderBranchList(); renderBranchToggle(); }); }
   document.getElementById('sidebar').classList.remove('open');
   // Billing page: no padding, full height
   const contentEl = document.querySelector('.content');
