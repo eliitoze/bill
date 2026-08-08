@@ -1848,6 +1848,26 @@ const api = async (endpoint, method='GET', body=null, extraHeaders={}) => {
   }
 };
 
+// Direct Supabase call — app_users management (Worker bypass)
+const apiDirect = async (endpoint, method='GET', body=null) => {
+  const opts = {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPA_KEY,
+      'Authorization': `Bearer ${SUPA_KEY}`,
+      'Prefer': 'return=representation'
+    },
+    mode: 'cors'
+  };
+  if(body) opts.body = JSON.stringify(body);
+  const res = await fetch(`${SUPA_URL}/rest/v1/${endpoint}`, opts);
+  const txt = await res.text();
+  const data = txt ? JSON.parse(txt) : [];
+  if(!res.ok) throw new Error(typeof data==='object' ? (data.message||data.details||data.error||JSON.stringify(data)) : txt);
+  return data;
+};
+
 // ===== STATE =====
 let S = {
   products:[], customers:[], invoices:[],
@@ -2005,7 +2025,7 @@ async function hashPass(pass){
 // ── Supabase thhi users fetch karo ──
 async function fetchUsersFromServer(){
   try{
-    const rows = await api('app_users?order=created_at');
+    const rows = await apiDirect('app_users?order=created_at');
     // Cache locally for offline
     localStorage.setItem('sb_users_cache', JSON.stringify(rows));
     return rows;
@@ -2020,11 +2040,11 @@ async function fetchUsersFromServer(){
 // ── Default master user ensure karo (first time setup) ──
 async function ensureMasterUser(){
   try{
-    const rows = await api('app_users?username=eq.281981');
+    const rows = await apiDirect('app_users?username=eq.281981');
     if(!rows || rows.length===0){
       // Master user nathi — banavo
       const ph = await hashPass('152207');
-      await api('app_users','POST',{
+      await apiDirect('app_users','POST',{
         username:'281981', password_hash:ph,
         role:'master', approved:true
       });
@@ -2046,11 +2066,11 @@ async function migrateLocalUsers(){
     for(const u of localUsers){
       if(u.username === '281981') continue; // master skip
       // Check if already on server
-      const exists = await api('app_users?username=eq.'+encodeURIComponent(u.username));
+      const exists = await apiDirect('app_users?username=eq.'+encodeURIComponent(u.username));
       if(exists && exists.length > 0) continue; // already chhe
       // Server par save karo
       const ph = u.passwordHash || (u.password ? await hashPass(u.password) : await hashPass('changeme'));
-      await api('app_users','POST',{
+      await apiDirect('app_users','POST',{
         username: u.username,
         password_hash: ph,
         role: u.role||'staff',
@@ -2125,7 +2145,7 @@ async function changeMyPassword(){
 
   try{
     // Verify current password from server
-    const rows = await api('app_users?username=eq.'+encodeURIComponent(currentUser.username));
+    const rows = await apiDirect('app_users?username=eq.'+encodeURIComponent(currentUser.username));
     if(!rows||!rows.length){ toast('User maldo nahi!','error'); return; }
     const u = rows[0];
     const curHash = await hashPass(cur);
@@ -2138,7 +2158,7 @@ async function changeMyPassword(){
 
     // Save new password to Supabase
     const newHash = await hashPass(np);
-    await api('app_users/'+u.id,'PATCH',{password_hash: newHash});
+    await apiDirect('app_users?id=eq.'+u.id,'PATCH',{password_hash: newHash});
 
     // Update cache
     const cached = localStorage.getItem('sb_users_cache');
@@ -2247,7 +2267,7 @@ async function addUser(){
     // Check duplicate — handle Worker wrapper {users:[...]} and plain array both
     let exists = [];
     try{
-      const res = await api('app_users?username=eq.'+encodeURIComponent(username));
+      const res = await apiDirect('app_users?username=eq.'+encodeURIComponent(username));
       exists = Array.isArray(res) ? res : (res?.users||res?.app_users||[]);
     } catch(e2){}
     if(exists.length>0){
@@ -2256,7 +2276,7 @@ async function addUser(){
     }
 
     const passwordHash = await hashPass(password);
-    await api('app_users','POST',{
+    await apiDirect('app_users','POST',{
       username, password_hash: passwordHash,
       role, approved: false,
       branch_id: S.activeBranchId||1
@@ -2280,7 +2300,7 @@ async function toggleUserApproval(userId, currentApproved){
   if(currentUser?.role!=='master'){ toast('Only master approve kari shake','error'); return; }
   try{
     const newVal = !currentApproved;
-    await api('app_users/'+userId,'PATCH',{approved: newVal});
+    await apiDirect('app_users?id=eq.'+userId,'PATCH',{approved: newVal});
     await renderUserList();
     toast(newVal?'✅ User approved!':'🚫 User revoked!','success');
   } catch(e){
@@ -2293,7 +2313,7 @@ async function deleteUser(userId, username){
   if(currentUser?.role!=='master'){ toast('Only master delete kari shake','error'); return; }
   if(!confirm('Delete user "'+username+'"?')) return;
   try{
-    await api('app_users/'+userId,'DELETE');
+    await apiDirect('app_users?id=eq.'+userId,'DELETE');
     await renderUserList();
     toast('✅ User deleted!','success');
   } catch(e){
@@ -2557,7 +2577,7 @@ function showPage(page, el){
   document.getElementById('pageTitle').textContent = t[page]||page;
   if(page==='reports') updateReports();
   if(page==='billing'){ vbSyncOnOpen(); }
-  if(page==='settings'){ renderUserList(); renderBranchList(); }
+  if(page==='settings'){ renderUserList(); renderBranchList(); renderBranchToggle(); }
   document.getElementById('sidebar').classList.remove('open');
   // Billing page: no padding, full height
   const contentEl = document.querySelector('.content');
