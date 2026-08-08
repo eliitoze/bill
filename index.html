@@ -1979,7 +1979,9 @@ function renderBranchToggle(){
   const card = document.getElementById('branchSwitchCard');
   const list = document.getElementById('branchToggleList');
   if(!card||!list) return;
-  if(S.branches.length<=1){ card.style.display='none'; return; }
+  // Branches load nathi thaya to hide karo, pan loaded hoy ane 1 j hoy to hide
+  if(S.branches.length === 0) return; // loading — touch na karo
+  if(S.branches.length <= 1){ card.style.display='none'; return; }
   card.style.display='block';
   list.innerHTML = S.branches.map(b=>{
     const isActive = S.activeBranchId===parseInt(b.id);
@@ -1999,15 +2001,21 @@ function renderBranchToggle(){
 function switchActiveBranch(id, name){
   if(typeof setActiveBranch==='function') setActiveBranch(id, name);
   else { S.activeBranchId=id; localStorage.setItem('activeBranchId',id); }
+  // Toggle card forcibly visible rakho (branches already loaded chhe)
+  const card = document.getElementById('branchSwitchCard');
+  if(card && S.branches.length > 1) card.style.display = 'block';
   renderBranchToggle();
   renderBranchList();
-  // Loading overlay show karo
+  // Data reload — new branch nu data fetch karo
   const overlay = document.getElementById('loadingOverlay');
   if(overlay) overlay.style.display='flex';
   toast('🔄 "'+name+'" branch — data load thay chhe...','success');
   loadAll().then(()=>{
     renderAll();
     if(overlay) overlay.style.display='none';
+    // Toggle reload after data
+    if(card && S.branches.length > 1) card.style.display = 'block';
+    renderBranchToggle();
     toast('✅ "'+name+'" branch active! Data ready.','success');
   }).catch(e=>{
     if(overlay) overlay.style.display='none';
@@ -2288,8 +2296,7 @@ async function addUser(){
     const passwordHash = await hashPass(password);
     await apiDirect('app_users','POST',{
       username, password_hash: passwordHash,
-      role, approved: false,
-      branch_id: S.activeBranchId||1
+      role, approved: false
     });
     document.getElementById('nuUser').value='';
     document.getElementById('nuPass').value='';
@@ -2587,7 +2594,7 @@ function showPage(page, el){
   document.getElementById('pageTitle').textContent = t[page]||page;
   if(page==='reports') updateReports();
   if(page==='billing'){ vbSyncOnOpen(); }
-  if(page==='settings'){ renderUserList(); renderBranchList(); renderBranchToggle(); }
+  if(page==='settings'){ renderUserList(); loadBranches().then(()=>{ renderBranchList(); renderBranchToggle(); }); }
   document.getElementById('sidebar').classList.remove('open');
   // Billing page: no padding, full height
   const contentEl = document.querySelector('.content');
