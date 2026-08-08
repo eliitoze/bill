@@ -1359,12 +1359,16 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
         </div>
         <!-- Missing Cost Price -->
         <div class="card" id="missingCostCard" style="margin-top:14px;display:none;border:1px solid rgba(251,191,36,0.4)">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-            <span style="font-size:18px">⚠️</span>
-            <div>
-              <div class="card-title" style="margin:0;color:#f59e0b">Purchase Price Missing</div>
-              <div style="font-size:11px;color:var(--muted)">Aa items ni purchase price nathi — profit correct nahi aavse</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:18px">⚠️</span>
+              <div>
+                <div class="card-title" style="margin:0;color:#f59e0b">Purchase Price Missing</div>
+                <div style="font-size:11px;color:var(--muted)">Cost bharjo → save thata product list ma add & profit calculate thashe</div>
+              </div>
             </div>
+            <button class="btn btn-sm" style="background:#f59e0b;color:#000;font-weight:700;white-space:nowrap"
+              onclick="saveAllMissingCosts()">💾 Save All</button>
           </div>
           <div id="missingCostList"></div>
         </div>
@@ -1574,15 +1578,9 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
                   <option value="master">Master (Full Access)</option>
                 </select>
               </div>
-              <div class="form-group">
-                <label>Branch</label>
-                <select id="nuBranch" style="width:100%;padding:9px 12px;background:var(--s1);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none">
-                  <option value="">⏳ Loading...</option>
-                </select>
+              <div class="form-group" style="display:flex;align-items:flex-end">
+                <button class="btn btn-primary" onclick="addUser()" style="width:100%">➕ Add User</button>
               </div>
-            </div>
-            <div class="form-group" style="display:flex;align-items:flex-end">
-              <button class="btn btn-primary" onclick="addUser()" style="width:100%">➕ Add User</button>
             </div>
           </div>
 
@@ -1599,10 +1597,10 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
           <button class="btn btn-primary" onclick="changeMyPassword()">🔑 Password Update Karo</button>
         </div>
 
-        <!-- BRANCH SWITCH — Always visible when branches > 1 -->
+        <!-- BRANCH TOGGLE — All users, shown when branches > 1 -->
         <div class="card" id="branchSwitchCard" style="margin-top:14px;display:none">
           <div class="card-title">🔄 Active Branch Switch Karo</div>
-          <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Currently active branch select karo — nava bills ane data aa branch ma save thashe.</p>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Active branch select karo — nava bills ane data aa branch ma save thashe.</p>
           <div id="branchToggleList" style="display:flex;flex-direction:column;gap:8px"></div>
         </div>
 
@@ -1954,31 +1952,21 @@ function renderBranchList(){
       <button class="btn btn-ghost btn-sm" onclick="renameBranch(${b.id},'${b.name.replace(/'/g,"\'")}')">✏️ Rename</button>
       ${S.branches.length>1?`<button class="btn btn-red btn-sm" onclick="deleteBranch(${b.id},'${b.name.replace(/'/g,"\'")}')">🗑</button>`:''}
     </div>`).join('');
-
-  // Branch toggle card (for all users to switch active branch)
   renderBranchToggle();
-
-  // Populate nuBranch select in add-user form
-  const nuBr = document.getElementById('nuBranch');
-  if(nuBr){
-    nuBr.innerHTML = S.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
-    nuBr.value = S.activeBranchId || S.branches[0]?.id || '';
-  }
 }
 
 function renderBranchToggle(){
   const card = document.getElementById('branchSwitchCard');
   const list = document.getElementById('branchToggleList');
-  if(!card || !list) return;
-  // Show only if more than 1 branch
-  if(S.branches.length <= 1){ card.style.display='none'; return; }
+  if(!card||!list) return;
+  if(S.branches.length<=1){ card.style.display='none'; return; }
   card.style.display='block';
   list.innerHTML = S.branches.map(b=>{
-    const isActive = S.activeBranchId === parseInt(b.id);
+    const isActive = S.activeBranchId===parseInt(b.id);
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:10px;background:${isActive?'rgba(110,231,183,0.08)':'var(--s2)'};border:1px solid ${isActive?'rgba(110,231,183,0.3)':'var(--border)'}">
       <div>
         <div style="font-size:13px;font-weight:600">${b.name}</div>
-        ${isActive?'<div style="font-size:11px;color:var(--accent)">✅ Currently Active</div>':'<div style="font-size:11px;color:var(--muted)">Inactive</div>'}
+        <div style="font-size:11px;color:${isActive?'var(--accent)':'var(--muted)'}">${isActive?'✅ Currently Active':'Inactive'}</div>
       </div>
       ${isActive
         ? '<span style="font-size:12px;background:rgba(110,231,183,0.15);color:var(--accent);padding:4px 12px;border-radius:20px;font-weight:600">Active</span>'
@@ -1989,11 +1977,11 @@ function renderBranchToggle(){
 }
 
 function switchActiveBranch(id, name){
-  setActiveBranch(id, name);
+  if(typeof setActiveBranch==='function') setActiveBranch(id, name);
+  else { S.activeBranchId=id; localStorage.setItem('activeBranchId',id); }
   renderBranchToggle();
   renderBranchList();
-  // Reload data for new branch
-  loadData();
+  if(typeof loadData==='function') loadData();
   toast('✅ "'+name+'" branch active thayi! Data reload thay chhe...','success');
 }
 
@@ -2209,14 +2197,8 @@ function applyRoleRestrictions(){
   if(umCard) umCard.style.display = (role==='master')?'block':'none';
   const bmCard = document.getElementById('branchMgmtCard');
   if(bmCard) bmCard.style.display = (role==='master')?'block':'none';
-  // Branch switch card — show to all users if branches > 1
+  // Branch switch — all users
   renderBranchToggle();
-  // Populate nuBranch select
-  const nuBr = document.getElementById('nuBranch');
-  if(nuBr && S.branches.length){
-    nuBr.innerHTML = S.branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
-    nuBr.value = S.activeBranchId || S.branches[0]?.id || '';
-  }
   if(role==='staff'){
     document.querySelectorAll('.nav-item').forEach(el=>{
       if(el.textContent.includes('Reports')) el.style.display='none';
@@ -2262,20 +2244,22 @@ async function addUser(){
   if(password.length<4){ toast('Password min 4 characters joiye!','error'); return; }
 
   try{
-    // Check duplicate on server — handle both array and wrapped response
-    let exists = await api('app_users?username=eq.'+encodeURIComponent(username));
-    if(exists && !Array.isArray(exists)) exists = exists.users || exists.app_users || [];
-    if(Array.isArray(exists) && exists.length>0){
+    // Check duplicate — handle Worker wrapper {users:[...]} and plain array both
+    let exists = [];
+    try{
+      const res = await api('app_users?username=eq.'+encodeURIComponent(username));
+      exists = Array.isArray(res) ? res : (res?.users||res?.app_users||[]);
+    } catch(e2){}
+    if(exists.length>0){
       toast('❌ "'+username+'" username pahela thi exist kare chhe! Bijo naam apo.','error');
       return;
     }
 
     const passwordHash = await hashPass(password);
-    const branchId = parseInt(document.getElementById('nuBranch')?.value || S.activeBranchId || 1);
     await api('app_users','POST',{
       username, password_hash: passwordHash,
       role, approved: false,
-      branch_id: branchId
+      branch_id: S.activeBranchId||1
     });
     document.getElementById('nuUser').value='';
     document.getElementById('nuPass').value='';
@@ -2283,8 +2267,8 @@ async function addUser(){
     toast('✅ User added! Approve karo tyare login kari shake.','success');
   } catch(e){
     const msg = e.message||'';
-    if(msg.toLowerCase().includes('duplicate') || msg.toLowerCase().includes('unique') || msg.includes('23505')){
-      toast('❌ "'+username+'" username pahela thi exist kare chhe! Bijo naam apo.','error');
+    if(msg.includes('23505')||msg.toLowerCase().includes('duplicate')||msg.toLowerCase().includes('unique')){
+      toast('❌ "'+username+'" pahela thi exist kare chhe! Bijo naam apo.','error');
     } else {
       toast('Error: '+msg,'error');
     }
@@ -4827,20 +4811,22 @@ function renderDailyReport(){
   if(missingItems.length){
     missingCard.style.display='block';
     missingList.innerHTML = missingItems.map(([name,d])=>{
-      const prod = d.pid ? S.products.find(p=>p.id===d.pid) : null;
+      const isNew = !d.pid;
+      const safeKey = (d.pid||name.replace(/[^a-zA-Z0-9]/g,'_'));
       return `
-      <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
+      <div data-smc-pid="${d.pid||''}" data-smc-name="${name.replace(/'/g,'&apos;')}" style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
         <div style="flex:1;min-width:120px">
           <div style="font-size:13px;font-weight:600">${name}</div>
           <div style="font-size:11px;color:var(--muted)">Sold: ${d.qty} pcs · Revenue: ₹${d.revenue.toFixed(0)}</div>
+          ${isNew ? '<div style="font-size:10px;color:#6ee7b7;margin-top:2px">✨ Save thata new product trike add thashe (1 pc)</div>' : ''}
         </div>
         <div style="display:flex;align-items:center;gap:6px">
-          <input type="number" id="cost_${d.pid||name.replace(/\s/g,'_')}"
-            placeholder="Purchase price"
-            style="width:120px;padding:7px 10px;background:var(--s2);border:1px solid #f59e0b;border-radius:8px;color:var(--text);font-size:13px;outline:none;"
-            onkeydown="if(event.key==='Enter') saveMissingCost('${d.pid||''}','${name}',this.value)">
+          <input type="number" id="cost_${safeKey}"
+            placeholder="Purchase price ₹"
+            style="width:130px;padding:7px 10px;background:var(--s2);border:1px solid #f59e0b;border-radius:8px;color:var(--text);font-size:13px;outline:none;"
+            onkeydown="if(event.key==='Enter') saveMissingCost('${d.pid||''}','${name.replace(/'/g,"\\'")}',this.value)">
           <button class="btn btn-sm" style="background:#f59e0b;color:#000;font-weight:700;white-space:nowrap"
-            onclick="saveMissingCost('${d.pid||''}','${name}',document.getElementById('cost_${d.pid||name.replace(/\s/g,'_')}').value)">
+            onclick="saveMissingCost('${d.pid||''}','${name.replace(/'/g,"\\'")}',document.getElementById('cost_${safeKey}').value)">
             💾 Save
           </button>
         </div>
@@ -4855,62 +4841,75 @@ async function saveMissingCost(pid, name, costVal){
   const cost = parseFloat(costVal);
   if(isNaN(cost)||cost<=0){ toast('Valid price nakho!','error'); return; }
 
-  // 1. Update product cost
+  // 1. Update OR create product
   if(pid){
     const prod = S.products.find(p=>p.id===parseInt(pid));
     if(prod){
       prod.cost = cost;
-      try{
-        await api(`products/${prod.id}`,'PATCH',{cost});
-      } catch(e){ /* offline ok */ }
+      try{ await api(`products/${prod.id}`,'PATCH',{cost}); } catch(e){}
     }
+  } else {
+    // No pid — manual item → create as new product (stock=1)
+    let salePrice = 0;
+    for(const inv of S.invoices){
+      const found=(inv.items||[]).find(i=>i.name===name);
+      if(found){ salePrice=parseFloat(found.price||0); break; }
+    }
+    const newProd = { name, sku:'', price:salePrice||cost, cost, stock:1, min_stock:5, category:'General', branch_id:S.activeBranchId||1 };
+    try{
+      const saved = await api('products','POST', newProd);
+      const sp = (saved&&saved[0]) ? saved[0] : {id:Date.now(),...newProd};
+      S.products.push(sp);
+      pid = sp.id;
+      S.invoices.forEach(inv=>(inv.items||[]).forEach(item=>{ if(item.name===name && !item.pid) item.pid=sp.id; }));
+      if(typeof populateSels==='function') populateSels();
+      if(typeof renderProds==='function') renderProds();
+    } catch(e){
+      const sp={id:Date.now(),...newProd}; S.products.push(sp); pid=sp.id;
+    }
+    toast('✨ "'+name+'" new product trike add thayu!','success');
   }
 
-  // 2. Update cost in ALL invoices that have this item (by pid or name)
-  //    and recalculate profit for those invoices
+  // 2. Update cost in invoices + recalculate profit
   S.invoices.forEach(inv => {
-    let invProfitChanged = false;
+    let changed = false;
     (inv.items||[]).forEach(item => {
-      const match = pid
-        ? (item.pid && parseInt(item.pid)===parseInt(pid))
-        : (item.name === name && (!item.cost || parseFloat(item.cost)===0));
-      if(match && (!item.cost || parseFloat(item.cost)===0)){
-        item.cost = cost;
-        invProfitChanged = true;
+      const matchPid = pid && item.pid && parseInt(item.pid)===parseInt(pid);
+      const matchName = !matchPid && item.name===name && (!item.cost||parseFloat(item.cost)===0);
+      if((matchPid||matchName) && (!item.cost||parseFloat(item.cost)===0)){
+        item.cost=cost; changed=true;
       }
     });
-    // Recalculate invoice profit if any item was updated
-    if(invProfitChanged){
-      const subtotal    = parseFloat(inv.subtotal||inv.total||0);
-      const discAmt     = parseFloat(inv.discount||0);
-      const afterDisc   = subtotal - discAmt;
-      const totalCost   = (inv.items||[]).reduce((s,i)=>s+(parseFloat(i.cost||0)*parseInt(i.qty||1)),0);
-      inv.profit        = afterDisc - totalCost;
+    if(changed){
+      const afterDisc = parseFloat(inv.subtotal||inv.total||0) - parseFloat(inv.discount||0);
+      inv.profit = afterDisc - (inv.items||[]).reduce((s,i)=>s+(parseFloat(i.cost||0)*parseInt(i.qty||1)),0);
     }
   });
 
-  // 3. Save everything offline + sync invoices with updated profit to Supabase
   saveOffline();
-
-  // Try to sync updated invoices to Supabase in background
-  const updatedInvs = S.invoices.filter(inv=>
-    (inv.items||[]).some(item=> pid
-      ? (item.pid && parseInt(item.pid)===parseInt(pid))
-      : (item.name===name))
-  );
+  const updatedInvs = S.invoices.filter(inv=>(inv.items||[]).some(item=>pid?(item.pid&&parseInt(item.pid)===parseInt(pid)):(item.name===name)));
   for(const inv of updatedInvs){
-    try{
-      await api(`invoices/${inv.id}`,'PATCH',{
-        items: inv.items,
-        profit: inv.profit
-      });
-    } catch(e){ /* offline ok, already saved locally */ }
+    try{ await api(`invoices/${inv.id}`,'PATCH',{items:inv.items,profit:inv.profit}); } catch(e){}
   }
 
-  toast('✅ '+name+' ni purchase price saved! Profit updated.','success');
-
-  // 4. Re-render — item should disappear from missing list now
+  toast('✅ '+name+' ni cost saved! Profit updated.','success');
   renderDailyReport();
+}
+
+async function saveAllMissingCosts(){
+  const rows = document.querySelectorAll('#missingCostList [data-smc-pid]');
+  let saved=0, skipped=0;
+  for(const row of rows){
+    const pid = row.getAttribute('data-smc-pid');
+    const name = row.getAttribute('data-smc-name');
+    const inp = row.querySelector('input[type="number"]');
+    const val = inp ? inp.value.trim() : '';
+    if(!val||parseFloat(val)<=0){ skipped++; continue; }
+    await saveMissingCost(pid, name, val);
+    saved++;
+  }
+  if(saved===0) toast('Cost fields blank chhe — fill karo!','error');
+  else toast('✅ '+saved+' items saved!','success');
 }
 
 function renderSummaryReport(){
@@ -5560,17 +5559,25 @@ function vbPickerSelectProduct(pid){
   vbCloseItemPicker();
   setTimeout(()=>{ const el=document.getElementById('vbm-qty-'+rowId); if(el){ el.focus(); el.select(); } }, 150);
 }
-function vbAddCustomItemMobile(name){
+async function vbAddCustomItemMobile(name){
   if(!name || !name.trim()) return;
   let rowId = vbPickerRowId;
-  if(!rowId){
-    vbAddRow();
-    rowId = VB.rows[VB.rows.length-1].id;
-  }
+  if(!rowId){ vbAddRow(); rowId = VB.rows[VB.rows.length-1].id; }
   const r = VB.rows.find(r=>r.id===rowId);
-  if(r){ r.itemName = name.trim(); r.pid = null; }
+  // Auto-save as new product (stock=1, cost=0)
+  const newProd = { name:name.trim(), sku:'', price:0, cost:0, stock:1, min_stock:5, category:'General', branch_id:S.activeBranchId||1 };
+  let savedId = null;
+  try{
+    const saved = await api('products','POST', newProd);
+    const sp = (saved&&saved[0]) ? saved[0] : {id:Date.now(),...newProd};
+    S.products.push(sp); savedId=sp.id;
+    if(typeof populateSels==='function') populateSels();
+  } catch(e){ const sp={id:Date.now(),...newProd}; S.products.push(sp); savedId=sp.id; }
+  if(r){ r.itemName=name.trim(); r.pid=savedId; r.cost=0; }
+  saveOffline();
   vbRender();
   vbCloseItemPicker();
+  toast('✨ "'+name.trim()+'" product list ma save thayu!','success');
   setTimeout(()=>{ const el=document.getElementById('vbm-price-'+rowId); if(el){ el.focus(); } }, 150);
 }
 
@@ -5619,17 +5626,47 @@ function vbItemSearch(id, query){
 }
 
 function vbShowItemDrop(id, items, drop){
-  if(!items.length){
-    drop.innerHTML = '<div style="padding:10px;color:var(--muted);font-size:12px">No items found</div>';
-    drop.style.display = 'block';
-    return;
+  const r = VB.rows.find(r=>r.id===id);
+  const query = (r ? (r.itemName||'') : '').trim();
+  let html = '';
+  if(query){
+    const safeQ = query.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    html += `<div class="vb-item-drop-item" style="border-left:3px solid var(--accent);background:rgba(110,231,183,0.07)"
+      onmousedown="vbSaveAsNewProduct(${id},'${safeQ}')">
+      <span style="color:var(--accent);font-weight:600">✨ "${query}" — New Product trike save karo</span>
+      <span style="color:var(--muted);font-size:10px">1 pc · cost pachi reports ma add kari shakasho</span>
+    </div>`;
   }
-  drop.innerHTML = items.map(p=>`
-    <div class="vb-item-drop-item" onmousedown="vbSelectItem(${id},${p.id},'${p.name.replace(/'/g,"\'")}',${p.price||0},${p.cost||0})">
-      <span>${p.name}</span>
-      <span style="color:var(--muted);font-size:11px">₹${p.price||0} ${p.stock>0?'· Stock:'+p.stock:''}</span>
-    </div>`).join('');
+  if(!items.length){
+    html += '<div style="padding:8px 10px;color:var(--muted);font-size:12px">Koi match nathi</div>';
+  } else {
+    html += items.map(p=>`
+      <div class="vb-item-drop-item" onmousedown="vbSelectItem(${id},${p.id},'${p.name.replace(/'/g,"\'")}',${p.price||0},${p.cost||0})">
+        <span>${p.name}</span>
+        <span style="color:var(--muted);font-size:11px">₹${p.price||0} ${p.stock>0?'· Stock:'+p.stock:''}</span>
+      </div>`).join('');
+  }
+  drop.innerHTML = html;
   drop.style.display = 'block';
+}
+
+async function vbSaveAsNewProduct(rowId, name){
+  vbHideItemDrop(rowId);
+  const r = VB.rows.find(r=>r.id===rowId);
+  if(!r) return;
+  const price = parseFloat(r.price||0);
+  const newProd = { name, sku:'', price:price||0, cost:0, stock:1, min_stock:5, category:'General', branch_id:S.activeBranchId||1 };
+  let savedId = null;
+  try{
+    const saved = await api('products','POST', newProd);
+    const sp = (saved&&saved[0]) ? saved[0] : {id:Date.now(),...newProd};
+    S.products.push(sp); savedId=sp.id;
+    if(typeof populateSels==='function') populateSels();
+    if(typeof renderProds==='function') renderProds();
+  } catch(e){ const sp={id:Date.now(),...newProd}; S.products.push(sp); savedId=sp.id; }
+  vbSelectItem(rowId, savedId, name, price, 0);
+  saveOffline();
+  toast('✨ "'+name+'" product list ma save thayu! Cost reports ma jaaine add kari shakasho.','success');
 }
 
 function vbSelectItem(rowId, pid, name, price, cost){
