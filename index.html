@@ -5698,7 +5698,8 @@ function vbShowItemDrop(id, items, drop){
   }
   drop.innerHTML = html;
   // Position dropdown using fixed coordinates
-  const inputEl = document.querySelector(`#vbrow-${id} .vb-item-input`);
+  // drop is inside the input's parent .vb-item-search-wrap, so find sibling input
+  const inputEl = drop.parentElement ? drop.parentElement.querySelector('.vb-item-input') : null;
   if(inputEl){
     const rect = inputEl.getBoundingClientRect();
     const spaceBelow = window.innerHeight - rect.bottom;
@@ -5712,6 +5713,7 @@ function vbShowItemDrop(id, items, drop){
       drop.style.top = 'auto';
     }
     drop.style.left = rect.left + 'px';
+    drop.style.width = Math.max(280, rect.width) + 'px';
   }
   drop.style.display = 'block';
 }
