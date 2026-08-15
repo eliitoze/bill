@@ -1228,6 +1228,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
           <button class="btn btn-danger btn-sm" onclick="deleteAllProds()" style="background:#7f1d1d">🗑 Delete All</button>
           <button class="btn btn-yellow btn-sm" id="btnBulkMode" onclick="toggleBulkMode()">☐ Select</button>
           <button class="btn btn-blue btn-sm" onclick="showPage('import',document.querySelectorAll('.nav-item')[6])">⇪ Excel</button>
+          <button class="btn btn-sm" onclick="toggleStockAddBar()" style="background:#7c3aed;color:#fff">📦 Stock +Add</button>
           <button class="btn btn-primary" onclick="openAddProd()">+ New</button>
         </div>
       </div>
@@ -1243,6 +1244,24 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
           <button class="btn btn-primary btn-sm" onclick="bulkUpdatePrice()">✅ Update Price</button>
         </div>
       </div>
+      <!-- STOCK ADD BAR -->
+      <div id="stockAddBar" style="display:none;background:#1e1033;border:1px solid #7c3aed;border-radius:10px;padding:14px 16px;margin-bottom:14px;gap:12px;align-items:center;flex-wrap:wrap">
+        <span style="font-size:13px;color:#c4b5fd;font-weight:600">📦 Stock Add to All / Filtered Products</span>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;width:100%">
+          <input type="number" id="stockAddQty" placeholder="Quantity (e.g. 10)" min="1"
+            style="width:160px;padding:8px 12px;background:var(--s1);border:1px solid #7c3aed;border-radius:8px;color:var(--text);font-size:13px;outline:none"
+            onkeydown="if(event.key==='Enter') bulkAddStock()">
+          <select id="stockAddTarget" style="padding:8px 12px;background:var(--s1);border:1px solid #7c3aed;border-radius:8px;color:var(--text);font-size:13px;outline:none">
+            <option value="all">📦 Badha Products (All)</option>
+            <option value="filtered">🔍 Search/Filter wala j</option>
+          </select>
+          <button onclick="bulkAddStock()" style="padding:8px 18px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer">
+            ✅ Add Stock
+          </button>
+          <span id="stockAddInfo" style="font-size:12px;color:#a78bfa"></span>
+        </div>
+      </div>
+
       <div class="prod-grid" id="prodGrid"></div>
     </div>
 
@@ -4373,6 +4392,56 @@ async function bulkUpdatePrice(){
   }
   saveOffline(); renderProds(); populateSels(); updateDash();
   toast('✅ '+done+' products ni price update thayi!','success');
+}
+
+// ===== BULK STOCK ADD =====
+function toggleStockAddBar(){
+  const bar = document.getElementById('stockAddBar');
+  if(!bar) return;
+  const isVisible = bar.style.display !== 'none';
+  bar.style.display = isVisible ? 'none' : 'flex';
+  if(!isVisible){
+    setTimeout(()=>{ const inp=document.getElementById('stockAddQty'); if(inp) inp.focus(); }, 100);
+  }
+}
+
+async function bulkAddStock(){
+  const qty = parseInt(document.getElementById('stockAddQty').value);
+  if(!qty || qty <= 0){ toast('Valid quantity enter karo!','error'); return; }
+  const target = document.getElementById('stockAddTarget').value;
+
+  let products = [];
+  if(target === 'filtered'){
+    const q = (document.getElementById('prodSearch')?.value||'').toLowerCase().trim();
+    products = q ? S.products.filter(p=>(p.name||'').toLowerCase().includes(q)||(p.sku||'').toLowerCase().includes(q)) : S.products;
+  } else {
+    products = S.products;
+  }
+
+  if(!products.length){ toast('Koi product nathi!','error'); return; }
+
+  const infoEl = document.getElementById('stockAddInfo');
+  if(infoEl) infoEl.textContent = '⏳ Updating...';
+
+  let done = 0, failed = 0;
+  for(const p of products){
+    const newStock = (parseInt(p.stock)||0) + qty;
+    try{
+      await api(`products/${p.id}`,'PATCH',{stock: newStock});
+      p.stock = newStock;
+      done++;
+    } catch(e){ failed++; }
+  }
+
+  saveOffline(); renderProds(); updateDash();
+  if(infoEl) infoEl.textContent = '';
+  document.getElementById('stockAddQty').value = '';
+
+  if(failed > 0){
+    toast(`✅ ${done} products update, ⚠️ ${failed} fail`, 'error');
+  } else {
+    toast(`✅ ${done} products ma +${qty} stock add thayu!`, 'success');
+  }
 }
 
 // ===== CUSTOMERS =====
