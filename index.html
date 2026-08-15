@@ -4248,8 +4248,9 @@ async function saveProd(){
   const name=document.getElementById('pName').value.trim();
   const price=parseFloat(document.getElementById('pPrice').value);
   if(!name||!price){ toast('Name & price required!','error'); return; }
+  const newCost=parseFloat(document.getElementById('pCost').value)||0;
   const data={name, sku:document.getElementById('pSku').value||'', price,
-    cost:parseFloat(document.getElementById('pCost').value)||0,
+    cost:newCost,
     stock:parseInt(document.getElementById('pStock').value)||0,
     min_stock:parseInt(document.getElementById('pMin').value)||5,
     category:document.getElementById('pCat').value||'General',
@@ -4257,8 +4258,44 @@ async function saveProd(){
   try{
     const editId=document.getElementById('editPId').value;
     if(editId){
+      const pid = parseInt(editId);
+      const oldProd = S.products.find(p=>p.id===pid);
+      const oldCost = parseFloat(oldProd?.cost||0);
+
       await api(`products/${editId}`,'PATCH',data);
-      Object.assign(S.products.find(p=>p.id===parseInt(editId)),data);
+      Object.assign(S.products.find(p=>p.id===pid), data);
+
+      // Cost badlai hoy to juna invoices ma pan update karo
+      if(oldCost !== newCost){
+        toast('⏳ Juna bills ni profit recalculate thaay chhe...','success');
+        let updCount = 0;
+        const affectedInvs = S.invoices.filter(inv=>
+          (inv.items||[]).some(item=> item.pid===pid || item.name===name)
+        );
+        for(const inv of affectedInvs){
+          let changed = false;
+          (inv.items||[]).forEach(item=>{
+            if(item.pid===pid || item.name===name){
+              item.cost = newCost;
+              changed = true;
+            }
+          });
+          if(changed){
+            // Recalculate profit for this invoice
+            const totalCost = (inv.items||[]).reduce((s,i)=>s+(parseFloat(i.cost||0)*parseFloat(i.qty||1)),0);
+            const afterDisc = parseFloat(inv.subtotal||inv.total||0) - parseFloat(inv.discount||0);
+            inv.profit = afterDisc - totalCost;
+            try{
+              await api(`invoices/${inv.id}`,'PATCH',{items:inv.items, profit:inv.profit});
+              updCount++;
+            } catch(e){}
+          }
+        }
+        saveOffline(); renderProds(); populateSels(); updateDash();
+        closeM('prodModal');
+        toast(`✅ Product saved! ${updCount} juna bills ni profit update thayi!`,'success');
+        return;
+      }
     } else {
       const saved=await api('products','POST',data);
       if(saved&&saved[0]) S.products.push(saved[0]);
@@ -4904,19 +4941,17 @@ function renderDailyReport(){
       </tr>`).join('');
   }
 
-  // Items sold — also track which items have missing cost price
+  // Items sold — profit based on cost stored AT BILL TIME only
   const itemMap = {};
   dayInvs.forEach(inv=>(inv.items||[]).forEach(item=>{
     const k = item.name;
-    const hasCost = parseFloat(item.cost||0) > 0;
-    // Find product to check if cost is set
-    const prod = item.pid ? S.products.find(p=>p.id===item.pid) : null;
-    const prodHasCost = prod && parseFloat(prod.cost||0) > 0;
-    if(!itemMap[k]) itemMap[k]={qty:0,revenue:0,profit:0,hasCost:hasCost||prodHasCost,pid:item.pid||null};
+    const storedCost = parseFloat(item.cost||0);
+    const hasCost = storedCost > 0;
+    if(!itemMap[k]) itemMap[k]={qty:0,revenue:0,profit:0,hasCost:hasCost,pid:item.pid||null};
     itemMap[k].qty     += parseInt(item.qty||1);
     itemMap[k].revenue += parseFloat(item.total||0);
-    itemMap[k].profit  += (parseFloat(item.price)-parseFloat(item.cost||0))*parseInt(item.qty||1);
-    if(hasCost||prodHasCost) itemMap[k].hasCost = true;
+    itemMap[k].profit  += (parseFloat(item.price||0) - storedCost) * parseInt(item.qty||1);
+    if(hasCost) itemMap[k].hasCost = true;
   }));
 
   const itemsTbl = document.getElementById('day-items-tbl');
@@ -5059,8 +5094,12 @@ function renderSummaryReport(){
   const tp=Object.entries(ps).sort((a,b)=>b[1]-a[1]).slice(0,5);
   document.getElementById('r-top-rev').innerHTML=tp.length?tp.map(([n,a],i)=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>${i+1}. ${n}</span><strong style="font-family:'DM Mono',monospace">₹${a.toFixed(0)}</strong></div>`).join(''):'<div class="empty"><div class="ei">📊</div><p>No data</p></div>';
 
-  // Top by profit
-  const pp={};S.invoices.forEach(inv=>(inv.items||[]).forEach(item=>{const pr=(parseFloat(item.price)-parseFloat(item.cost||0))*parseInt(item.qty||1);pp[item.name]=(pp[item.name]||0)+pr;}));
+  // Top by profit — use stored cost at bill time only
+  const pp={};S.invoices.forEach(inv=>(inv.items||[]).forEach(item=>{
+    const storedCost = parseFloat(item.cost||0);
+    const pr=(parseFloat(item.price||0)-storedCost)*parseInt(item.qty||1);
+    pp[item.name]=(pp[item.name]||0)+pr;
+  }));
   const tpp=Object.entries(pp).sort((a,b)=>b[1]-a[1]).slice(0,5);
   document.getElementById('r-top-prof').innerHTML=tpp.length?tpp.map(([n,a],i)=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>${i+1}. ${n}</span><strong style="color:var(--accent);font-family:'DM Mono',monospace">₹${a.toFixed(0)}</strong></div>`).join(''):'<div class="empty"><div class="ei">💰</div><p>No data</p></div>';
 
