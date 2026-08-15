@@ -12,7 +12,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&family=Noto+Sans+Gujarati:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <style>
 /* ===== THERMAL PRINT 58mm ===== */
@@ -104,7 +104,7 @@ html, body {
   margin: 0; padding: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'DM Sans', 'Noto Sans Gujarati', sans-serif;
   font-size: 13.5px;
   height: 100%;
 }
@@ -725,17 +725,16 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 .vb-item-search-wrap { position: relative; }
 .vb-item-drop {
   display: none;
-  position: absolute;
-  top: 100%;
-  left: 0;
-  min-width: 200px;
+  position: fixed;
+  min-width: 280px;
+  max-width: 420px;
   background: var(--s1);
   border: 1px solid var(--border);
   border-radius: 8px;
-  z-index: 999;
-  max-height: 180px;
+  z-index: 9999;
+  max-height: 360px;
   overflow-y: auto;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6);
 }
 .vb-item-drop-item {
   padding: 8px 12px;
@@ -5436,6 +5435,20 @@ function vbAddRow(){
   }, 50);
 }
 
+function vbAddRowAndFocus(){
+  vbAddRow();
+  setTimeout(()=>{
+    const inputs = document.querySelectorAll('.vb-item-input');
+    if(inputs.length){
+      const last = inputs[inputs.length-1];
+      last.focus();
+      // Show all items dropdown for new row
+      const lastRow = VB.rows[VB.rows.length-1];
+      if(lastRow) vbItemSearch(lastRow.id, '');
+    }
+  }, 60);
+}
+
 function vbRemoveRow(id){
   VB.rows = VB.rows.filter(r=>r.id!==id);
   vbRender();
@@ -5474,7 +5487,7 @@ function vbRender(){
           <option value="SET" ${r.unit==='SET'?'selected':''}>SET</option>
         </select>
       </td>
-      <td><input type="number" value="${r.price}" placeholder="0" oninput="vbRowChange(${r.id},'price',this.value);vbCalcRow(${r.id})" onkeydown="if(event.key==='Enter'){vbAddRow()}"></td>
+      <td><input type="number" value="${r.price}" placeholder="0" oninput="vbRowChange(${r.id},'price',this.value);vbCalcRow(${r.id})" onkeydown="if(event.key==='Enter'||event.key==='Tab'){event.preventDefault();vbAddRowAndFocus()}"></td>
       <td style="text-align:right;padding-right:8px;font-weight:600">${r.amount>0?r.amount:''}</td>
       <td style="text-align:center">
         <button onclick="vbRemoveRow(${r.id})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:2px 6px">✕</button>
@@ -5684,6 +5697,22 @@ function vbShowItemDrop(id, items, drop){
       </div>`).join('');
   }
   drop.innerHTML = html;
+  // Position dropdown using fixed coordinates
+  const inputEl = document.querySelector(`#vbrow-${id} .vb-item-input`);
+  if(inputEl){
+    const rect = inputEl.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const dropH = Math.min(360, items.length * 40 + 60);
+    if(spaceBelow >= dropH || spaceBelow >= spaceAbove){
+      drop.style.top = (rect.bottom + 2) + 'px';
+      drop.style.bottom = 'auto';
+    } else {
+      drop.style.bottom = (window.innerHeight - rect.top + 2) + 'px';
+      drop.style.top = 'auto';
+    }
+    drop.style.left = rect.left + 'px';
+  }
   drop.style.display = 'block';
 }
 
@@ -5716,6 +5745,15 @@ function vbSelectItem(rowId, pid, name, price, cost){
   vbRender();
   vbCalc();
   vbHideItemDrop(rowId);
+  // Auto focus price field after item select
+  setTimeout(()=>{
+    const row = document.getElementById('vbrow-'+rowId);
+    if(row){
+      // price is the 7th td (index 6), find its input
+      const priceInput = row.cells[6] && row.cells[6].querySelector('input');
+      if(priceInput){ priceInput.focus(); priceInput.select(); }
+    }
+  }, 60);
 }
 
 function vbHideItemDrop(id){
