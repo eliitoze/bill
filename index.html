@@ -4267,11 +4267,24 @@ async function saveProd(){
 
       // Cost badlai hoy to juna invoices ma pan update karo
       if(oldCost !== newCost){
-        toast('⏳ Juna bills ni profit recalculate thaay chhe...','success');
+        toast('⏳ Badha bills fetch thaay chhe...','success');
+        // Pehla BADHA invoices load karo — S.invoices limited (200) hoy
+        let allInvoices = [];
+        try{
+          allInvoices = await api(`invoices?order=created_at.desc&branch_id=eq.${S.activeBranchId||1}&limit=10000`);
+          // S.invoices pan update karo
+          S.invoices = allInvoices;
+        } catch(e){
+          allInvoices = S.invoices; // fallback
+        }
+
         let updCount = 0;
-        const affectedInvs = S.invoices.filter(inv=>
+        const affectedInvs = allInvoices.filter(inv=>
           (inv.items||[]).some(item=> item.pid===pid || item.name===name)
         );
+
+        toast(`⏳ ${affectedInvs.length} bills update thaay chhe...`,'success');
+
         for(const inv of affectedInvs){
           let changed = false;
           (inv.items||[]).forEach(item=>{
@@ -4281,7 +4294,6 @@ async function saveProd(){
             }
           });
           if(changed){
-            // Recalculate profit for this invoice
             const totalCost = (inv.items||[]).reduce((s,i)=>s+(parseFloat(i.cost||0)*parseFloat(i.qty||1)),0);
             const afterDisc = parseFloat(inv.subtotal||inv.total||0) - parseFloat(inv.discount||0);
             inv.profit = afterDisc - totalCost;
@@ -4293,7 +4305,7 @@ async function saveProd(){
         }
         saveOffline(); renderProds(); populateSels(); updateDash();
         closeM('prodModal');
-        toast(`✅ Product saved! ${updCount} juna bills ni profit update thayi!`,'success');
+        toast(`✅ Product saved! ${updCount} bills ni profit update thayi!`,'success');
         return;
       }
     } else {
