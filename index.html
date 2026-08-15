@@ -4408,29 +4408,55 @@ function toggleStockAddBar(){
 async function bulkAddStock(){
   const qty = parseInt(document.getElementById('stockAddQty').value);
   if(!qty || qty <= 0){ toast('Valid quantity enter karo!','error'); return; }
-  const target = document.getElementById('stockAddTarget').value;
 
+  // Double-click guard
+  if(window._bulkStockRunning){ toast('Already updating chhe, raho...','error'); return; }
+  window._bulkStockRunning = true;
+
+  const btn = document.querySelector('#stockAddBar button');
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Updating...'; }
+
+  const target = document.getElementById('stockAddTarget').value;
   let products = [];
   if(target === 'filtered'){
     const q = (document.getElementById('prodSearch')?.value||'').toLowerCase().trim();
-    products = q ? S.products.filter(p=>(p.name||'').toLowerCase().includes(q)||(p.sku||'').toLowerCase().includes(q)) : S.products;
+    products = q ? S.products.filter(p=>(p.name||'').toLowerCase().includes(q)||(p.sku||'').toLowerCase().includes(q)) : [...S.products];
   } else {
-    products = S.products;
+    products = [...S.products];
   }
 
-  if(!products.length){ toast('Koi product nathi!','error'); return; }
+  if(!products.length){
+    toast('Koi product nathi!','error');
+    window._bulkStockRunning = false;
+    if(btn){ btn.disabled = false; btn.textContent = '✅ Add Stock'; }
+    return;
+  }
 
   const infoEl = document.getElementById('stockAddInfo');
-  if(infoEl) infoEl.textContent = '⏳ Updating...';
+  if(infoEl) infoEl.textContent = `⏳ 0/${products.length}...`;
 
+  const BATCH = 20;
   let done = 0, failed = 0;
-  for(const p of products){
-    const newStock = (parseInt(p.stock)||0) + qty;
-    try{
-      await api(`products/${p.id}`,'PATCH',{stock: newStock});
-      p.stock = newStock;
-      done++;
-    } catch(e){ failed++; }
+  try{
+    for(let i = 0; i < products.length; i += BATCH){
+      const batch = products.slice(i, i + BATCH);
+      await Promise.allSettled(
+        batch.map(async p => {
+          const newStock = (parseInt(p.stock)||0) + qty;
+          try{
+            await api(`products/${p.id}`,'PATCH',{stock: newStock});
+            // Update in S.products directly
+            const sp = S.products.find(x=>x.id===p.id);
+            if(sp) sp.stock = newStock;
+            done++;
+          } catch(e){ failed++; }
+        })
+      );
+      if(infoEl) infoEl.textContent = `⏳ ${done}/${products.length}...`;
+    }
+  } finally {
+    window._bulkStockRunning = false;
+    if(btn){ btn.disabled = false; btn.textContent = '✅ Add Stock'; }
   }
 
   saveOffline(); renderProds(); updateDash();
@@ -4438,7 +4464,7 @@ async function bulkAddStock(){
   document.getElementById('stockAddQty').value = '';
 
   if(failed > 0){
-    toast(`✅ ${done} products update, ⚠️ ${failed} fail`, 'error');
+    toast(`✅ ${done} update, ⚠️ ${failed} fail`, 'error');
   } else {
     toast(`✅ ${done} products ma +${qty} stock add thayu!`, 'success');
   }
