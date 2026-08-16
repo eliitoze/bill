@@ -1663,13 +1663,10 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
       </div>
     </div>
 
-  </div>
-</div>
-
-<!-- ══════════════════════════════════════════════════════════
-     DAILY REGISTER PAGE
-══════════════════════════════════════════════════════════ -->
-<div class="page" id="page-daily" style="display:none;padding:16px;max-width:700px;margin:0 auto">
+    <!-- ══════════════════════════════════════════════════════════
+         DAILY REGISTER PAGE
+    ══════════════════════════════════════════════════════════ -->
+    <div class="page" id="page-daily" style="padding:16px;max-width:700px;margin:0 auto">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
     <div style="font-size:18px;font-weight:700">📒 Daily Register</div>
     <input type="date" id="drDate" style="padding:8px 12px;background:var(--s1);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none" onchange="loadDailyRegister()">
@@ -1814,9 +1811,6 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
   <div style="display:flex;gap:10px;margin-bottom:30px;flex-wrap:wrap">
     <button onclick="saveDailyRegister()" class="btn btn-primary" style="flex:1;padding:12px;font-size:14px;font-weight:700">💾 Save</button>
     <button onclick="drWhatsApp()" style="flex:1;padding:12px;background:#25d366;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer">💬 WhatsApp</button>
-  </div>
-</div>
-
   </div>
 </div>
 
@@ -2765,7 +2759,7 @@ function showPage(page, el){
   document.getElementById('page-'+page).classList.add('active');
   closeSidebar();
   if(el) el.classList.add('active');
-  const t={dashboard:'Dashboard',billing:'New Bill',products:'Products',customers:'Customers',invoices:'Bill History',reports:'Profit Report',import:'Excel Import',settings:'Settings',advance:'Advance Bills',birthdays:'Birthdays'};
+  const t={dashboard:'Dashboard',billing:'New Bill',products:'Products',customers:'Customers',invoices:'Bill History',reports:'Profit Report',import:'Excel Import',settings:'Settings',advance:'Advance Bills',birthdays:'Birthdays',daily:'Daily Register'};
   document.getElementById('pageTitle').textContent = t[page]||page;
   if(page==='reports') updateReports();
   if(page==='billing'){ vbSyncOnOpen(); }
@@ -7395,5 +7389,7 @@ async function toggleExcludeRegister(invId){
 
 <!-- THERMAL RECEIPT — mainApp ni bahar, print ma properly show thay -->
 <div id="thermalPrint"></div>
+</div><!-- end content -->
+</div><!-- end mainApp -->
 </body>
 </html>
