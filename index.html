@@ -1008,6 +1008,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
     <div class="nav-item nav-reports" onclick="askPIN('reports')"><span class="nav-icon">📊</span> Reports</div>
     <div class="nav-item nav-advance" onclick="showPage('advance',this);renderAdvanceBills()"><span class="nav-icon">💰</span> Advance Bills</div>
     <div class="nav-item nav-birthdays" onclick="showPage('birthdays',this);renderBirthdays()"><span class="nav-icon">🎂</span> Birthdays</div>
+    <div class="nav-item nav-daily" onclick="showPage('daily',this);loadDailyRegister()"><span class="nav-icon">📒</span> Daily Register</div>
     <div class="nav-item nav-import" onclick="showPage('import',this)"><span class="nav-icon">📥</span> Excel Import</div>
     <div class="nav-item nav-settings" onclick="showPage('settings',this)"><span class="nav-icon">⚙️</span> Settings</div>
   </nav>
@@ -1121,7 +1122,9 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
             </div>
             <div class="vb-inv-row">
               <span class="vb-inv-label">Invoice Date</span>
-              <span class="vb-inv-val" id="vbInvDate">—</span>
+              <input type="date" id="vbBillDate"
+                style="padding:3px 6px;background:var(--s2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;outline:none"
+                title="Bill date change kari shakay (edit mode ma)">
             </div>
             <div class="vb-inv-row">
               <span class="vb-inv-label">Time</span>
@@ -1663,9 +1666,163 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════
+     DAILY REGISTER PAGE
+══════════════════════════════════════════════════════════ -->
+<div class="page" id="page-daily" style="display:none;padding:16px;max-width:700px;margin:0 auto">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+    <div style="font-size:18px;font-weight:700">📒 Daily Register</div>
+    <input type="date" id="drDate" style="padding:8px 12px;background:var(--s1);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none" onchange="loadDailyRegister()">
+  </div>
+
+  <!-- Branch IDs config (small, collapsible) -->
+  <div style="background:var(--s2);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--muted)">
+    ⚙️ Branch IDs:
+    Branch 1: <input type="number" id="drBranch1Id" value="1" style="width:50px;padding:3px 6px;background:var(--s1);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
+    Branch 2: <input type="number" id="drBranch2Id" value="2" style="width:50px;padding:3px 6px;background:var(--s1);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
+    <button onclick="loadDailyRegister()" style="margin-left:8px;padding:3px 10px;background:var(--accent);color:#000;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">↺ Reload</button>
+  </div>
+
+  <!-- Opening Balance -->
+  <div class="card" style="margin-bottom:12px">
+    <div class="card-title">💰 Opening Balance</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:140px">
+        <label style="font-size:11px;color:var(--muted)">Op. Cash ₹</label>
+        <input type="number" id="drOpCash" placeholder="0" oninput="drCalc()"
+          style="width:100%;padding:9px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-weight:600;margin-top:4px;box-sizing:border-box">
+      </div>
+      <div style="flex:1;min-width:140px">
+        <label style="font-size:11px;color:var(--muted)">Op. Bank ₹</label>
+        <input type="number" id="drOpBank" placeholder="0" oninput="drCalc()"
+          style="width:100%;padding:9px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-weight:600;margin-top:4px;box-sizing:border-box">
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px" id="drOpNote">⚠️ Pehlo divas chhe — manually enter karo</div>
+  </div>
+
+  <!-- Sales (auto fetched) -->
+  <div class="card" style="margin-bottom:12px">
+    <div class="card-title">🛍️ Sales <span id="drSalesLoading" style="font-size:11px;color:var(--muted)"></span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div style="background:var(--s2);border-radius:8px;padding:10px">
+        <div style="font-size:11px;color:var(--muted)">Branch 1 Total Sale</div>
+        <div style="font-size:16px;font-weight:700;color:var(--accent)" id="drB1Total">₹0</div>
+        <div style="font-size:11px;color:var(--muted)" id="drB1Bills">0 bills</div>
+      </div>
+      <div style="background:var(--s2);border-radius:8px;padding:10px">
+        <div style="font-size:11px;color:var(--muted)">Branch 2 Total Sale</div>
+        <div style="font-size:16px;font-weight:700;color:var(--accent)" id="drB2Total">₹0</div>
+        <div style="font-size:11px;color:var(--muted)" id="drB2Bills">0 bills</div>
+      </div>
+      <div style="background:var(--s2);border-radius:8px;padding:10px">
+        <div style="font-size:11px;color:var(--muted)">Branch 1 Profit</div>
+        <div style="font-size:16px;font-weight:700;color:#34d399" id="drB1Profit">₹0</div>
+      </div>
+      <div style="background:var(--s2);border-radius:8px;padding:10px">
+        <div style="font-size:11px;color:var(--muted)">Branch 2 Profit</div>
+        <div style="font-size:16px;font-weight:700;color:#34d399" id="drB2Profit">₹0</div>
+      </div>
+    </div>
+    <div style="margin-top:10px;padding:10px;background:rgba(110,231,183,0.07);border-radius:8px;display:flex;justify-content:space-between">
+      <span style="font-size:13px;font-weight:600">Total Sale (Both Branches)</span>
+      <span style="font-size:15px;font-weight:700;color:var(--accent)" id="drTotalSale">₹0</span>
+    </div>
+  </div>
+
+  <!-- Bank Sale (manual) -->
+  <div class="card" style="margin-bottom:12px">
+    <div class="card-title">🏦 Bank Sale (Manual Enter)</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:140px">
+        <label style="font-size:11px;color:var(--muted)">Branch 1 Bank Sale ₹</label>
+        <input type="number" id="drBankMain" placeholder="0" oninput="drCalc()"
+          style="width:100%;padding:9px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-weight:600;margin-top:4px;box-sizing:border-box">
+      </div>
+      <div style="flex:1;min-width:140px">
+        <label style="font-size:11px;color:var(--muted)">Branch 2 Bank Sale ₹</label>
+        <input type="number" id="drBankB2" placeholder="0" oninput="drCalc()"
+          style="width:100%;padding:9px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-weight:600;margin-top:4px;box-sizing:border-box">
+      </div>
+    </div>
+    <div style="margin-top:8px;display:flex;justify-content:space-between;padding:8px 10px;background:var(--s2);border-radius:8px">
+      <span style="font-size:12px;color:var(--muted)">Total Bank Sale</span>
+      <span style="font-size:13px;font-weight:700;color:#60a5fa" id="drTotalBank">₹0</span>
+    </div>
+    <div style="margin-top:6px;display:flex;justify-content:space-between;padding:8px 10px;background:var(--s2);border-radius:8px">
+      <span style="font-size:12px;color:var(--muted)">Total Cash Sale</span>
+      <span style="font-size:13px;font-weight:700;color:#fbbf24" id="drTotalCash">₹0</span>
+    </div>
+  </div>
+
+  <!-- Expenses -->
+  <div class="card" style="margin-bottom:12px">
+    <div class="card-title">💸 Expenses (Debit)</div>
+    <!-- Add expense form -->
+    <div style="background:var(--s2);border-radius:10px;padding:12px;margin-bottom:12px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--muted)">➕ Navo Expense</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <div style="flex:1;min-width:120px">
+          <label style="font-size:11px;color:var(--muted)">Date</label>
+          <input type="date" id="drExpDate" style="width:100%;padding:7px 10px;background:var(--s1);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;box-sizing:border-box;margin-top:3px">
+        </div>
+        <div style="flex:1;min-width:100px">
+          <label style="font-size:11px;color:var(--muted)">Cash Out ₹</label>
+          <input type="number" id="drExpCash" placeholder="0" style="width:100%;padding:7px 10px;background:var(--s1);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;box-sizing:border-box;margin-top:3px">
+        </div>
+        <div style="flex:1;min-width:100px">
+          <label style="font-size:11px;color:var(--muted)">Bank Out ₹</label>
+          <input type="number" id="drExpBank" placeholder="0" style="width:100%;padding:7px 10px;background:var(--s1);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;box-sizing:border-box;margin-top:3px">
+        </div>
+      </div>
+      <input type="text" id="drExpNote" placeholder="Note (e.g. Ramdev payment 1000, bag purchase 500)"
+        style="width:100%;padding:7px 10px;background:var(--s1);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;box-sizing:border-box;margin-bottom:8px"
+        onkeydown="if(event.key==='Enter') addDrExpense()">
+      <button onclick="addDrExpense()" class="btn btn-primary" style="width:100%">➕ Add Expense</button>
+    </div>
+    <!-- Expense list -->
+    <div id="drExpenseList"></div>
+    <!-- Totals -->
+    <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
+      <div style="flex:1;padding:8px 12px;background:rgba(239,68,68,0.1);border-radius:8px;text-align:center">
+        <div style="font-size:11px;color:var(--muted)">Total Cash Out</div>
+        <div style="font-size:15px;font-weight:700;color:#f87171" id="drExpTotalCash">₹0</div>
+      </div>
+      <div style="flex:1;padding:8px 12px;background:rgba(239,68,68,0.1);border-radius:8px;text-align:center">
+        <div style="font-size:11px;color:var(--muted)">Total Bank Out</div>
+        <div style="font-size:15px;font-weight:700;color:#f87171" id="drExpTotalBank">₹0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Closing Balance -->
+  <div class="card" style="margin-bottom:12px;background:rgba(110,231,183,0.05);border:1px solid rgba(110,231,183,0.2)">
+    <div class="card-title" style="color:var(--accent)">✅ Closing Balance</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:140px;text-align:center;padding:14px;background:var(--s2);border-radius:10px">
+        <div style="font-size:11px;color:var(--muted)">Cl. Cash</div>
+        <div style="font-size:22px;font-weight:800;color:var(--accent)" id="drClCash">₹0</div>
+      </div>
+      <div style="flex:1;min-width:140px;text-align:center;padding:14px;background:var(--s2);border-radius:10px">
+        <div style="font-size:11px;color:var(--muted)">Cl. Bank</div>
+        <div style="font-size:22px;font-weight:800;color:#60a5fa" id="drClBank">₹0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Action Buttons -->
+  <div style="display:flex;gap:10px;margin-bottom:30px;flex-wrap:wrap">
+    <button onclick="saveDailyRegister()" class="btn btn-primary" style="flex:1;padding:12px;font-size:14px;font-weight:700">💾 Save</button>
+    <button onclick="drWhatsApp()" style="flex:1;padding:12px;background:#25d366;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer">💬 WhatsApp</button>
+  </div>
+</div>
+
+  </div>
+</div>
+
 <!-- BILL DETAIL MODAL -->
 <div class="overlay" id="billDetailModal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
-  <div class="modal" style="max-width:520px;max-height:92vh;overflow-y:auto;padding:0;background:var(--s1);border-radius:16px">
+  <div class="modal" style="max-width:520px;max-height:92vh;overflow-y:auto;padding:0;background:var(--s1);border-radius:16px;padding-bottom:env(safe-area-inset-bottom,16px)">
     <!-- HEADER -->
     <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--s1);z-index:2">
       <div style="font-size:13px;font-weight:700;color:var(--accent)" id="billDetailTitle">Bill Detail</div>
@@ -3027,7 +3184,15 @@ async function saveBill(){
     items:S.billItems, subtotal:t.sub, discount:t.discAmt, discount_pct:t.disc,
     gst:t.gst, gst_rate:t.gstRate, total:t.grand, profit:t.profit,
     note:document.getElementById('billNote').value,
-    bill_date:now.toLocaleDateString('en-IN'),
+    bill_date:(()=>{
+      const bdEl = document.getElementById('vbBillDate');
+      if(bdEl && bdEl.value){
+        // YYYY-MM-DD → DD/MM/YYYY
+        const p = bdEl.value.split('-');
+        if(p.length===3) return `${p[2]}/${p[1]}/${p[0]}`;
+      }
+      return now.toLocaleDateString('en-IN');
+    })(),
     bill_time:now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}),
     status:'paid',
     branch_id: S.activeBranchId || 1,
@@ -3136,6 +3301,16 @@ function loadBillToNewBill(inv){
     // 2. Bill No set
     const invNoEl = document.getElementById('vbInvNo');
     if(invNoEl) invNoEl.value = inv.bill_number;
+
+    // 2b. Bill Date set
+    const billDateEl = document.getElementById('vbBillDate');
+    if(billDateEl && inv.bill_date){
+      // Convert DD/MM/YYYY → YYYY-MM-DD for input[type=date]
+      const parts = (inv.bill_date||'').split('/');
+      if(parts.length===3){
+        billDateEl.value = `${parts[2].padStart(4,'0')}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+      }
+    }
 
     // 3. Customer fill
     const custNameEl = document.getElementById('vbCustName');
@@ -4670,16 +4845,19 @@ function renderInvs(){
   }
   const pm={cash:'💵 Cash',upi:'📱 UPI',card:'💳 Card',credit:'📝 Credit'};
   tbody.innerHTML=filtered.map(inv=>`
-    <tr style="cursor:pointer" onclick="loadBillToNewBill(S.invoices.find(x=>x.id===${inv.id}))" title="Click to edit this bill">
-      <td><strong style="font-family:'DM Mono',monospace">#${String(inv.bill_number).padStart(4,'0')}</strong></td>
+    <tr style="cursor:pointer;${inv.exclude_from_register?'opacity:0.6;background:rgba(239,68,68,0.04)':''}" onclick="loadBillToNewBill(S.invoices.find(x=>x.id===${inv.id}))" title="Click to edit this bill">
+      <td><strong style="font-family:'DM Mono',monospace">#${String(inv.bill_number).padStart(4,'0')}</strong>${inv.exclude_from_register?'<span title="Daily Register thi exclude chhe" style="margin-left:4px;font-size:10px">🚫</span>':''}</td>
       <td>${inv.bill_date||'—'}</td>
       <td>${inv.customer_name}</td>
       <td><span class="badge badge-yellow">${pm[inv.payment_mode]||inv.payment_mode}</span></td>
       <td style="font-family:'DM Mono',monospace"><strong>₹${parseFloat(inv.total).toFixed(2)}</strong></td>
-      <td onclick="event.stopPropagation()" style="display:flex;gap:5px">
+      <td onclick="event.stopPropagation()" style="display:flex;gap:5px;flex-wrap:wrap">
         <button class="btn btn-print btn-sm" onclick="thermalPrint(S.invoices.find(x=>x.id==${inv.id}))">🖨</button>
         <button class="btn btn-wa btn-sm" onclick="shareImageWA(${inv.id})" title="WhatsApp Share">💬</button>
         <button class="btn btn-blue btn-sm" onclick="openFullInvoice(${inv.id})" title="Open Full Invoice">🔗</button>
+        <button class="btn btn-sm" onclick="toggleExcludeRegister(${inv.id})" title="${inv.exclude_from_register?'Register ma include karo':'Register thi exclude karo'}" style="background:${inv.exclude_from_register?'rgba(110,231,183,0.15)':'rgba(239,68,68,0.12)'};color:${inv.exclude_from_register?'var(--accent)':'#f87171'}">
+          ${inv.exclude_from_register?'✅':'🚫'}
+        </button>
         <button class="btn btn-red btn-sm" onclick="deleteInvoice(${inv.id})" title="Delete">🗑</button>
       </td>
     </tr>`).join('');
@@ -5534,7 +5712,9 @@ function vbUpdateInvInfo(){
   const num = parseInt(S.settings.bill_counter)||1;
   document.getElementById('vbInvNo').value = num;
   const now = new Date();
-  document.getElementById('vbInvDate').textContent = now.toLocaleDateString('en-IN', {day:'2-digit',month:'2-digit',year:'numeric'});
+  // Set date input to today (YYYY-MM-DD format)
+  const bdEl = document.getElementById('vbBillDate');
+  if(bdEl) bdEl.value = now.toISOString().split('T')[0];
   vbUpdateTime();
 }
 
@@ -6906,6 +7086,306 @@ async function confirmReceivePay(invId){
 // Init advance bills on load
 if(!S.advanceBills) S.advanceBills=[];
 initAdvanceBills();
+
+// ══════════════════════════════════════════════════════════
+// DAILY REGISTER FUNCTIONS
+// ══════════════════════════════════════════════════════════
+
+// DR state
+const DR = {
+  b1Total:0, b1Profit:0, b1Bills:0,
+  b2Total:0, b2Profit:0, b2Bills:0,
+  expenses:[]
+};
+
+function drToday(){
+  const d = new Date();
+  return d.toISOString().split('T')[0]; // YYYY-MM-DD
+}
+
+function drFmt(n){ return '₹'+Math.round(n).toLocaleString('en-IN'); }
+
+async function loadDailyRegister(){
+  const dateEl = document.getElementById('drDate');
+  if(!dateEl) return;
+  if(!dateEl.value) dateEl.value = drToday();
+  const date = dateEl.value;
+
+  // Set expense date default
+  const expDateEl = document.getElementById('drExpDate');
+  if(expDateEl && !expDateEl.value) expDateEl.value = date;
+
+  const b1Id = parseInt(document.getElementById('drBranch1Id')?.value||1);
+  const b2Id = parseInt(document.getElementById('drBranch2Id')?.value||2);
+
+  // Loading state
+  const loadEl = document.getElementById('drSalesLoading');
+  if(loadEl) loadEl.textContent = '⏳ Loading...';
+
+  try{
+    // Fetch sales from both branches for selected date
+    // Convert YYYY-MM-DD to DD/MM/YYYY for bill_date comparison
+    const [year,month,day] = date.split('-');
+    const dateFormats = [
+      `${parseInt(day)}/${parseInt(month)}/${year}`,
+      `${day}/${month}/${year}`
+    ];
+
+    // Fetch invoices for both branches
+    const [r1, r2] = await Promise.all([
+      api(`invoices?branch_id=eq.${b1Id}&order=created_at.desc&limit=500`),
+      api(`invoices?branch_id=eq.${b2Id}&order=created_at.desc&limit=500`)
+    ]);
+
+    const inv1 = (r1.invoices||r1||[]).filter(inv=>
+      !inv.exclude_from_register &&
+      dateFormats.some(df => (inv.bill_date||'').startsWith(df.split('/')[0]+'/'))
+      && (() => {
+        const p = (inv.bill_date||'').split('/');
+        if(p.length!==3) return false;
+        return p[0]==parseInt(day) && p[1]==parseInt(month) && p[2]==year;
+      })()
+    );
+    const inv2 = (r2.invoices||r2||[]).filter(inv=>
+      !inv.exclude_from_register &&
+      (() => {
+        const p = (inv.bill_date||'').split('/');
+        if(p.length!==3) return false;
+        return p[0]==parseInt(day) && p[1]==parseInt(month) && p[2]==year;
+      })()
+    );
+
+    DR.b1Total  = inv1.reduce((s,i)=>s+parseFloat(i.total||0),0);
+    DR.b1Profit = inv1.reduce((s,i)=>s+parseFloat(i.profit||0),0);
+    DR.b1Bills  = inv1.length;
+    DR.b2Total  = inv2.reduce((s,i)=>s+parseFloat(i.total||0),0);
+    DR.b2Profit = inv2.reduce((s,i)=>s+parseFloat(i.profit||0),0);
+    DR.b2Bills  = inv2.length;
+
+    if(loadEl) loadEl.textContent = '';
+
+    // Update sales UI
+    document.getElementById('drB1Total').textContent  = drFmt(DR.b1Total);
+    document.getElementById('drB1Bills').textContent  = DR.b1Bills+' bills';
+    document.getElementById('drB2Total').textContent  = drFmt(DR.b2Total);
+    document.getElementById('drB2Bills').textContent  = DR.b2Bills+' bills';
+    document.getElementById('drB1Profit').textContent = drFmt(DR.b1Profit);
+    document.getElementById('drB2Profit').textContent = drFmt(DR.b2Profit);
+    document.getElementById('drTotalSale').textContent= drFmt(DR.b1Total+DR.b2Total);
+
+    // Fetch saved register data for this date
+    const saved = await api(`daily?date=${date}`).catch(()=>null);
+    if(saved && saved.date){
+      document.getElementById('drOpCash').value = saved.op_cash||0;
+      document.getElementById('drOpBank').value = saved.op_bank||0;
+      document.getElementById('drBankMain').value = saved.bank_sale_main||0;
+      document.getElementById('drBankB2').value   = saved.bank_sale_branch2||0;
+      document.getElementById('drOpNote').textContent = '✅ Saved data loaded';
+    } else {
+      // Auto-carry: fetch previous day closing
+      const prevDate = new Date(date);
+      prevDate.setDate(prevDate.getDate()-1);
+      const prevStr = prevDate.toISOString().split('T')[0];
+      const prevSaved = await api(`daily?date=${prevStr}`).catch(()=>null);
+      if(prevSaved && prevSaved.date){
+        // Calculate prev day closing
+        const prevExpenses = await api(`daily/expenses?date=${prevStr}`).catch(()=>[]);
+        const prevExpCash = (prevExpenses||[]).reduce((s,e)=>s+parseFloat(e.expense_cash||0),0);
+        const prevExpBank = (prevExpenses||[]).reduce((s,e)=>s+parseFloat(e.expense_bank||0),0);
+
+        // Prev day sales
+        const [pr1, pr2] = await Promise.all([
+          api(`invoices?branch_id=eq.${b1Id}&order=created_at.desc&limit=500`),
+          api(`invoices?branch_id=eq.${b2Id}&order=created_at.desc&limit=500`)
+        ]);
+        const [py,pm2,pd] = prevStr.split('-');
+        const filterPrev = (invs) => (invs.invoices||invs||[]).filter(inv=>{
+          if(inv.exclude_from_register) return false;
+          const p = (inv.bill_date||'').split('/');
+          return p.length===3 && p[0]==parseInt(pd) && p[1]==parseInt(pm2) && p[2]==py;
+        });
+        const pi1 = filterPrev(pr1); const pi2 = filterPrev(pr2);
+        const prevB1 = pi1.reduce((s,i)=>s+parseFloat(i.total||0),0);
+        const prevB2 = pi2.reduce((s,i)=>s+parseFloat(i.total||0),0);
+        const prevBankMain = parseFloat(prevSaved.bank_sale_main||0);
+        const prevBankB2   = parseFloat(prevSaved.bank_sale_branch2||0);
+        const prevCashSale = (prevB1+prevB2) - (prevBankMain+prevBankB2);
+        const prevClCash = parseFloat(prevSaved.op_cash||0) + prevCashSale - prevExpCash;
+        const prevClBank = parseFloat(prevSaved.op_bank||0) + (prevBankMain+prevBankB2) - prevExpBank;
+
+        document.getElementById('drOpCash').value = Math.round(prevClCash);
+        document.getElementById('drOpBank').value = Math.round(prevClBank);
+        document.getElementById('drOpNote').textContent = `✅ Auto: ${prevStr} ની Closing → આજ ની Opening`;
+      } else {
+        document.getElementById('drOpCash').value = '';
+        document.getElementById('drOpBank').value = '';
+        document.getElementById('drOpNote').textContent = '⚠️ Pehlo divas chhe — manually enter karo';
+      }
+    }
+
+    // Fetch expenses for this date
+    const exps = await api(`daily/expenses?date=${date}`).catch(()=>[]);
+    DR.expenses = exps||[];
+    renderDrExpenses();
+    drCalc();
+
+  } catch(e){
+    if(loadEl) loadEl.textContent = '❌ Error';
+    toast('Daily Register load error: '+e.message,'error');
+  }
+}
+
+function drCalc(){
+  const opCash  = parseFloat(document.getElementById('drOpCash')?.value||0);
+  const opBank  = parseFloat(document.getElementById('drOpBank')?.value||0);
+  const bankMain= parseFloat(document.getElementById('drBankMain')?.value||0);
+  const bankB2  = parseFloat(document.getElementById('drBankB2')?.value||0);
+
+  const totalSale = DR.b1Total + DR.b2Total;
+  const totalBank = bankMain + bankB2;
+  const totalCash = totalSale - totalBank;
+
+  const expCash = DR.expenses.reduce((s,e)=>s+parseFloat(e.expense_cash||0),0);
+  const expBank = DR.expenses.reduce((s,e)=>s+parseFloat(e.expense_bank||0),0);
+
+  const clCash = opCash + totalCash - expCash;
+  const clBank = opBank + totalBank - expBank;
+
+  document.getElementById('drTotalBank').textContent = drFmt(totalBank);
+  document.getElementById('drTotalCash').textContent = drFmt(totalCash);
+  document.getElementById('drClCash').textContent    = drFmt(clCash);
+  document.getElementById('drClBank').textContent    = drFmt(clBank);
+}
+
+function renderDrExpenses(){
+  const el = document.getElementById('drExpenseList');
+  if(!el) return;
+  const expCash = DR.expenses.reduce((s,e)=>s+parseFloat(e.expense_cash||0),0);
+  const expBank = DR.expenses.reduce((s,e)=>s+parseFloat(e.expense_bank||0),0);
+  document.getElementById('drExpTotalCash').textContent = drFmt(expCash);
+  document.getElementById('drExpTotalBank').textContent = drFmt(expBank);
+
+  if(!DR.expenses.length){
+    el.innerHTML='<div style="text-align:center;color:var(--muted);font-size:12px;padding:10px">Koi expense nathi</div>';
+    return;
+  }
+  el.innerHTML = DR.expenses.map(e=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--s2);border-radius:8px;margin-bottom:6px;gap:8px">
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:600">${e.note||'—'}</div>
+        <div style="font-size:11px;color:var(--muted)">${e.date} · Cash: ${drFmt(e.expense_cash||0)} · Bank: ${drFmt(e.expense_bank||0)}</div>
+      </div>
+      <button onclick="deleteDrExpense(${e.id})" style="background:rgba(239,68,68,0.15);border:none;color:#f87171;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px">🗑</button>
+    </div>
+  `).join('');
+}
+
+async function addDrExpense(){
+  const date  = document.getElementById('drExpDate')?.value;
+  const cash  = parseFloat(document.getElementById('drExpCash')?.value||0);
+  const bank  = parseFloat(document.getElementById('drExpBank')?.value||0);
+  const note  = document.getElementById('drExpNote')?.value||'';
+
+  if(!date){ toast('Date select karo','error'); return; }
+  if(!cash && !bank){ toast('Cash ya Bank amount nakho','error'); return; }
+
+  try{
+    await api('daily/expenses','POST',{date, expense_cash:cash, expense_bank:bank, note});
+    // Clear form
+    document.getElementById('drExpCash').value='';
+    document.getElementById('drExpBank').value='';
+    document.getElementById('drExpNote').value='';
+    // Reload expenses
+    const exps = await api(`daily/expenses?date=${document.getElementById('drDate').value}`).catch(()=>[]);
+    DR.expenses = exps||[];
+    renderDrExpenses();
+    drCalc();
+    toast('✅ Expense add thayu!','success');
+  } catch(e){ toast('Error: '+e.message,'error'); }
+}
+
+async function deleteDrExpense(id){
+  if(!confirm('Aa expense delete karvu?')) return;
+  try{
+    await api(`daily/expenses/${id}`,'DELETE');
+    DR.expenses = DR.expenses.filter(e=>e.id!==id);
+    renderDrExpenses();
+    drCalc();
+    toast('✅ Deleted','success');
+  } catch(e){ toast('Error: '+e.message,'error'); }
+}
+
+async function saveDailyRegister(){
+  const date    = document.getElementById('drDate')?.value;
+  const opCash  = parseFloat(document.getElementById('drOpCash')?.value||0);
+  const opBank  = parseFloat(document.getElementById('drOpBank')?.value||0);
+  const bankMain= parseFloat(document.getElementById('drBankMain')?.value||0);
+  const bankB2  = parseFloat(document.getElementById('drBankB2')?.value||0);
+  if(!date){ toast('Date select karo','error'); return; }
+  try{
+    await api('daily','POST',{date, op_cash:opCash, op_bank:opBank, bank_sale_main:bankMain, bank_sale_branch2:bankB2});
+    toast('✅ Daily Register save thayu!','success');
+  } catch(e){ toast('Error: '+e.message,'error'); }
+}
+
+function drWhatsApp(){
+  const date    = document.getElementById('drDate')?.value||'';
+  const opCash  = parseFloat(document.getElementById('drOpCash')?.value||0);
+  const opBank  = parseFloat(document.getElementById('drOpBank')?.value||0);
+  const bankMain= parseFloat(document.getElementById('drBankMain')?.value||0);
+  const bankB2  = parseFloat(document.getElementById('drBankB2')?.value||0);
+
+  const totalSale = DR.b1Total + DR.b2Total;
+  const totalBank = bankMain + bankB2;
+  const totalCash = totalSale - totalBank;
+  const cashB1    = DR.b1Total - bankMain;
+  const cashB2    = DR.b2Total - bankB2;
+
+  const expCash = DR.expenses.reduce((s,e)=>s+parseFloat(e.expense_cash||0),0);
+  const expBank = DR.expenses.reduce((s,e)=>s+parseFloat(e.expense_bank||0),0);
+  const expTotal= expCash + expBank;
+  const expNotes= DR.expenses.map(e=>e.note).filter(Boolean).join(', ');
+
+  const clCash = opCash + totalCash - expCash;
+  const clBank = opBank + totalBank - expBank;
+
+  // Format date DD-MM-YY
+  const [y,m,d] = date.split('-');
+  const dateStr = `${d}-${m}-${y.slice(2)}`;
+
+  const fmt = n => '₹'+Math.round(n).toLocaleString('en-IN');
+
+  const msg =
+`${dateStr}
+Op.Cash: ${fmt(opCash)}
+Op.Bank: ${fmt(opBank)}
+Cash Sale Branch 1: ${fmt(cashB1)}
+Cash Sale Branch 2: ${fmt(cashB2)}
+Bank Sale: ${fmt(totalBank)}
+Total Sale: ${fmt(totalSale)}
+Debit: ${fmt(expTotal)}${expNotes?' ('+expNotes+')':''}
+Branch 1 Profit: ${fmt(DR.b1Profit)}
+Branch 2 Profit: ${fmt(DR.b2Profit)}
+Cl.Cash: ${fmt(clCash)}
+Cl.Bank: ${fmt(clBank)}`;
+
+  const waUrl = `whatsapp://send?text=${encodeURIComponent(msg)}`;
+  window.open(waUrl,'_blank');
+}
+
+// ── Exclude from Daily Register toggle ──
+async function toggleExcludeRegister(invId){
+  const inv = S.invoices.find(x=>x.id===invId);
+  if(!inv) return;
+  const newVal = !inv.exclude_from_register;
+  try{
+    await api(`invoices/${invId}`,'PATCH',{exclude_from_register: newVal});
+    inv.exclude_from_register = newVal;
+    renderInvs();
+    toast(newVal ? '🚫 Register thi exclude karyu' : '✅ Register ma include karyu','success');
+  } catch(e){ toast('Error: '+e.message,'error'); }
+}
+
 </script>
 <!-- AFTER SAVE MODAL -->
 <div class="overlay" id="afterSaveModal" style="z-index:500" onclick="if(event.target===this)closeAfterSave()">
