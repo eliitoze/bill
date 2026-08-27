@@ -582,7 +582,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .dbtab.active-dbtab { background: var(--accent); color: #0a0a0f; border-color: var(--accent); }
 
 /* Desktop: show desk layout, hide mobile */
-@media (min-width: 900px) {
+@media (min-width: 769px) {
   .desk-bill { display: flex; }
   .mob-bill { display: none; }
   #page-billing { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
@@ -786,6 +786,10 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
   background: var(--s1);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  box-shadow: 0 -4px 14px rgba(0,0,0,0.25);
 }
 .vb-btn-print {
   padding: 9px 20px;
@@ -1008,7 +1012,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
     <div class="nav-item nav-reports" onclick="askPIN('reports')"><span class="nav-icon">📊</span> Reports</div>
     <div class="nav-item nav-advance" onclick="showPage('advance',this);renderAdvanceBills()"><span class="nav-icon">💰</span> Advance Bills</div>
     <div class="nav-item nav-birthdays" onclick="showPage('birthdays',this);renderBirthdays()"><span class="nav-icon">🎂</span> Birthdays</div>
-    <div class="nav-item nav-daily" onclick="showPage('daily',this);loadDailyRegister()"><span class="nav-icon">📒</span> Daily Register</div>
+    <div class="nav-item nav-daily" onclick="askPIN('daily')"><span class="nav-icon">📒</span> Daily Register</div>
     <div class="nav-item nav-import" onclick="showPage('import',this)"><span class="nav-icon">📥</span> Excel Import</div>
     <div class="nav-item nav-settings" onclick="showPage('settings',this)"><span class="nav-icon">⚙️</span> Settings</div>
   </nav>
@@ -1808,9 +1812,33 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
   </div>
 
   <!-- Action Buttons -->
-  <div style="display:flex;gap:10px;margin-bottom:30px;flex-wrap:wrap">
+  <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
     <button onclick="saveDailyRegister()" class="btn btn-primary" style="flex:1;padding:12px;font-size:14px;font-weight:700">💾 Save</button>
-    <button onclick="drWhatsApp()" style="flex:1;padding:12px;background:#25d366;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer">💬 WhatsApp</button>
+    <button onclick="drWhatsApp()" style="flex:1;padding:12px;background:#25d366;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer">💬 Daily WA</button>
+  </div>
+
+  <!-- Monthly Summary Section -->
+  <div class="card" style="margin-bottom:30px;border:1px solid rgba(251,191,36,0.3);background:rgba(251,191,36,0.04)">
+    <div class="card-title" style="color:#fbbf24">📅 Monthly Summary</div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+      <select id="drMonthSel" style="flex:1;padding:8px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none">
+        <option value="1">January</option><option value="2">February</option>
+        <option value="3">March</option><option value="4">April</option>
+        <option value="5">May</option><option value="6">June</option>
+        <option value="7">July</option><option value="8">August</option>
+        <option value="9">September</option><option value="10">October</option>
+        <option value="11">November</option><option value="12">December</option>
+      </select>
+      <select id="drYearSel" style="width:90px;padding:8px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none">
+        <option value="2025">2025</option><option value="2026">2026</option><option value="2027">2027</option>
+      </select>
+      <button onclick="loadMonthlySummary()" style="padding:8px 16px;background:#fbbf24;color:#000;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">📊 Load</button>
+    </div>
+    <div id="drMonthlyResult" style="font-size:13px;color:var(--muted);text-align:center;padding:10px">Month select karo → Load dabao</div>
+    <div id="drMonthlyBtns" style="display:none;gap:10px;margin-top:12px;flex-wrap:wrap">
+      <button onclick="drMonthlyWhatsApp()" style="flex:1;padding:10px;background:#25d366;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">💬 Monthly WA</button>
+      <button onclick="drExpensePDF()" style="flex:1;padding:10px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">📄 Expenses PDF</button>
+    </div>
   </div>
 </div>
 
@@ -2040,7 +2068,7 @@ const apiDirect = async (endpoint, method='GET', body=null) => {
 // ===== STATE =====
 let S = {
   products:[], customers:[], invoices:[],
-  settings:{shop_name:'Eliitoze Jewelz',phone:'',address:'RELIANCE MALL, RELIANCE SMART MARKET, GROUND FLOOR, NR. NANA MAVA CIRCLE, RAJKOT 360005',email:'ELIITOZE@GMAIL.COM',gst_number:'',thank_you:'Thank you!',gst_rate:'0',paper_width:'58mm',profit_pin:'1234',bill_counter:'1',terms:'(1) No Cash Refund & No buy-back (2) Exchange within 7 days from the available stock only, If found any manufacturing defect (3) 3 Month warranty on all Silver Jewelry that covers any material defects or workmanship under normal use. (4) No Guarantee or Warranty on Imitation Jewelry (5) Silver Jewelry Exchange Price 40% of Purchasing Price. Only Exchange No Cash Return or Refund. (6) Small stone fixing is free for lifetime (7) Silver jewelry cleaning is free for lifetime Happy to help you always.... Visit again.'},
+  settings:{shop_name:'Eliitoze Jewelz',phone:'',address:'RELIANCE MALL, RELIANCE SMART MARKET, GROUND FLOOR, NR. NANA MAVA CIRCLE, RAJKOT 360005',email:'ELIITOZE@GMAIL.COM',gst_number:'',thank_you:'Thank you!',gst_rate:'0',paper_width:'58mm',profit_pin:'0208',bill_counter:'1',terms:'(1) No Cash Refund & No buy-back (2) Exchange within 7 days from the available stock only, If found any manufacturing defect (3) 3 Month warranty on all Silver Jewelry that covers any material defects or workmanship under normal use. (4) No Guarantee or Warranty on Imitation Jewelry (5) Silver Jewelry Exchange Price 40% of Purchasing Price. Only Exchange No Cash Return or Refund. (6) Small stone fixing is free for lifetime (7) Silver jewelry cleaning is free for lifetime Happy to help you always.... Visit again.'},
   billItems:[], importData:[], pinTarget:'',
   branches:[], activeBranchId: null, activeBranchName: ''
 };
@@ -2838,6 +2866,9 @@ function pinKey(k){
         } else if(S.pinTarget==='products'){
           showPage('products', document.querySelector('.nav-products'));
           renderProds();
+        } else if(S.pinTarget==='daily'){
+          showPage('daily', document.querySelector('.nav-daily'));
+          loadDailyRegister();
         }
       } else {
         pinEntry='';
@@ -4839,7 +4870,7 @@ function renderInvs(){
   }
   const pm={cash:'💵 Cash',upi:'📱 UPI',card:'💳 Card',credit:'📝 Credit'};
   tbody.innerHTML=filtered.map(inv=>`
-    <tr style="cursor:pointer;${inv.exclude_from_register?'opacity:0.6;background:rgba(239,68,68,0.04)':''}" onclick="loadBillToNewBill(S.invoices.find(x=>x.id===${inv.id}))" title="Click to edit this bill">
+    <tr style="cursor:pointer;${inv.exclude_from_register?'opacity:0.6;background:rgba(239,68,68,0.04)':''}" onclick="openBillDetail(${inv.id})" title="Click to view this bill">
       <td><strong style="font-family:'DM Mono',monospace">#${String(inv.bill_number).padStart(4,'0')}</strong>${inv.exclude_from_register?'<span title="Daily Register thi exclude chhe" style="margin-left:4px;font-size:10px">🚫</span>':''}</td>
       <td>${inv.bill_date||'—'}</td>
       <td>${inv.customer_name}</td>
@@ -4985,7 +5016,7 @@ function updateDash(){
       const pm={cash:'\ud83d\udcb5',upi:'\ud83d\udcf1',card:'\ud83d\udcb3',credit:'\ud83d\udcdd'};
       rd.innerHTML='<div style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:8px;letter-spacing:0.5px">'+label+'</div>'+
         '<table><thead><tr><th>Bill#</th><th>Customer</th><th>Pay</th><th>Amount</th></tr></thead><tbody>'+
-        recentList.slice(0,8).map(i=>'<tr style="cursor:pointer" onclick="loadBillToNewBill(S.invoices.find(x=>x.id==='+i.id+'))"><td><strong style="font-family:\'DM Mono\',monospace;color:var(--accent)">#'+String(i.bill_number).padStart(4,'0')+'</strong></td><td>'+i.customer_name+'</td><td>'+(pm[i.payment_mode]||'')+'</td><td><strong>\u20b9'+parseFloat(i.total).toFixed(0)+'</strong></td></tr>').join('')+
+        recentList.slice(0,8).map(i=>'<tr style="cursor:pointer" onclick="openBillDetail('+i.id+')"><td><strong style="font-family:\'DM Mono\',monospace;color:var(--accent)">#'+String(i.bill_number).padStart(4,'0')+'</strong></td><td>'+i.customer_name+'</td><td>'+(pm[i.payment_mode]||'')+'</td><td><strong>\u20b9'+parseFloat(i.total).toFixed(0)+'</strong></td></tr>').join('')+
         '</tbody></table>';
     }
   }
@@ -6202,9 +6233,11 @@ async function vbSave(){
   let custId = custId_raw;
   if(!custId && custName !== 'Walk-in'){
     // Phone ya name thi existing customer check karo
+    // IMPORTANT: jo aa bill ma phone number nakhyo hoy, to phone j match karo (name match nahi) —
+    // nahi to same name pan ALAG number vada customer ne juna (khota) customer sathe jodi devay chhe.
     const existing = S.customers.find(c=>
-      (phone && c.phone === phone) ||
-      c.name.toLowerCase() === custName.toLowerCase()
+      phone ? c.phone === phone
+            : (c.name.toLowerCase() === custName.toLowerCase() && !c.phone)
     );
     if(existing){
       // Already chhe — reuse karo, phone/dob update karo jо navu hoy
@@ -6322,13 +6355,16 @@ async function vbSave(){
         inv.bill_number = saved[0].bill_number;
       }
     }
+    // Stock ane Total Purchase worker.js POST /invoices andar j automatically update thai jay chhe (server-side)
+    // — atle ahiya FARI thi PATCH nathi karto (double-update + slow save + stale-overwrite bug tadhi shakay).
+    // Local UI mate j numbers update kariye chhiye, next server refresh par sachu ave j chhe.
     for(const item of items){
       const p = S.products.find(x=>x.id===item.pid);
-      if(p){ p.stock -= item.qty; await api('products/'+p.id,'PATCH',{stock:p.stock}); }
+      if(p){ p.stock -= item.qty; }
     }
     if(custId){
       const cust = S.customers.find(c=>c.id===custId);
-      if(cust){ cust.total_purchase=(parseFloat(cust.total_purchase)||0)+grand; await api('customers/'+cust.id,'PATCH',{total_purchase:cust.total_purchase}); }
+      if(cust){ cust.total_purchase=(parseFloat(cust.total_purchase)||0)+grand; }
     }
     const newCounter = billNum+1;
     S.settings.bill_counter = String(newCounter);
@@ -6658,7 +6694,7 @@ function openAdvanceModal(){
       <div style="font-size:11px;color:var(--muted);margin-top:-6px">Delivery Date (Optional)</div>
       <textarea id="adv-note" placeholder="Note (optional)" rows="2" style="padding:10px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;resize:vertical"></textarea>
       <div style="display:flex;gap:10px;margin-top:6px">
-        <button onclick="saveAdvanceBill()" class="btn btn-primary" style="flex:1;padding:12px;font-weight:700;font-size:15px">💾 Save Advance Bill</button>
+        <button onclick="saveAdvanceBill()" id="advSaveBtn" class="btn btn-primary" style="flex:1;padding:12px;font-weight:700;font-size:15px">💾 Save Advance Bill</button>
         <button onclick="closeAdvanceModal()" class="btn" style="padding:12px 18px;background:var(--s2);color:var(--muted)">✕</button>
       </div>
     </div>`;
@@ -6681,6 +6717,10 @@ function closeAdvanceModal(){
 }
 
 async function saveAdvanceBill(){
+  if(window._advSaving){ return; } // double save rokva
+  window._advSaving = true;
+  const advBtn = document.getElementById('advSaveBtn');
+  if(advBtn){ advBtn.disabled=true; advBtn.textContent='⏳ Saving...'; }
   const custName = document.getElementById('adv-cust-name').value.trim();
   const custPhone = document.getElementById('adv-cust-phone').value.trim();
   const itemsDesc = document.getElementById('adv-items-desc').value.trim();
@@ -6690,9 +6730,11 @@ async function saveAdvanceBill(){
   const delDate   = document.getElementById('adv-delivery-date').value;
   const note      = document.getElementById('adv-note').value.trim();
 
-  if(!custName){ toast('Customer name nakho!','error'); return; }
-  if(!total || !advAmt){ toast('Total ane Advance amount nakho!','error'); return; }
-  if(advAmt>total){ toast('Advance total thi vadhu na hoy!','error'); return; }
+  function _advResetBtn(){ window._advSaving=false; if(advBtn){ advBtn.disabled=false; advBtn.textContent='💾 Save Advance Bill'; } }
+
+  if(!custName){ toast('Customer name nakho!','error'); _advResetBtn(); return; }
+  if(!total || !advAmt){ toast('Total ane Advance amount nakho!','error'); _advResetBtn(); return; }
+  if(advAmt>total){ toast('Advance total thi vadhu na hoy!','error'); _advResetBtn(); return; }
 
   const balance = total - advAmt;
   const bid = S.activeBranchId||1;
@@ -6710,7 +6752,10 @@ async function saveAdvanceBill(){
   // Customer save/find
   let custId=null;
   if(custName){
-    const ex=S.customers.find(c=>c.phone===custPhone||c.name.toLowerCase()===custName.toLowerCase());
+    const ex=S.customers.find(c=>
+      custPhone ? c.phone===custPhone
+                : (c.name.toLowerCase()===custName.toLowerCase() && !c.phone)
+    );
     if(ex){ custId=ex.id; }
     else if(custName){
       try{
@@ -6759,6 +6804,8 @@ async function saveAdvanceBill(){
 
   }catch(e){
     toast('Error: '+e.message,'error');
+  } finally {
+    _advResetBtn();
   }
 }
 
@@ -7105,6 +7152,13 @@ async function loadDailyRegister(){
   if(!dateEl.value) dateEl.value = drToday();
   const date = dateEl.value;
 
+  // Auto set month/year selectors
+  const [cy,cm] = date.split('-');
+  const monthSel = document.getElementById('drMonthSel');
+  const yearSel  = document.getElementById('drYearSel');
+  if(monthSel) monthSel.value = parseInt(cm);
+  if(yearSel)  yearSel.value  = cy;
+
   // Set expense date default
   const expDateEl = document.getElementById('drExpDate');
   if(expDateEl && !expDateEl.value) expDateEl.value = date;
@@ -7118,36 +7172,26 @@ async function loadDailyRegister(){
 
   try{
     // Fetch sales from both branches for selected date
-    // Convert YYYY-MM-DD to DD/MM/YYYY for bill_date comparison
-    const [year,month,day] = date.split('-');
-    const dateFormats = [
-      `${parseInt(day)}/${parseInt(month)}/${year}`,
-      `${day}/${month}/${year}`
-    ];
+    // Convert YYYY-MM-DD → parts for bill_date DD/MM/YYYY comparison
+    const [year, month, day] = date.split('-');
+    const iDay   = parseInt(day);
+    const iMonth = parseInt(month);
+
+    const matchDate = (inv) => {
+      if(inv.exclude_from_register) return false;
+      const p = (inv.bill_date||'').split('/');
+      if(p.length!==3) return false;
+      return parseInt(p[0])===iDay && parseInt(p[1])===iMonth && p[2]===year;
+    };
 
     // Fetch invoices for both branches
     const [r1, r2] = await Promise.all([
-      api(`invoices?branch_id=eq.${b1Id}&order=created_at.desc&limit=500`),
-      api(`invoices?branch_id=eq.${b2Id}&order=created_at.desc&limit=500`)
+      api(`invoices?branch_id=eq.${b1Id}&order=created_at.desc&limit=2000`),
+      api(`invoices?branch_id=eq.${b2Id}&order=created_at.desc&limit=2000`)
     ]);
 
-    const inv1 = (r1.invoices||r1||[]).filter(inv=>
-      !inv.exclude_from_register &&
-      dateFormats.some(df => (inv.bill_date||'').startsWith(df.split('/')[0]+'/'))
-      && (() => {
-        const p = (inv.bill_date||'').split('/');
-        if(p.length!==3) return false;
-        return p[0]==parseInt(day) && p[1]==parseInt(month) && p[2]==year;
-      })()
-    );
-    const inv2 = (r2.invoices||r2||[]).filter(inv=>
-      !inv.exclude_from_register &&
-      (() => {
-        const p = (inv.bill_date||'').split('/');
-        if(p.length!==3) return false;
-        return p[0]==parseInt(day) && p[1]==parseInt(month) && p[2]==year;
-      })()
-    );
+    const inv1 = (r1.invoices||r1||[]).filter(matchDate);
+    const inv2 = (r2.invoices||r2||[]).filter(matchDate);
 
     DR.b1Total  = inv1.reduce((s,i)=>s+parseFloat(i.total||0),0);
     DR.b1Profit = inv1.reduce((s,i)=>s+parseFloat(i.profit||0),0);
@@ -7182,23 +7226,20 @@ async function loadDailyRegister(){
       const prevStr = prevDate.toISOString().split('T')[0];
       const prevSaved = await api(`daily?date=${prevStr}`).catch(()=>null);
       if(prevSaved && prevSaved.date){
-        // Calculate prev day closing
         const prevExpenses = await api(`daily/expenses?date=${prevStr}`).catch(()=>[]);
         const prevExpCash = (prevExpenses||[]).reduce((s,e)=>s+parseFloat(e.expense_cash||0),0);
         const prevExpBank = (prevExpenses||[]).reduce((s,e)=>s+parseFloat(e.expense_bank||0),0);
 
-        // Prev day sales
-        const [pr1, pr2] = await Promise.all([
-          api(`invoices?branch_id=eq.${b1Id}&order=created_at.desc&limit=500`),
-          api(`invoices?branch_id=eq.${b2Id}&order=created_at.desc&limit=500`)
-        ]);
-        const [py,pm2,pd] = prevStr.split('-');
-        const filterPrev = (invs) => (invs.invoices||invs||[]).filter(inv=>{
+        // Prev day invoices — use already loaded r1/r2 filtered for prevStr
+        const [pYear,pMonth,pDay] = prevStr.split('-');
+        const iPDay = parseInt(pDay), iPMonth = parseInt(pMonth);
+        const matchPrev = (inv) => {
           if(inv.exclude_from_register) return false;
           const p = (inv.bill_date||'').split('/');
-          return p.length===3 && p[0]==parseInt(pd) && p[1]==parseInt(pm2) && p[2]==py;
-        });
-        const pi1 = filterPrev(pr1); const pi2 = filterPrev(pr2);
+          return p.length===3 && parseInt(p[0])===iPDay && parseInt(p[1])===iPMonth && p[2]===pYear;
+        };
+        const pi1 = (r1.invoices||r1||[]).filter(matchPrev);
+        const pi2 = (r2.invoices||r2||[]).filter(matchPrev);
         const prevB1 = pi1.reduce((s,i)=>s+parseFloat(i.total||0),0);
         const prevB2 = pi2.reduce((s,i)=>s+parseFloat(i.total||0),0);
         const prevBankMain = parseFloat(prevSaved.bank_sale_main||0);
@@ -7367,7 +7408,189 @@ Cl.Bank: ${fmt(clBank)}`;
   window.open(waUrl,'_blank');
 }
 
-// ── Exclude from Daily Register toggle ──
+// ── Monthly Summary ──
+let DR_MONTHLY = null;
+
+async function loadMonthlySummary(){
+  const month = parseInt(document.getElementById('drMonthSel').value);
+  const year  = parseInt(document.getElementById('drYearSel').value);
+  const b1Id  = parseInt(document.getElementById('drBranch1Id')?.value||1);
+  const b2Id  = parseInt(document.getElementById('drBranch2Id')?.value||2);
+
+  const resultEl = document.getElementById('drMonthlyResult');
+  const btnsEl   = document.getElementById('drMonthlyBtns');
+  resultEl.textContent = '⏳ Loading...';
+  btnsEl.style.display = 'none';
+
+  try{
+    // Days in month
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const mm = String(month).padStart(2,'0');
+
+    // Fetch all invoices for both branches for this month
+    const [r1, r2] = await Promise.all([
+      api(`invoices?branch_id=eq.${b1Id}&order=created_at.desc&limit=2000`),
+      api(`invoices?branch_id=eq.${b2Id}&order=created_at.desc&limit=2000`)
+    ]);
+
+    const filterMonth = (invs) => (invs.invoices||invs||[]).filter(inv => {
+      if(inv.exclude_from_register) return false;
+      const p = (inv.bill_date||'').split('/');
+      if(p.length!==3) return false;
+      return parseInt(p[1])===month && p[2]===String(year);
+    });
+
+    const inv1 = filterMonth(r1);
+    const inv2 = filterMonth(r2);
+
+    const b1Total  = inv1.reduce((s,i)=>s+parseFloat(i.total||0),0);
+    const b1Profit = inv1.reduce((s,i)=>s+parseFloat(i.profit||0),0);
+    const b2Total  = inv2.reduce((s,i)=>s+parseFloat(i.total||0),0);
+    const b2Profit = inv2.reduce((s,i)=>s+parseFloat(i.profit||0),0);
+
+    // Fetch all expenses for this month — ONE call with range
+    const firstDate = `${year}-${mm}-01`;
+    const lastDate  = `${year}-${mm}-${String(daysInMonth).padStart(2,'0')}`;
+
+    const [allExpenses, dailyRecs] = await Promise.all([
+      api(`daily/expenses?date_gte=${firstDate}&date_lte=${lastDate}`).catch(()=>[]),
+      api(`daily?date_gte=${firstDate}&date_lte=${lastDate}`).catch(()=>[])
+    ]);
+
+    const totalExpCash = (allExpenses||[]).reduce((s,e)=>s+parseFloat(e.expense_cash||0),0);
+    const totalExpBank = (allExpenses||[]).reduce((s,e)=>s+parseFloat(e.expense_bank||0),0);
+    const totalExp     = totalExpCash + totalExpBank;
+
+    const firstRec = Array.isArray(dailyRecs) ? (dailyRecs.find(r=>r.date===firstDate)||null) : dailyRecs;
+
+    let totalBankMain = 0, totalBankB2 = 0;
+    (Array.isArray(dailyRecs)?dailyRecs:[]).forEach(rec => {
+      totalBankMain += parseFloat(rec.bank_sale_main||0);
+      totalBankB2   += parseFloat(rec.bank_sale_branch2||0);
+    });
+
+    const totalBank  = totalBankMain + totalBankB2;
+    const totalSale  = b1Total + b2Total;
+    const cashB1     = b1Total - totalBankMain;
+    const cashB2     = b2Total - totalBankB2;
+
+    const opCash = parseFloat(firstRec?.op_cash||0);
+    const opBank = parseFloat(firstRec?.op_bank||0);
+    const clCash = opCash + (totalSale - totalBank) - totalExpCash;
+    const clBank = opBank + totalBank - totalExpBank;
+
+    DR_MONTHLY = {
+      month, year, daysInMonth, mm,
+      b1Total, b1Profit, b2Total, b2Profit,
+      totalSale, totalBank, cashB1, cashB2,
+      opCash, opBank, clCash, clBank,
+      totalExp, totalExpCash, totalExpBank,
+      allExpenses
+    };
+
+    // Show result summary
+    const fmt = n => '₹'+Math.round(n).toLocaleString('en-IN');
+    resultEl.innerHTML = `
+      <div style="text-align:left;font-size:13px;line-height:2">
+        <div>📦 Total Sale: <strong>${fmt(totalSale)}</strong></div>
+        <div>💰 B1 Profit: <strong style="color:#34d399">${fmt(b1Profit)}</strong> | B2: <strong style="color:#34d399">${fmt(b2Profit)}</strong></div>
+        <div>💸 Total Debit: <strong style="color:#f87171">${fmt(totalExp)}</strong></div>
+        <div>🏦 Cl.Cash: <strong>${fmt(clCash)}</strong> | Cl.Bank: <strong>${fmt(clBank)}</strong></div>
+      </div>`;
+    btnsEl.style.display = 'flex';
+
+  } catch(e){
+    resultEl.textContent = '❌ Error: '+e.message;
+    toast('Error: '+e.message,'error');
+  }
+}
+
+function drMonthlyWhatsApp(){
+  if(!DR_MONTHLY) return;
+  const m = DR_MONTHLY;
+  const fmt = n => '₹'+Math.round(n).toLocaleString('en-IN');
+
+  const monthNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dd = String(m.daysInMonth).padStart(2,'0');
+  const yy = String(m.year).slice(2);
+  const mm2 = String(m.month).padStart(2,'0');
+
+  // Expense notes — unique descriptions
+  const expNotes = m.allExpenses.map(e=>e.note).filter(Boolean).join(', ');
+
+  const msg =
+`*01-${mm2}-${yy} to ${dd}-${mm2}-${yy}*
+Op.Cash: ${fmt(m.opCash)}
+Op.Bank: ${fmt(m.opBank)}
+Cash Sale Branch 1: ${fmt(m.cashB1)}
+Cash Sale Branch 2: ${fmt(m.cashB2)}
+Bank Sale: ${fmt(m.totalBank)}
+Total Sale: ${fmt(m.totalSale)}
+Debit: ${fmt(m.totalExp)}${expNotes?' ('+expNotes+')':''}
+Branch 1 Profit: ${fmt(m.b1Profit)}
+Branch 2 Profit: ${fmt(m.b2Profit)}
+Cl.Cash: ${fmt(m.clCash)}
+Cl.Bank: ${fmt(m.clBank)}`;
+
+  window.open(`whatsapp://send?text=${encodeURIComponent(msg)}`,'_blank');
+}
+
+async function drExpensePDF(){
+  if(!DR_MONTHLY) return;
+  const m = DR_MONTHLY;
+  const monthNames=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const fmt = n => n ? '₹'+Math.round(n).toLocaleString('en-IN') : '';
+
+  // Build HTML table like screenshot
+  const rows = m.allExpenses.filter(e=>parseFloat(e.expense_cash||0)+parseFloat(e.expense_bank||0)>0);
+  const total = rows.reduce((s,e)=>s+parseFloat(e.expense_cash||0)+parseFloat(e.expense_bank||0),0);
+
+  const tableRows = rows.map(e=>{
+    const amt = parseFloat(e.expense_cash||0)+parseFloat(e.expense_bank||0);
+    // Format date DD/MM/YYYY → DD/MM/YY
+    const dp = (e.date||'').split('-');
+    const dateStr = dp.length===3 ? `${dp[2]}/${dp[1]}/${dp[0]}` : e.date;
+    return `<tr>
+      <td>${dateStr}</td>
+      <td>${Math.round(amt).toLocaleString('en-IN')}</td>
+      <td>${e.note||''}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: Arial, sans-serif; font-size: 12px; padding: 20px; }
+  h2 { text-align:center; font-size:15px; margin-bottom:14px; text-transform:uppercase; letter-spacing:1px; }
+  table { width:100%; border-collapse:collapse; }
+  th { background:#1a5276; color:#fff; padding:7px 10px; text-align:left; font-size:12px; }
+  td { padding:6px 10px; border-bottom:1px solid #e0e0e0; font-size:12px; }
+  tr:nth-child(even) { background:#d6eaf8; }
+  .total-row td { font-weight:bold; border-top:2px solid #1a5276; background:#eaf4fc; }
+</style>
+</head>
+<body>
+  <h2>${monthNames[m.month-1]} ${m.year} — Expenses</h2>
+  <table>
+    <thead><tr><th>DATE</th><th>DEBIT</th><th>DESCRIPTION</th></tr></thead>
+    <tbody>
+      ${tableRows}
+      <tr class="total-row"><td>TOTAL</td><td>${Math.round(total).toLocaleString('en-IN')}</td><td></td></tr>
+    </tbody>
+  </table>
+</body>
+</html>`;
+
+  // Open print window
+  const win = window.open('','_blank','width=600,height=700');
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(()=>{ win.print(); }, 500);
+}
 async function toggleExcludeRegister(invId){
   const inv = S.invoices.find(x=>x.id===invId);
   if(!inv) return;
