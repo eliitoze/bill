@@ -1337,6 +1337,8 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
         <button id="rtab-products" onclick="switchRTab('products')" style="flex:1;padding:8px;border:none;border-radius:7px;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s">📦 Products</button>
       </div>
 
+      <div id="rptLoadNote" style="display:none;margin-bottom:12px;padding:8px 12px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);border-radius:8px;font-size:12px;color:var(--yellow)"></div>
+
       <!-- DAILY REPORT -->
       <div id="rpanel-daily">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
@@ -3248,6 +3250,7 @@ async function saveBill(){
       // NEW BILL
       saved=await api('invoices','POST', inv);
       if(saved&&saved[0]) S.invoices.unshift(saved[0]);
+      if(saved&&saved[0]&&S.reportInvoices) S.reportInvoices.unshift(saved[0]);
       // Update stock
       for(const item of S.billItems){
         const p=S.products.find(x=>x.id===item.pid);
@@ -3272,6 +3275,7 @@ async function saveBill(){
     toast('📴 Offline — Bill locally saved!','success');
     const offInv = {...inv, id:Date.now()};
     S.invoices.unshift(offInv);
+    if(S.reportInvoices) S.reportInvoices.unshift(offInv);
     const newCounterOff = billNum+1;
     S.settings.bill_counter = String(newCounterOff);
     saveOffline(); updateDash(); renderInvs(); clearBill(); updateBillNo();
@@ -3816,6 +3820,9 @@ function buildVyaparMsg(items, t, customer, custPhone, billNum, dateStr, payment
   return msg;
 }
 
+// Badha WhatsApp bill msg AJ EK window ma khule - navi tab dar vakhate nahi.
+const WA_WIN = 'shopbillWA';
+
 function sendToWA(phone, msg){
   const cleanPhone = (phone||'').replace(/\D/g,'');
   const encoded = encodeURIComponent(msg);
@@ -3828,9 +3835,11 @@ function sendToWA(phone, msg){
     url = 'https://wa.me/?text='+encoded;
     toast('Phone number nathi — contact select karo','success');
   }
+  // '_blank' ni jagya e NAAM aapyu chhe - etle browser dar vakhate
+  // AJ EK window fari vapre chhe, navi tab nathi kholto (tab na dhagla band).
   const a = document.createElement('a');
   a.href = url;
-  a.target = '_blank';
+  a.target = WA_WIN;
   a.rel = 'noopener';
   document.body.appendChild(a);
   a.click();
@@ -3929,7 +3938,7 @@ function openWAWithLink(phone, msg){
   const url = phone
     ? `https://wa.me/91${phone}?text=${encodeURIComponent(msg)}`
     : `https://wa.me/?text=${encodeURIComponent(msg)}`;
-  setTimeout(()=>window.open(url,'_blank'), 500);
+  setTimeout(()=>window.open(url, WA_WIN), 500);
 }
 
 function downloadBillImage(imgCanvas, billNum){
@@ -4184,7 +4193,7 @@ async function exportDailyPDF(){
   if(!fromVal){ toast('Date select karo!','error'); return; }
   const fromDate = normDate(fromVal);
   const toDate   = normDate(toVal||fromVal);
-  const dayInvs = S.invoices.filter(i=>{
+  const dayInvs = rptInvoices().filter(i=>{
     if(!i.bill_date) return false;
     const bd = dateFromNorm(normDate(i.bill_date));
     return bd >= dateFromNorm(fromDate) && bd <= dateFromNorm(toDate);
@@ -4794,15 +4803,68 @@ async function delCust(id){
 // ===== INVOICES =====
 async function deleteInvoice(id){
   if(!confirm('Aa bill delete karvu chhe?')) return;
+  const inv = S.invoices.find(i=>i.id===id);
   try {
     await api('invoices/'+id,'DELETE');
+
+    // Bill delete thay etle tena items no stock PACHO umervo ane
+    // customer na total_purchase ma thi te bill nu total BAAD karvu.
+    // (Aa na karvathi j pehla stock negative ane customer total khota thai gaya hata.)
+    if(inv){
+      await revertInvoiceEffects(inv);
+    }
+
     S.invoices = S.invoices.filter(i=>i.id!==id);
-    saveOffline(); renderInvs(); updateDash();
+    if(S.reportInvoices) S.reportInvoices = S.reportInvoices.filter(i=>i.id!==id);
+    saveOffline(); renderInvs(); renderCusts(); renderProds(); updateDash();
     toast('✅ Bill deleted!','success');
   } catch(e){
     S.invoices = S.invoices.filter(i=>i.id!==id);
     saveOffline(); renderInvs(); updateDash();
     toast('Bill deleted locally!','success');
+  }
+}
+
+// Ek bill ni asar ULTAVE chhe: stock pachho umere + customer total ma thi baad kare.
+// Bill delete vakhate ane bill edit vakhate (juni value hatavva) banne jagya e vaparay chhe.
+async function revertInvoiceEffects(inv){
+  if(!inv) return;
+  for(const item of (inv.items||[])){
+    if(!item.pid) continue;
+    const qty = parseFloat(item.qty)||0;
+    if(!qty) continue;
+    const p = S.products.find(x=>x.id===item.pid);
+    if(p) p.stock = (parseFloat(p.stock)||0) + qty;   // local UI
+    await api('rpc/increment_stock','POST',
+      {p_product_id:item.pid, p_qty:Math.round(qty)}).catch(()=>{});
+  }
+  if(inv.customer_id){
+    const amt = parseFloat(inv.total)||0;
+    const c = S.customers.find(x=>x.id===inv.customer_id);
+    if(c) c.total_purchase = Math.max(0,(parseFloat(c.total_purchase)||0) - amt);  // local UI
+    await api('rpc/decrement_customer_purchase','POST',
+      {p_customer_id:inv.customer_id, p_amount:amt}).catch(()=>{});
+  }
+}
+
+// Ek bill ni asar LAGU kare chhe: stock ghatade + customer total ma umere.
+// Bill edit vakhate navi value lagu karva mate vaparay chhe.
+async function applyInvoiceEffects(items, customerId, total){
+  for(const item of (items||[])){
+    if(!item.pid) continue;
+    const qty = parseFloat(item.qty)||0;
+    if(!qty) continue;
+    const p = S.products.find(x=>x.id===item.pid);
+    if(p) p.stock = (parseFloat(p.stock)||0) - qty;   // local UI
+    await api('rpc/decrement_stock','POST',
+      {p_product_id:item.pid, p_qty:Math.round(qty)}).catch(()=>{});
+  }
+  if(customerId){
+    const amt = parseFloat(total)||0;
+    const c = S.customers.find(x=>x.id===customerId);
+    if(c) c.total_purchase = (parseFloat(c.total_purchase)||0) + amt;  // local UI
+    await api('rpc/increment_customer_purchase','POST',
+      {p_customer_id:customerId, p_amount:amt}).catch(()=>{});
   }
 }
 
@@ -5127,7 +5189,7 @@ function renderDailyReport(){
   // Range label for display
   const isSingleDay = fromDate === toDate;
   const dateStr = isSingleDay ? fromDate : fromDate + ' → ' + toDate;
-  const dayInvs = S.invoices.filter(i => inRange(i.bill_date));
+  const dayInvs = rptInvoices().filter(i => inRange(i.bill_date));
 
   const sale   = dayInvs.reduce((s,i)=>s+parseFloat(i.total||0),0);
   const profit = dayInvs.reduce((s,i)=>s+parseFloat(i.profit||0),0);
@@ -5253,7 +5315,9 @@ async function saveMissingCost(pid, name, costVal){
   }
 
   // 2. Update cost in invoices + recalculate profit
-  S.invoices.forEach(inv => {
+  // rptInvoices() vaparo - nahi to fakt chhella 200 bills ma j profit sudhare
+  // ane juna bills no profit khoto rahi jay (reports mismatch nu ek karan).
+  rptInvoices().forEach(inv => {
     let changed = false;
     (inv.items||[]).forEach(item => {
       const matchPid = pid && item.pid && parseInt(item.pid)===parseInt(pid);
@@ -5269,9 +5333,13 @@ async function saveMissingCost(pid, name, costVal){
   });
 
   saveOffline();
-  const updatedInvs = S.invoices.filter(inv=>(inv.items||[]).some(item=>pid?(item.pid&&parseInt(item.pid)===parseInt(pid)):(item.name===name)));
+  const updatedInvs = rptInvoices().filter(inv=>(inv.items||[]).some(item=>pid?(item.pid&&parseInt(item.pid)===parseInt(pid)):(item.name===name)));
+  // Ghana juna bills hoy to aa vaar lagi shake - progress batavo
+  let _done=0;
   for(const inv of updatedInvs){
     try{ await api(`invoices/${inv.id}`,'PATCH',{items:inv.items,profit:inv.profit}); } catch(e){}
+    _done++;
+    if(updatedInvs.length>20 && _done%20===0) toast('Updating... '+_done+'/'+updatedInvs.length,'success');
   }
 
   toast('✅ '+name+' ni cost saved! Profit updated.','success');
@@ -5295,23 +5363,24 @@ async function saveAllMissingCosts(){
 }
 
 function renderSummaryReport(){
-  const total  = S.invoices.reduce((s,i)=>s+parseFloat(i.total||0),0);
-  const profit = S.invoices.reduce((s,i)=>s+parseFloat(i.profit||0),0);
-  const gst    = S.invoices.reduce((s,i)=>s+parseFloat(i.gst||0),0);
+  const RI = rptInvoices();
+  const total  = RI.reduce((s,i)=>s+parseFloat(i.total||0),0);
+  const profit = RI.reduce((s,i)=>s+parseFloat(i.profit||0),0);
+  const gst    = RI.reduce((s,i)=>s+parseFloat(i.gst||0),0);
   const margin = total>0?((profit/total)*100).toFixed(1):0;
   document.getElementById('r-rev').textContent   = '₹'+total.toFixed(0);
   document.getElementById('r-prof').textContent  = '₹'+profit.toFixed(0);
   document.getElementById('r-margin').textContent= margin+'% margin';
-  document.getElementById('r-bills').textContent = S.invoices.length;
+  document.getElementById('r-bills').textContent = RI.length;
   document.getElementById('r-gst').textContent   = '₹'+gst.toFixed(0);
 
   // Top by revenue
-  const ps={};S.invoices.forEach(inv=>(inv.items||[]).forEach(item=>{ps[item.name]=(ps[item.name]||0)+parseFloat(item.total||0);}));
+  const ps={};RI.forEach(inv=>(inv.items||[]).forEach(item=>{ps[item.name]=(ps[item.name]||0)+parseFloat(item.total||0);}));
   const tp=Object.entries(ps).sort((a,b)=>b[1]-a[1]).slice(0,5);
   document.getElementById('r-top-rev').innerHTML=tp.length?tp.map(([n,a],i)=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>${i+1}. ${n}</span><strong style="font-family:'DM Mono',monospace">₹${a.toFixed(0)}</strong></div>`).join(''):'<div class="empty"><div class="ei">📊</div><p>No data</p></div>';
 
   // Top by profit — use stored cost at bill time only
-  const pp={};S.invoices.forEach(inv=>(inv.items||[]).forEach(item=>{
+  const pp={};RI.forEach(inv=>(inv.items||[]).forEach(item=>{
     const storedCost = parseFloat(item.cost||0);
     const pr=(parseFloat(item.price||0)-storedCost)*parseInt(item.qty||1);
     pp[item.name]=(pp[item.name]||0)+pr;
@@ -5321,7 +5390,7 @@ function renderSummaryReport(){
 
   // Day-wise last 30 days
   const dayMap={};
-  S.invoices.forEach(inv=>{
+  RI.forEach(inv=>{
     const d=inv.bill_date||'Unknown';
     if(!dayMap[d]) dayMap[d]={bills:0,revenue:0,profit:0,gst:0};
     dayMap[d].bills++;
@@ -5363,7 +5432,7 @@ function renderDatewiseSummary(){
 
   // Build day map from all invoices
   const dayMap = {};
-  S.invoices.forEach(inv => {
+  rptInvoices().forEach(inv => {
     const nd = normDate(inv.bill_date||'');
     if(!nd) return;
     // Filter by selected month if set
@@ -5418,10 +5487,49 @@ function renderDatewiseSummary(){
     <span>Profit: <strong style="color:var(--accent)">₹${totProfit.toFixed(0)}</strong></span>`;
 }
 
+// ===== REPORTS DATA =====
+// App startup vakhate fakt 200 bills j load thay chhe (jethi app fast rahe).
+// Pan Reports ne AAKHO itihas joie - nahi to juni tarikh na aankda khota/khali aave.
+// Etle Reports khole tyare EK J VAAR pura bills alag cache ma load kariye chhiye.
+S.reportInvoices = null;   // null = haju load nathi thayu
+let _rptLoading = false;
+
+// Reports ma hamesha aa vaparvu (S.invoices seedhu nahi)
+function rptInvoices(){
+  return S.reportInvoices || S.invoices;
+}
+
+async function ensureReportData(force){
+  if(_rptLoading) return;
+  if(S.reportInvoices && !force) return;   // already loaded aa session ma
+  _rptLoading = true;
+  const el = document.getElementById('rptLoadNote');
+  if(el){ el.style.display='block'; el.textContent='⏳ Juna bills load thai rahya chhe...'; }
+  try{
+    const bid = S.activeBranchId || 1;
+    const all = await api('invoices?order=created_at.desc&branch_id=eq.'+bid+'&limit=10000');
+    if(Array.isArray(all) && all.length){
+      S.reportInvoices = all;
+      if(el){ el.style.display='none'; }
+    } else {
+      if(el){ el.style.display='none'; }
+    }
+  } catch(e){
+    // Offline/error - je 200 chhe te thi j kaam chalavo
+    if(el){ el.textContent='⚠️ Juna bills load na thaya - fakt recent bills dekhay chhe.'; }
+  }
+  _rptLoading = false;
+}
+
 function updateReports(){
   switchRTab('daily');
   setDailyToday();
   setSummaryThisMonth();
+  // Pura bills load thaya pachi fari render karo (pehli var thodi second lagse)
+  ensureReportData().then(()=>{
+    if(!S.reportInvoices) return;
+    renderDailyReport(); renderDatewiseSummary();
+  });
 }
 
 // ===== PRINT DAILY REPORT (58mm) =====
@@ -5431,7 +5539,7 @@ function printDailyReport(){
   if(!fromVal){ toast('Date select karo!','error'); return; }
   const fromDate = normDate(fromVal);
   const toDate   = normDate(toVal||fromVal);
-  const dayInvs = S.invoices.filter(i=>{
+  const dayInvs = rptInvoices().filter(i=>{
     if(!i.bill_date) return false;
     const bd = dateFromNorm(normDate(i.bill_date));
     return bd >= dateFromNorm(fromDate) && bd <= dateFromNorm(toDate);
@@ -6036,7 +6144,7 @@ function vbShowItemDrop(id, items, drop){
     html += `<div class="vb-item-drop-item" style="border-left:3px solid var(--accent);background:rgba(110,231,183,0.07)"
       onmousedown="vbSaveAsNewProduct(${id},'${safeQ}')">
       <span style="color:var(--accent);font-weight:600">✨ "${query}" — New Product trike save karo</span>
-      <span style="color:var(--muted);font-size:10px">1 pc · cost pachi reports ma add kari shakasho</span>
+      <span style="color:var(--muted);font-size:10px">MRP · stock · category nakhi ne save karo</span>
     </div>`;
   }
   if(!items.length){
@@ -6074,19 +6182,70 @@ async function vbSaveAsNewProduct(rowId, name){
   vbHideItemDrop(rowId);
   const r = VB.rows.find(r=>r.id===rowId);
   if(!r) return;
-  const price = parseFloat(r.price||0);
-  const newProd = { name, sku:'', price:price||0, cost:0, stock:1, min_stock:5, category:'General', branch_id:S.activeBranchId||1 };
+  // Direct save karvani jagya e vigato puchho - nahi to stock hamesha 1 ane
+  // MRP/category/SKU khali rahi jata hata, je pachi manually sudharva padta.
+  window._npRowId = rowId;
+  document.getElementById('npName').value     = name || '';
+  document.getElementById('npMrp').value      = r.mrp || '';
+  document.getElementById('npPrice').value    = r.price || '';
+  document.getElementById('npStock').value    = r.qty || 1;
+  document.getElementById('npMinStock').value = 5;
+  document.getElementById('npCategory').value = (r.category && r.category!=='ALL') ? r.category : 'General';
+  document.getElementById('npSku').value      = '';
+  document.getElementById('vbNewProdModal').classList.add('open');
+  setTimeout(()=>{ const el=document.getElementById('npPrice'); if(el){el.focus();el.select();} }, 80);
+}
+
+function vbCloseNewProd(){
+  document.getElementById('vbNewProdModal').classList.remove('open');
+  window._npRowId = null;
+}
+
+async function vbConfirmNewProduct(){
+  const rowId = window._npRowId;
+  if(!rowId){ vbCloseNewProd(); return; }
+  const name  = document.getElementById('npName').value.trim();
+  const price = parseFloat(document.getElementById('npPrice').value)||0;
+  const mrp   = parseFloat(document.getElementById('npMrp').value)||0;
+  if(!name){  toast('Product nu name nakho!','error'); return; }
+  if(!price){ toast('Sale price nakho!','error'); return; }
+
+  const btn = document.getElementById('npSaveBtn');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Saving...'; }
+
+  const newProd = {
+    name,
+    sku: document.getElementById('npSku').value.trim(),
+    price,
+    cost: 0,
+    stock: parseInt(document.getElementById('npStock').value)||0,
+    min_stock: parseInt(document.getElementById('npMinStock').value)||5,
+    category: document.getElementById('npCategory').value.trim() || 'General',
+    branch_id: S.activeBranchId||1
+  };
+
   let savedId = null;
   try{
     const saved = await api('products','POST', newProd);
     const sp = (saved&&saved[0]) ? saved[0] : {id:Date.now(),...newProd};
-    S.products.push(sp); savedId=sp.id;
+    S.products.push(sp); savedId = sp.id;
     if(typeof populateSels==='function') populateSels();
     if(typeof renderProds==='function') renderProds();
-  } catch(e){ const sp={id:Date.now(),...newProd}; S.products.push(sp); savedId=sp.id; }
+  } catch(e){
+    const sp = {id:Date.now(),...newProd};
+    S.products.push(sp); savedId = sp.id;
+  }
+
+  vbCloseNewProd();
+  if(btn){ btn.disabled=false; btn.textContent='💾 Save & Add'; }
+
   vbSelectItem(rowId, savedId, name, price, 0);
+  // MRP alag nakhyu hoy to te row ma rakho (vbSelectItem mrp=price set kare chhe)
+  const r = VB.rows.find(x=>x.id===rowId);
+  if(r && mrp){ r.mrp = mrp; vbRender(); vbCalc(); }
+
   saveOffline();
-  toast('✨ "'+name+'" product list ma save thayu! Cost reports ma jaaine add kari shakasho.','success');
+  toast('✨ "'+name+'" save thayu! Cost pachi Reports ma umeri shakasho.','success');
 }
 
 function vbSelectItem(rowId, pid, name, price, cost){
@@ -6344,11 +6503,19 @@ async function vbSave(){
       invForDB.bill_number = origInv.bill_number || S.editingInvoiceBillNo || billNum;
       invForDB.public_token = origInv.public_token || vbToken;
       await api('invoices/'+editId,'PATCH',invForDB);
+
+      // Stock ane customer total ne edit sathe sync rakho:
+      // pehla JUNI bill ni asar ultavo, pachi NAVI bill ni asar lagu karo.
+      // (Aa na karvathi edit karta stock/total ma kayam maate farak rahi jato hato.)
+      await revertInvoiceEffects(origInv);
+      await applyInvoiceEffects(items, custId, grand);
+
       // Local update
       const idx = S.invoices.findIndex(x=>x.id===editId);
       if(idx>=0) S.invoices[idx]={...S.invoices[idx],...invForDB,id:editId};
+      if(S.reportInvoices){ const ri=S.reportInvoices.findIndex(x=>x.id===editId); if(ri>=0) S.reportInvoices[ri]={...S.reportInvoices[ri],...invForDB,id:editId}; }
       setSyncStatus('online');
-      saveOffline(); updateDash(); renderInvs();
+      saveOffline(); updateDash(); renderInvs(); renderCusts(); renderProds();
       // Banner hide + reset edit state
       S.editingInvoiceId=null; S.editingInvoiceBillNo=null;
       const banner=document.getElementById('vbEditBanner'); if(banner) banner.style.display='none';
@@ -6372,6 +6539,7 @@ async function vbSave(){
     const saved = await api('invoices','POST',invForDB);
     if(saved&&saved[0]){
       S.invoices.unshift(saved[0]);
+      if(S.reportInvoices) S.reportInvoices.unshift(saved[0]);
       // Worker thi actual saved bill_number use karo (Worker authoritative chhe)
       if(saved[0].bill_number){
         inv.bill_number = saved[0].bill_number;
@@ -6404,6 +6572,7 @@ async function vbSave(){
     setSyncStatus('offline');
     const offInv = {...inv, id:Date.now()};
     S.invoices.unshift(offInv);
+    if(S.reportInvoices) S.reportInvoices.unshift(offInv);
     const nc = billNum+1; S.settings.bill_counter=String(nc);
     saveOffline(); updateDash(); renderInvs();
     vbClear(); updateBillNo();
@@ -7104,6 +7273,7 @@ async function confirmReceivePay(invId){
     const saved=await api('invoices','POST',regularInv);
     const savedReg=saved&&saved[0]?saved[0]:{...regularInv,id:Date.now()};
     S.invoices.unshift(savedReg);
+    if(S.reportInvoices) S.reportInvoices.unshift(savedReg);
 
     // 3. Local update
     const idx=(S.advanceBills||[]).findIndex(a=>String(a.id)===String(invId));
@@ -7627,6 +7797,35 @@ async function toggleExcludeRegister(invId){
 
 </script>
 <!-- AFTER SAVE MODAL -->
+<!-- NEW PRODUCT (billing screen thi) -->
+<div class="overlay" id="vbNewProdModal" style="z-index:520" onclick="if(event.target===this)vbCloseNewProd()">
+  <div class="modal" style="max-width:420px">
+    <h3>✨ Navo Product</h3>
+    <div class="form-row">
+      <div class="form-group"><label>Name *</label><input id="npName" placeholder="Product name"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>MRP</label><input id="npMrp" type="number" inputmode="decimal" placeholder="0"></div>
+      <div class="form-group"><label>Sale Price *</label><input id="npPrice" type="number" inputmode="decimal" placeholder="0"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Stock (Qty)</label><input id="npStock" type="number" inputmode="numeric" placeholder="1"></div>
+      <div class="form-group"><label>Min Stock</label><input id="npMinStock" type="number" inputmode="numeric" placeholder="5"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Category</label><input id="npCategory" placeholder="General"></div>
+      <div class="form-group"><label>SKU</label><input id="npSku" placeholder="(optional)"></div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:4px">
+      💡 Cost price pachi Reports ma jaine umeri shakasho.
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="vbCloseNewProd()">Cancel</button>
+      <button class="btn btn-primary" id="npSaveBtn" onclick="vbConfirmNewProduct()">💾 Save & Add</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="afterSaveModal" style="z-index:500" onclick="if(event.target===this)closeAfterSave()">
   <div class="modal" style="max-width:360px;padding:24px" id="afterSaveBody"></div>
 </div>
