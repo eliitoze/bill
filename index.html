@@ -1667,6 +1667,9 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
             <button class="btn btn-red" onclick="doLogout()">🚪 Logout</button>
           </div>
         </div>
+
+        <!-- App version - deploy verify karva mate -->
+        <div style="text-align:center;font-size:10px;color:var(--muted);margin-top:16px" id="appVersionFooter"></div>
       </div>
     </div>
 
@@ -1842,6 +1845,17 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
       <button onclick="drMonthlyWhatsApp()" style="flex:1;padding:10px;background:#25d366;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">💬 Monthly WA</button>
       <button onclick="drExpensePDF()" style="flex:1;padding:10px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">📄 Expenses PDF</button>
     </div>
+  </div>
+</div>
+
+<!-- ADVANCE BILL DETAIL MODAL -->
+<div class="overlay" id="advDetailModal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:420px;padding:0;background:var(--s1);border-radius:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border)">
+      <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:var(--accent)">💰 Advance Bill</div>
+      <button onclick="document.getElementById('advDetailModal').style.display='none'" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">✕</button>
+    </div>
+    <div id="advDetailBody" style="padding:16px"></div>
   </div>
 </div>
 
@@ -2651,9 +2665,15 @@ async function loadAll(){
 async function refreshBillCounter(){
   const bid = S.activeBranchId || 1;
   try{
+    // Dhimu internet hoy to pan aa call kayamna atki na rahe - 5 second ma
+    // fail thai jay, jethi kai pan bija flow ne asar na kare.
+    const ctrl = new AbortController();
+    const timeoutId = setTimeout(()=>ctrl.abort(), 5000);
     const cntFetch = await fetch(`${SUPA_URL}/rest/v1/settings?key=eq.bill_counter_${bid}&branch_id=eq.${bid}`,{
-      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
+      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY},
+      signal: ctrl.signal
     });
+    clearTimeout(timeoutId);
     const cntRows = cntFetch.ok ? await cntFetch.json() : [];
     if(cntRows && cntRows.length){
       const dbVal = parseInt(cntRows[0].value)||1;
@@ -3830,17 +3850,17 @@ function sendToWA(phone, msg){
   if(cleanPhone.length >= 10){
     const withCode = cleanPhone.startsWith('91') && cleanPhone.length===12
       ? cleanPhone : '91'+cleanPhone.slice(-10);
-    url = 'https://wa.me/'+withCode+'?text='+encoded;
+    // whatsapp:// protocol vaparo - aa link BROWSER ni jagya e installed
+    // WhatsApp DESKTOP app ma khule chhe (ek j window, dhimu na thay).
+    url = 'whatsapp://send?phone='+withCode+'&text='+encoded;
   } else {
-    url = 'https://wa.me/?text='+encoded;
+    url = 'whatsapp://send?text='+encoded;
     toast('Phone number nathi — contact select karo','success');
   }
-  // '_blank' ni jagya e NAAM aapyu chhe - etle browser dar vakhate
-  // AJ EK window fari vapre chhe, navi tab nathi kholto (tab na dhagla band).
+  // Desktop app protocol link ne '_blank'/named window ni jarur nathi -
+  // OS aapoaap WhatsApp app ne j kholi de chhe.
   const a = document.createElement('a');
   a.href = url;
-  a.target = WA_WIN;
-  a.rel = 'noopener';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -3936,9 +3956,9 @@ async function shareImageWA(invoiceId){
 
 function openWAWithLink(phone, msg){
   const url = phone
-    ? `https://wa.me/91${phone}?text=${encodeURIComponent(msg)}`
-    : `https://wa.me/?text=${encodeURIComponent(msg)}`;
-  setTimeout(()=>window.open(url, WA_WIN), 500);
+    ? `whatsapp://send?phone=91${phone}&text=${encodeURIComponent(msg)}`
+    : `whatsapp://send?text=${encodeURIComponent(msg)}`;
+  setTimeout(()=>{ const a=document.createElement('a'); a.href=url; document.body.appendChild(a); a.click(); document.body.removeChild(a); }, 500);
 }
 
 function downloadBillImage(imgCanvas, billNum){
@@ -5776,11 +5796,36 @@ function toast(msg,type=''){
   setTimeout(()=>t.classList.remove('show'),3000);
 }
 
+// ===== APP VERSION =====
+// service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
+// Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
+// ke nahi, aa number joi ne tarat khatri thai jay.
+const APP_VERSION = 'v11';
+document.addEventListener('DOMContentLoaded', ()=>{
+  const el = document.getElementById('appVersionFooter');
+  if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
+});
+
 // ===== SERVICE WORKER (PWA) + PUSH NOTIFICATIONS =====
 let _swReg = null;
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('./service-worker.js')
-    .then(reg => { _swReg = reg; })
+    .then(reg => {
+      _swReg = reg;
+      // Deploy pachi navo service worker chalu thay (controllerchange), etle
+      // AAPOAAP page reload karo - jethi window/tab BADHI jagya e navi file
+      // j khule, user ne haathe band-chalu karvu na pade.
+      let _swReloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if(_swReloaded) return;
+        _swReloaded = true;
+        location.reload();
+      });
+      // App khulyu tyare j nahi, dar 30 minute e pan update check karo -
+      // jethi laptop par app aakho divas khulu rahe to pan navo deploy
+      // pakdai jay (browser potej pan navigate thay tyare check kare j chhe).
+      setInterval(()=>{ reg.update().catch(()=>{}); }, 30*60*1000);
+    })
     .catch(()=>{});
 }
 
@@ -6562,12 +6607,13 @@ async function vbSave(){
     setSyncStatus('online');
     saveOffline(); updateDash(); renderInvs();
     vbClear();
-    // Worker thi fresh counter fetch karo — next bill number correct aave
-    await refreshBillCounter();
-    vbUpdateInvInfo();
     const actualBillNum = (saved&&saved[0]&&saved[0].bill_number) ? saved[0].bill_number : billNum;
     toast('✅ Bill #'+String(actualBillNum).padStart(4,'0')+' saved!','success');
     showAfterSaveOptions(saved&&saved[0]?saved[0]:inv, actualBillNum);
+    // Agla bill no number taiyar karvo - AA MODAL SATHE KOI SAMBANDH NATHI,
+    // etle await na karo. Internet dhimu hoy to pan modal TARAT khule -
+    // pehla aa call j modal ne roki rakhti hati (network dhimu hoy tyare).
+    refreshBillCounter().then(vbUpdateInvInfo).catch(()=>{});
   } catch(e){
     setSyncStatus('offline');
     const offInv = {...inv, id:Date.now()};
@@ -6824,6 +6870,40 @@ function switchAdvTab(tab){
   document.getElementById('adv-tab-closed').style.color = tab==='closed'?'#000':'var(--muted)';
 }
 
+function viewAdvanceDetail(id){
+  const a = (S.advanceBills||[]).find(x=>String(x.id)===String(id));
+  if(!a){ toast('Advance bill na madyu','error'); return; }
+  const fmt = n=>'₹'+parseFloat(n||0).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+  const isPending = a.status==='advance';
+  const body = document.getElementById('advDetailBody');
+  body.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-size:14px;font-weight:700;color:var(--accent)">AD${String(a.advance_bill_number||'').padStart(3,'0')}</div>
+      ${isPending
+        ? `<span style="font-size:11px;font-weight:700;color:#fbbf24;background:rgba(251,191,36,0.12);padding:3px 10px;border-radius:20px">Pending</span>`
+        : `<span style="font-size:11px;font-weight:700;color:#6ee7b7;background:rgba(110,231,183,0.12);padding:3px 10px;border-radius:20px">✅ Closed</span>`}
+    </div>
+    <div style="font-size:16px;font-weight:700;margin-bottom:2px">${a.customer_name||'Walk-in'}</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">${a.customer_phone||''} · ${a.bill_date||''} · ${(a.payment_mode||'').toUpperCase()}</div>
+    <div style="background:var(--s2);border-radius:10px;padding:12px;margin-bottom:12px">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Items</div>
+      <div style="font-size:13px">${(a.items||[]).map(i=>i.name).join(', ')||'-'}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Total Bill</span><b>${fmt(a.total)}</b></div>
+      <div style="display:flex;justify-content:space-between;color:#6ee7b7"><span>Advance Received</span><b>${fmt(a.advance_amount)}</b></div>
+      <div style="display:flex;justify-content:space-between;${isPending?'color:#fbbf24':'color:var(--muted)'};font-weight:700"><span>${isPending?'Balance Pending':'Balance'}</span><b>${fmt(a.balance_amount)}</b></div>
+      ${a.delivery_date ? `<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Delivery Date</span><b>${a.delivery_date}</b></div>` : ''}
+    </div>
+    ${a.note ? `<div style="font-size:12px;color:var(--muted);background:var(--s2);border-radius:8px;padding:8px 10px;margin-bottom:14px">📝 ${a.note}</div>` : ''}
+    <div style="display:flex;gap:8px">
+      ${isPending ? `<button onclick="document.getElementById('advDetailModal').style.display='none';openReceivePay('${a.id}')" style="flex:1;padding:10px;background:var(--accent);border:none;border-radius:8px;color:#000;font-weight:700;font-size:13px;cursor:pointer">💳 Receive Payment</button>` : ''}
+      <button onclick="advSendWA('${a.id}')" style="padding:10px 14px;background:#25D366;border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer">💬</button>
+      <button onclick="thermalPrint(S.advanceBills.find(x=>x.id==='${a.id}'))" style="padding:10px 14px;background:var(--s3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;cursor:pointer">🖨</button>
+    </div>`;
+  document.getElementById('advDetailModal').style.display='flex';
+}
+
 function renderAdvanceBills(){
   loadAdvanceBills().then(()=>{
     const pending = (S.advanceBills||[]).filter(a=>a.status==='advance');
@@ -6831,7 +6911,7 @@ function renderAdvanceBills(){
     const fmt = n=>'₹'+parseFloat(n||0).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,',');
 
     const renderCard = (a, isPending) => `
-      <div style="background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">
+      <div onclick="viewAdvanceDetail('${a.id}')" style="cursor:pointer;background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
           <div>
             <div style="font-size:13px;font-weight:700;color:var(--accent)">AD${String(a.advance_bill_number||'').padStart(3,'0')}</div>
@@ -6845,7 +6925,7 @@ function renderAdvanceBills(){
           </div>
         </div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:10px">${(a.items||[]).map(i=>i.name).join(', ')}</div>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:8px" onclick="event.stopPropagation()">
           ${isPending ? `<button onclick="openReceivePay('${a.id}')" style="flex:1;padding:9px;background:var(--accent);border:none;border-radius:8px;color:#000;font-weight:700;font-size:13px;cursor:pointer">💳 Receive Payment</button>` : ''}
           <button onclick="advSendWA('${a.id}')" style="padding:9px 14px;background:#25D366;border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer">💬</button>
           <button onclick="thermalPrint(S.advanceBills.find(x=>x.id==='${a.id}'))" style="padding:9px 14px;background:var(--s3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;cursor:pointer">🖨</button>
@@ -7280,8 +7360,8 @@ async function confirmReceivePay(invId){
     if(idx>=0){ S.advanceBills[idx].status='advance_closed'; S.advanceBills[idx].balance_amount=0; }
     saveAdvanceOffline(); saveOffline();
 
-    // 4. Bill counter refresh
-    await refreshBillCounter();
+    // 4. Bill counter refresh - background ma, WhatsApp/toast ne rokvu nahi
+    refreshBillCounter().catch(()=>{});
 
     closeReceivePay();
     updateDash(); renderInvs(); renderAdvanceBills();
