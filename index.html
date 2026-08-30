@@ -5800,7 +5800,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v11';
+const APP_VERSION = 'v12';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
@@ -6875,6 +6875,9 @@ function viewAdvanceDetail(id){
   if(!a){ toast('Advance bill na madyu','error'); return; }
   const fmt = n=>'₹'+parseFloat(n||0).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,',');
   const isPending = a.status==='advance';
+  // Juna advance bills ma customer_phone save nahotu thatu - customer
+  // record thi fallback lai lo, jethi te pan barabar dekhay.
+  const custPhone = a.customer_phone || (S.customers.find(c=>c.id===a.customer_id)||{}).phone || '';
   const body = document.getElementById('advDetailBody');
   body.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
@@ -6884,7 +6887,7 @@ function viewAdvanceDetail(id){
         : `<span style="font-size:11px;font-weight:700;color:#6ee7b7;background:rgba(110,231,183,0.12);padding:3px 10px;border-radius:20px">✅ Closed</span>`}
     </div>
     <div style="font-size:16px;font-weight:700;margin-bottom:2px">${a.customer_name||'Walk-in'}</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">${a.customer_phone||''} · ${a.bill_date||''} · ${(a.payment_mode||'').toUpperCase()}</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">${custPhone||''} · ${a.bill_date||''} · ${(a.payment_mode||'').toUpperCase()}</div>
     <div style="background:var(--s2);border-radius:10px;padding:12px;margin-bottom:12px">
       <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Items</div>
       <div style="font-size:13px">${(a.items||[]).map(i=>i.name).join(', ')||'-'}</div>
@@ -7043,6 +7046,7 @@ async function saveAdvanceBill(){
     advance_bill_number: advNum,
     customer_name: custName,
     customer_id: custId,
+    customer_phone: custPhone||'',
     payment_mode: payMode,
     items: [{name:itemsDesc||'Advance Bill',qty:1,price:total,total,cost:0}],
     subtotal: total, discount:0, discount_pct:0,
