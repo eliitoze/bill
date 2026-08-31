@@ -12,6 +12,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.1/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&family=Noto+Sans+Gujarati:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <style>
@@ -1058,10 +1059,10 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
             <span style="font-size:28px;opacity:0.7">💎</span>
           </div>
         </div>
-        <div class="stat-card red" style="background:linear-gradient(135deg,rgba(248,113,113,0.18) 0%,rgba(127,29,29,0.10) 100%);border-color:rgba(248,113,113,0.35)">
+        <div class="stat-card blue" style="background:linear-gradient(135deg,rgba(96,165,250,0.18) 0%,rgba(30,64,175,0.10) 100%);border-color:rgba(96,165,250,0.35)">
           <div style="display:flex;justify-content:space-between;align-items:flex-start">
-            <div><div class="stat-label">Low Stock</div><div class="stat-value" id="d-low">0</div><div class="stat-sub">need restock</div></div>
-            <span style="font-size:28px;opacity:0.7">⚠️</span>
+            <div><div class="stat-label">Total Products</div><div class="stat-value" id="d-totalprods">0</div><div class="stat-sub">in catalog</div></div>
+            <span style="font-size:28px;opacity:0.7">📦</span>
           </div>
         </div>
       </div>
@@ -1078,7 +1079,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
       </div>
       <div class="two-col">
         <div class="card"><div class="card-title">Recent Bills</div><div id="d-recent"><div class="empty"><div class="ei">🧾</div><p>No bills yet</p></div></div></div>
-        <div class="card"><div class="card-title">⚠ Low Stock</div><div id="d-lowlist"><div class="empty"><div class="ei">✅</div><p>All in stock</p></div></div></div>
+        <div class="card"><div class="card-title">✅ All Good</div><div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Low Stock alert Products page thi joi shakay chhe</div></div>
       </div>
     </div>
 
@@ -1227,10 +1228,15 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
     <!-- PRODUCTS -->
     <div class="page" id="page-products">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px;flex-wrap:wrap">
-        <input type="text" id="prodSearch" placeholder="🔍 Search..." oninput="renderProds()"
-          style="padding:9px 13px;background:var(--s1);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;outline:none;flex:1;max-width:280px">
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" id="prodSearch" placeholder="🔍 Search..." oninput="renderProds()"
+            style="padding:9px 13px;background:var(--s1);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;outline:none;flex:1;max-width:280px">
+          <div style="display:flex;background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:3px;gap:2px">
+            <button id="prodViewListBtn" onclick="setProdView('list')" style="padding:6px 12px;border:none;border-radius:6px;background:var(--accent);color:#0a0a0f;font-size:12px;font-weight:700;cursor:pointer">📋 List</button>
+            <button id="prodViewGridBtn" onclick="setProdView('grid')" style="padding:6px 12px;border:none;border-radius:6px;background:transparent;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer">🔲 Grid</button>
+          </div>
+        </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('prodSearch').value='';renderProds()">📋 Show All</button>
           <button class="btn btn-ghost btn-sm" id="btnSelectAll" onclick="toggleSelectAll()" style="display:none">☑ Select All</button>
           <button class="btn btn-danger btn-sm" id="btnBulkDelete" onclick="bulkDeleteProds()" style="display:none">🗑 Delete Selected</button>
           <button class="btn btn-danger btn-sm" onclick="deleteAllProds()" style="background:#7f1d1d">🗑 Delete All</button>
@@ -1270,7 +1276,24 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
         </div>
       </div>
 
-      <div class="prod-grid" id="prodGrid"></div>
+      <!-- LIST VIEW: item list (left) + item-wise bill history (right) -->
+      <div id="prodListView" style="display:flex;gap:14px;height:calc(100vh - 190px);min-height:400px">
+        <div style="width:270px;flex-shrink:0;background:var(--s1);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;overflow:hidden">
+          <div style="padding:10px;border-bottom:1px solid var(--border)">
+            <input type="text" id="itemListSearch" placeholder="🔍 Item search..." oninput="renderItemList()"
+              style="width:100%;padding:8px 11px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;box-sizing:border-box">
+          </div>
+          <div id="itemListBody" style="flex:1;overflow-y:auto"></div>
+        </div>
+        <div style="flex:1;background:var(--s1);border:1px solid var(--border);border-radius:12px;overflow-y:auto;padding:16px" id="itemDetailPanel">
+          <div style="text-align:center;color:var(--muted);padding:60px 20px;font-size:13px">
+            👈 Item par click karo — teni bills ni list ahi dekhashe<br>
+            <span style="font-size:11px">(Double-click = item edit karo)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="prod-grid" id="prodGrid" style="display:none"></div>
     </div>
 
     <!-- CUSTOMERS -->
@@ -1310,7 +1333,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
       <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center">
         <div style="flex:1;position:relative">
           <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:15px">🔍</span>
-          <input id="invSearch" type="text" placeholder="Search by Bill#, Customer name, Mobile..."
+          <input id="invSearch" type="text" placeholder="Search by Bill#, Customer name, Mobile, Item name..."
             oninput="renderInvs()"
             style="width:100%;padding:9px 12px 9px 34px;background:var(--s2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;box-sizing:border-box">
         </div>
@@ -1358,65 +1381,94 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
           <button class="btn btn-green btn-sm" onclick="exportBillsExcel()" style="margin-top:18px">📊 Bills Excel</button>
           <button class="btn btn-green btn-sm" onclick="exportMonthlyExcel()" style="margin-top:18px">📊 Month Excel</button>
         </div>
-        <!-- Day stats -->
-        <div class="stats-grid" style="margin-bottom:14px">
-          <div class="stat-card green"><div class="stat-label">Day Sales</div><div class="stat-value" id="day-sale">₹0</div></div>
-          <div class="stat-card yellow"><div class="stat-label">Day Profit</div><div class="stat-value" id="day-profit">₹0</div><div class="stat-sub" id="day-margin">0% margin</div></div>
-          <div class="stat-card blue"><div class="stat-label">Bills</div><div class="stat-value" id="day-bills">0</div></div>
-          <div class="stat-card red"><div class="stat-label">GST</div><div class="stat-value" id="day-gst">₹0</div></div>
+        <!-- Daily sub-tabs — lambu scroll ghatadva mate -->
+        <div style="display:flex;gap:0;margin-bottom:14px;background:var(--s2);border-radius:9px;padding:3px;border:1px solid var(--border);max-width:480px">
+          <button id="rdsub-btn-overview" onclick="switchRDSub('overview')" style="flex:1;padding:7px;border:none;border-radius:6px;background:var(--accent);color:#0a0a0f;font-family:'DM Sans',sans-serif;font-size:11.5px;font-weight:700;cursor:pointer">📊 Overview</button>
+          <button id="rdsub-btn-bills" onclick="switchRDSub('bills')" style="flex:1;padding:7px;border:none;border-radius:6px;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:11.5px;font-weight:600;cursor:pointer">🧾 Bills</button>
+          <button id="rdsub-btn-items" onclick="switchRDSub('items')" style="flex:1;padding:7px;border:none;border-radius:6px;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:11.5px;font-weight:600;cursor:pointer">📦 Items</button>
+          <button id="rdsub-btn-monthly" onclick="switchRDSub('monthly')" style="flex:1;padding:7px;border:none;border-radius:6px;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:11.5px;font-weight:600;cursor:pointer">📅 Monthly</button>
         </div>
-        <!-- Day bills list -->
-        <div class="card">
-          <div class="card-title">🧾 Bills of the Day</div>
-          <div class="tbl-wrap">
-            <table>
-              <thead><tr><th>Bill#</th><th>Customer</th><th>Payment</th><th>Items</th><th>Amount</th><th>Profit</th></tr></thead>
-              <tbody id="day-bills-tbl"></tbody>
-            </table>
+
+        <!-- OVERVIEW sub-tab -->
+        <div id="rdsub-overview">
+          <div class="stats-grid" style="margin-bottom:14px">
+            <div class="stat-card green"><div class="stat-label">Day Sales</div><div class="stat-value" id="day-sale">₹0</div></div>
+            <div class="stat-card yellow"><div class="stat-label">Day Profit</div><div class="stat-value" id="day-profit">₹0</div><div class="stat-sub" id="day-margin">0% margin</div></div>
+            <div class="stat-card blue"><div class="stat-label">Bills</div><div class="stat-value" id="day-bills">0</div></div>
+            <div class="stat-card red"><div class="stat-label">GST</div><div class="stat-value" id="day-gst">₹0</div></div>
+          </div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap">
+            <div class="card" style="flex:2;min-width:280px">
+              <div class="card-title">📈 Last 7 Days Trend</div>
+              <div style="height:220px"><canvas id="chartWeekTrend"></canvas></div>
+            </div>
+            <div class="card" style="flex:1;min-width:200px">
+              <div class="card-title">💳 Payment Split</div>
+              <div style="height:220px"><canvas id="chartPaymentSplit"></canvas></div>
+            </div>
           </div>
         </div>
-        <!-- Day items sold -->
-        <div class="card" style="margin-top:14px">
-          <div class="card-title">📦 Items Sold Today</div>
-          <div class="tbl-wrap">
-            <table>
-              <thead><tr><th>Item</th><th>Qty Sold</th><th>Revenue</th><th>Profit</th></tr></thead>
-              <tbody id="day-items-tbl"></tbody>
-            </table>
+
+        <!-- BILLS sub-tab -->
+        <div id="rdsub-bills" style="display:none">
+          <div class="card">
+            <div class="card-title">🧾 Bills of the Day</div>
+            <div class="tbl-wrap">
+              <table>
+                <thead><tr><th>Bill#</th><th>Customer</th><th>Payment</th><th>Items</th><th>Amount</th><th>Profit</th></tr></thead>
+                <tbody id="day-bills-tbl"></tbody>
+              </table>
+            </div>
           </div>
         </div>
-        <!-- Missing Cost Price -->
-        <div class="card" id="missingCostCard" style="margin-top:14px;display:none;border:1px solid rgba(251,191,36,0.4)">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-            <div style="display:flex;align-items:center;gap:8px">
-              <span style="font-size:18px">⚠️</span>
-              <div>
-                <div class="card-title" style="margin:0;color:#f59e0b">Purchase Price Missing</div>
-                <div style="font-size:11px;color:var(--muted)">Cost bharjo → save thata product list ma add & profit calculate thashe</div>
+
+        <!-- ITEMS sub-tab -->
+        <div id="rdsub-items" style="display:none">
+          <div class="card">
+            <div class="card-title">📦 Items Sold Today</div>
+            <div class="tbl-wrap">
+              <table>
+                <thead><tr><th>Item</th><th>Qty Sold</th><th>Revenue</th><th>Profit</th></tr></thead>
+                <tbody id="day-items-tbl"></tbody>
+              </table>
+            </div>
+          </div>
+          <!-- Missing Cost Price -->
+          <div class="card" id="missingCostCard" style="margin-top:14px;display:none;border:1px solid rgba(251,191,36,0.4)">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:18px">⚠️</span>
+                <div>
+                  <div class="card-title" style="margin:0;color:#f59e0b">Purchase Price Missing</div>
+                  <div style="font-size:11px;color:var(--muted)">Cost bharjo → save thata product list ma add & profit calculate thashe</div>
+                </div>
+              </div>
+              <button class="btn btn-sm" style="background:#f59e0b;color:#000;font-weight:700;white-space:nowrap"
+                onclick="saveAllMissingCosts()">💾 Save All</button>
+            </div>
+            <div id="missingCostList"></div>
+          </div>
+        </div>
+
+        <!-- MONTHLY sub-tab -->
+        <div id="rdsub-monthly" style="display:none">
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+              <div class="card-title" style="margin:0">📅 Date-wise Sales Summary</div>
+              <div style="display:flex;gap:6px;align-items:center">
+                <input type="month" id="summaryMonth" onchange="renderDatewiseSummary()" style="padding:5px 8px;background:var(--s2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:12px;outline:none;">
+                <button class="btn btn-ghost btn-sm" onclick="setSummaryThisMonth()">This Month</button>
+                <button class="btn btn-green btn-sm" onclick="exportMonthlyExcel()">📊 Excel</button>
               </div>
             </div>
-            <button class="btn btn-sm" style="background:#f59e0b;color:#000;font-weight:700;white-space:nowrap"
-              onclick="saveAllMissingCosts()">💾 Save All</button>
-          </div>
-          <div id="missingCostList"></div>
-        </div>
-        <!-- Date-wise summary -->
-        <div class="card" style="margin-top:14px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-            <div class="card-title" style="margin:0">📅 Date-wise Sales Summary</div>
-            <div style="display:flex;gap:6px;align-items:center">
-              <input type="month" id="summaryMonth" onchange="renderDatewiseSummary()" style="padding:5px 8px;background:var(--s2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:12px;outline:none;">
-              <button class="btn btn-ghost btn-sm" onclick="setSummaryThisMonth()">This Month</button>
-              <button class="btn btn-green btn-sm" onclick="exportMonthlyExcel()">📊 Excel</button>
+            <div class="tbl-wrap">
+              <table>
+                <thead><tr><th>Date</th><th>Bills</th><th>Revenue</th><th>Discount</th><th>GST</th><th>Profit</th></tr></thead>
+                <tbody id="datewise-tbl"></tbody>
+              </table>
             </div>
+            <div id="datewise-total" style="padding:10px 0 0;font-size:13px;font-weight:600;text-align:right;color:var(--accent)"></div>
           </div>
-          <div class="tbl-wrap">
-            <table>
-              <thead><tr><th>Date</th><th>Bills</th><th>Revenue</th><th>Discount</th><th>GST</th><th>Profit</th></tr></thead>
-              <tbody id="datewise-tbl"></tbody>
-            </table>
-          </div>
-          <div id="datewise-total" style="padding:10px 0 0;font-size:13px;font-weight:600;text-align:right;color:var(--accent)"></div>
         </div>
       </div>
 
@@ -1427,6 +1479,10 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
           <div class="stat-card yellow"><div class="stat-label">Total Profit</div><div class="stat-value" id="r-prof">₹0</div><div class="stat-sub" id="r-margin">0% margin</div></div>
           <div class="stat-card blue"><div class="stat-label">Total Bills</div><div class="stat-value" id="r-bills">0</div></div>
           <div class="stat-card red"><div class="stat-label">GST Collected</div><div class="stat-value" id="r-gst">₹0</div></div>
+        </div>
+        <div class="card" style="margin-bottom:14px">
+          <div class="card-title">🏆 Top 5 Products (Revenue)</div>
+          <div style="height:200px"><canvas id="chartTopProducts"></canvas></div>
         </div>
         <div class="two-col">
           <div class="card">
@@ -2813,6 +2869,8 @@ function showPage(page, el){
   const t={dashboard:'Dashboard',billing:'New Bill',products:'Products',customers:'Customers',invoices:'Bill History',reports:'Profit Report',import:'Excel Import',settings:'Settings',advance:'Advance Bills',birthdays:'Birthdays',daily:'Daily Register'};
   document.getElementById('pageTitle').textContent = t[page]||page;
   if(page==='reports') updateReports();
+  if(page==='invoices'){ ensureReportData().then(()=>renderInvs()); }
+  if(page==='products'){ ensureReportData(); if(_prodViewMode==='list') renderItemList(); else renderProds(); }
   if(page==='billing'){ vbSyncOnOpen(); }
   if(page==='settings'){ renderUserList(); loadBranches().then(()=>{ renderBranchList(); renderBranchToggle(); }); }
   document.getElementById('sidebar').classList.remove('open');
@@ -4406,6 +4464,139 @@ function exportMonthlyExcel(){
 }
 
 // ===== PRODUCTS =====
+// ===== PRODUCTS: LIST VIEW (item list + item-wise bill history) =====
+let _prodViewMode = 'list';
+let _selectedItemId = null;
+
+function setProdView(mode){
+  _prodViewMode = mode;
+  const listBtn = document.getElementById('prodViewListBtn');
+  const gridBtn = document.getElementById('prodViewGridBtn');
+  document.getElementById('prodListView').style.display = mode==='list' ? 'flex' : 'none';
+  document.getElementById('prodGrid').style.display = mode==='grid' ? 'grid' : 'none';
+  // Bulk tools fakt Grid view ma j maane chhe (checkbox selection cards par chhe)
+  const bulkBits = ['btnSelectAll','btnBulkDelete'];
+  bulkBits.forEach(id=>{ const el=document.getElementById(id); if(el && el.dataset.wasVisible!=='1') return; });
+  if(listBtn && gridBtn){
+    listBtn.style.background = mode==='list' ? 'var(--accent)' : 'transparent';
+    listBtn.style.color = mode==='list' ? '#0a0a0f' : 'var(--muted)';
+    gridBtn.style.background = mode==='grid' ? 'var(--accent)' : 'transparent';
+    gridBtn.style.color = mode==='grid' ? '#0a0a0f' : 'var(--muted)';
+  }
+  if(mode==='list') renderItemList();
+  else renderProds();
+}
+
+function renderItemList(){
+  const body = document.getElementById('itemListBody');
+  if(!body) return;
+  const q = (document.getElementById('itemListSearch')?.value||'').toLowerCase().trim();
+  const items = S.products.filter(p=>!q || (p.name||'').toLowerCase().includes(q))
+    .sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  if(!items.length){
+    body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px">Koi item na madyu</div>';
+    return;
+  }
+  body.innerHTML = items.map(p=>`
+    <div onclick="selectProdItem(${p.id})" ondblclick="editProd(${p.id})"
+      style="padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;${_selectedItemId===p.id?'background:rgba(110,231,183,0.08);border-left:3px solid var(--accent)':'border-left:3px solid transparent'}">
+      <div style="font-size:13px;font-weight:600;color:var(--text)">${p.name}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px">₹${parseFloat(p.price||0).toFixed(0)} · Stock: ${p.stock||0}${p.stock<=(p.min_stock||5)?' ⚠️':''}</div>
+    </div>`).join('');
+}
+
+function selectProdItem(id){
+  _selectedItemId = id;
+  renderItemList();          // highlight update
+  renderItemBillHistory(id);
+}
+
+function renderItemBillHistory(id){
+  const p = S.products.find(x=>x.id===id);
+  const panel = document.getElementById('itemDetailPanel');
+  if(!p || !panel) return;
+
+  panel.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;font-size:12px">⏳ Loading...</div>';
+
+  // Pura itihas (Reports jem) - fakt chhella 200 nahi
+  ensureReportData().then(()=>{
+    const all = rptInvoices();
+    let totalQty = 0, totalAmt = 0;
+    const rows = [];
+    all.forEach(inv=>{
+      (inv.items||[]).forEach(it=>{
+        const matches = it.pid ? it.pid===p.id : (it.name||'').toLowerCase()===(p.name||'').toLowerCase();
+        if(matches){
+          const qty = parseFloat(it.qty)||0;
+          const amt = parseFloat(it.total ?? (it.price*qty)) || 0;
+          totalQty += qty; totalAmt += amt;
+          rows.push({inv, qty, amt});
+        }
+      });
+    });
+    rows.sort((a,b)=> (b.inv.id||0) - (a.inv.id||0));
+
+    const searchHtml = `<input type="text" id="itemBillSearch" placeholder="🔍 Bill#, Customer, Mobile thi search..." oninput="filterItemBillRows()"
+      style="width:100%;padding:8px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;box-sizing:border-box;margin-bottom:12px">`;
+
+    const summaryHtml = `<div style="display:flex;gap:20px;margin-bottom:14px">
+        <div><div style="font-size:10px;color:var(--muted);text-transform:uppercase">Total Sold</div><div style="font-size:20px;font-weight:700;color:var(--accent)">${totalQty}</div></div>
+        <div><div style="font-size:10px;color:var(--muted);text-transform:uppercase">Total Revenue</div><div style="font-size:20px;font-weight:700;color:var(--text)">₹${totalAmt.toFixed(0)}</div></div>
+        <div><div style="font-size:10px;color:var(--muted);text-transform:uppercase">Current Stock</div><div style="font-size:20px;font-weight:700;color:${p.stock<=(p.min_stock||5)?'#fbbf24':'var(--text)'}">${p.stock||0}</div></div>
+      </div>`;
+
+    window._itemBillRows = rows;   // filterItemBillRows() aa vapre chhe
+
+    panel.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-size:16px;font-weight:700">${p.name}</div>
+        <button class="btn btn-ghost btn-sm" onclick="editProd(${p.id})">✏️ Edit Item</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:14px">${p.category||'General'} · SKU: ${p.sku||'—'}</div>
+      ${summaryHtml}
+      ${searchHtml}
+      <div id="itemBillRowsBody"></div>`;
+    filterItemBillRows();
+  });
+}
+
+function filterItemBillRows(){
+  const body = document.getElementById('itemBillRowsBody');
+  if(!body) return;
+  const q = (document.getElementById('itemBillSearch')?.value||'').toLowerCase().trim();
+  const pm={cash:'💵',upi:'📱',card:'💳',credit:'📝'};
+  const rows = (window._itemBillRows||[]).filter(r=>{
+    if(!q) return true;
+    const inv = r.inv;
+    const billNo = String(inv.bill_number).padStart(4,'0');
+    const name = (inv.customer_name||'').toLowerCase();
+    const phone = (inv.customer_phone||'').toLowerCase();
+    return billNo.includes(q) || name.includes(q) || phone.includes(q);
+  });
+  if(!rows.length){
+    body.innerHTML = '<div style="text-align:center;color:var(--muted);padding:24px;font-size:12px">Aa item na koi bills nathi</div>';
+    return;
+  }
+  body.innerHTML = `<table><thead><tr><th>Bill#</th><th>Date</th><th>Customer</th><th>Qty</th><th>Amount</th></tr></thead><tbody>
+    ${rows.map(r=>`
+      <tr style="cursor:pointer" onclick="openItemBillEdit(${r.inv.id})">
+        <td><strong style="font-family:'DM Mono',monospace;color:var(--accent)">#${String(r.inv.bill_number).padStart(4,'0')}</strong></td>
+        <td>${r.inv.bill_date||'—'}</td>
+        <td>${r.inv.customer_name||'Walk-in'}</td>
+        <td>${r.qty}</td>
+        <td><strong>₹${r.amt.toFixed(0)}</strong></td>
+      </tr>`).join('')}
+    </tbody></table>`;
+}
+
+// Item-wise bill list ma thi bill par click karo - direct edit mode ma khole
+// (Bill History ni jem view-first nahi, ahiya deliberately j click thay chhe etle direct edit)
+function openItemBillEdit(invId){
+  const inv = rptInvoices().find(x=>x.id===invId) || S.invoices.find(x=>x.id===invId);
+  if(!inv){ toast('Bill na madyu','error'); return; }
+  loadBillToNewBill(inv);
+}
+
 function renderProds(){
   const q=(document.getElementById('prodSearch')?.value||'').toLowerCase();
   const list=S.products.filter(p=>
@@ -4435,6 +4626,11 @@ function renderProds(){
         <button class="btn btn-danger btn-sm" onclick="delProd(${p.id})">🗑</button>
       </div>
     </div>`;}).join('');
+  // List view sync rakho — je function pan product data badle, banne view update thay
+  if(document.getElementById('itemListBody')){
+    renderItemList();
+    if(_selectedItemId!=null && S.products.some(p=>p.id===_selectedItemId)) renderItemBillHistory(_selectedItemId);
+  }
 }
 
 function openAddProd(){
@@ -4907,7 +5103,7 @@ function renderInvs(){
   const fromVal = document.getElementById('invFrom')?.value||'';
   const toVal   = document.getElementById('invTo')?.value||'';
 
-  let filtered = S.invoices;
+  let filtered = rptInvoices();
 
   // Date filter — string compare to avoid UTC timezone issue
   if(fromVal||toVal){
@@ -4926,14 +5122,15 @@ function renderInvs(){
     });
   }
 
-  // Search filter
+  // Search filter — Bill#, Customer name, Mobile, Item name
   if(q){
     filtered = filtered.filter(inv=>{
       const billNo = String(inv.bill_number).padStart(4,'0');
       const name   = (inv.customer_name||'').toLowerCase();
       const cust   = inv.customer_id ? S.customers.find(c=>c.id===inv.customer_id) : null;
-      const phone  = (cust?.phone||'').toLowerCase();
-      return billNo.includes(q) || name.includes(q) || phone.includes(q);
+      const phone  = (inv.customer_phone || cust?.phone || '').toLowerCase();
+      const itemMatch = (inv.items||[]).some(it=>(it.name||'').toLowerCase().includes(q));
+      return billNo.includes(q) || name.includes(q) || phone.includes(q) || itemMatch;
     });
   }
 
@@ -5086,7 +5283,7 @@ function updateDash(){
   const dm=document.getElementById('d-margin'); if(dm) dm.textContent='PIN protected';
   document.getElementById('d-prods').textContent=S.products.length;
   const low=S.products.filter(p=>p.stock<=p.min_stock);
-  document.getElementById('d-low').textContent=low.length;
+  const dtp=document.getElementById('d-totalprods'); if(dtp) dtp.textContent=S.products.length;
   const rd=document.getElementById('d-recent');
   if(priv){
     rd.innerHTML='<div class="empty"><div class="ei">\ud83d\ude48</div><p>Privacy mode on</p></div>';
@@ -5103,8 +5300,6 @@ function updateDash(){
         '</tbody></table>';
     }
   }
-  const ld=document.getElementById('d-lowlist');
-  ld.innerHTML=!low.length?'<div class="empty"><div class="ei">\u2705</div><p>All in stock</p></div>':low.map(p=>'<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px"><span>'+p.name+'</span><span class="badge badge-red">Stock: '+p.stock+'</span></div>').join('');
   const pendingAdv=(S.advanceBills||[]).filter(a=>a.status==='advance');
   const advWrap=document.getElementById('d-advance-wrap');
   const advList=document.getElementById('d-advance-list');
@@ -5132,6 +5327,21 @@ function switchRTab(tab){
   if(tab==='daily')    { renderDailyReport(); renderDatewiseSummary(); }
   if(tab==='summary')  renderSummaryReport();
   if(tab==='products') renderProductsReport();
+}
+
+// Daily report na andar na sub-tabs — lambu scroll ghatadva mate
+function switchRDSub(sub){
+  ['overview','bills','items','monthly'].forEach(s=>{
+    document.getElementById('rdsub-'+s).style.display = s===sub ? 'block' : 'none';
+    const btn = document.getElementById('rdsub-btn-'+s);
+    if(btn){
+      btn.style.background = s===sub ? 'var(--accent)' : 'transparent';
+      btn.style.color      = s===sub ? '#0a0a0f'        : 'var(--muted)';
+    }
+  });
+  // Charts fakt Overview khule tyare j draw karo - hidden canvas par draw
+  // karvathi Chart.js ma size 0 thai jay chhe.
+  if(sub==='overview') renderDailyCharts();
 }
 
 function todayStr(){
@@ -5210,6 +5420,7 @@ function renderDailyReport(){
   const isSingleDay = fromDate === toDate;
   const dateStr = isSingleDay ? fromDate : fromDate + ' → ' + toDate;
   const dayInvs = rptInvoices().filter(i => inRange(i.bill_date));
+  window._rdDayInvs = dayInvs;   // charts (payment split) aa vapre chhe
 
   const sale   = dayInvs.reduce((s,i)=>s+parseFloat(i.total||0),0);
   const profit = dayInvs.reduce((s,i)=>s+parseFloat(i.profit||0),0);
@@ -5298,6 +5509,82 @@ function renderDailyReport(){
     }).join('');
   } else {
     missingCard.style.display='none';
+  }
+
+  // Overview sub-tab j active hoy tyare j chart draw karo (hidden canvas
+  // par draw thay to size 0 thai jay chhe)
+  const ovEl = document.getElementById('rdsub-overview');
+  if(ovEl && ovEl.style.display!=='none') renderDailyCharts();
+}
+
+// ===== DAILY REPORT CHARTS =====
+let _chartWeekTrend = null, _chartPaymentSplit = null;
+
+function renderDailyCharts(){
+  if(typeof Chart==='undefined') return;   // CDN load na thayu hoy (offline)
+
+  // ---- Last 7 days trend (date-filter thi independent - "aa week kevu jai rahyu chhe") ----
+  const days = [];
+  for(let i=6;i>=0;i--){
+    const d = new Date(); d.setDate(d.getDate()-i);
+    days.push(d);
+  }
+  const dayLabels = days.map(d=>d.toLocaleDateString('en-IN',{day:'2-digit',month:'short'}));
+  const dayTotals = days.map(d=>{
+    const dNorm = normDate(d.toLocaleDateString('en-IN'));
+    return rptInvoices()
+      .filter(i=>normDate(i.bill_date||'')===dNorm)
+      .reduce((s,i)=>s+parseFloat(i.total||0),0);
+  });
+
+  const trendCanvas = document.getElementById('chartWeekTrend');
+  if(trendCanvas){
+    if(_chartWeekTrend) _chartWeekTrend.destroy();
+    _chartWeekTrend = new Chart(trendCanvas, {
+      type:'bar',
+      data:{ labels:dayLabels, datasets:[{ label:'Sales', data:dayTotals, backgroundColor:'#6ee7b7', borderRadius:5 }] },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false} },
+        scales:{
+          y:{ ticks:{ color:'#6b7280', callback:v=>'₹'+v }, grid:{ color:'rgba(255,255,255,0.05)' } },
+          x:{ ticks:{ color:'#6b7280' }, grid:{ display:false } }
+        }
+      }
+    });
+  }
+
+  // ---- Payment mode split (currently selected date range vaparo) ----
+  const dayInvs = window._rdDayInvs || [];
+  const pmMap = {};
+  dayInvs.forEach(i=>{
+    const k = i.payment_mode || 'other';
+    pmMap[k] = (pmMap[k]||0) + parseFloat(i.total||0);
+  });
+  const pmLabels = {cash:'Cash',upi:'UPI',card:'Card',credit:'Credit',other:'Other'};
+  const pmKeys = Object.keys(pmMap);
+  const pmColors = {cash:'#6ee7b7',upi:'#60a5fa',card:'#a78bfa',credit:'#fbbf24',other:'#f87171'};
+
+  const pmCanvas = document.getElementById('chartPaymentSplit');
+  if(pmCanvas){
+    if(_chartPaymentSplit) _chartPaymentSplit.destroy();
+    if(!pmKeys.length){
+      // Empty state - chart na banavo
+      const ctx = pmCanvas.getContext('2d');
+      ctx.clearRect(0,0,pmCanvas.width,pmCanvas.height);
+    } else {
+      _chartPaymentSplit = new Chart(pmCanvas, {
+        type:'doughnut',
+        data:{
+          labels: pmKeys.map(k=>pmLabels[k]||k),
+          datasets:[{ data: pmKeys.map(k=>pmMap[k]), backgroundColor: pmKeys.map(k=>pmColors[k]||'#6b7280'), borderWidth:0 }]
+        },
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{ position:'bottom', labels:{ color:'#a0a0b0', boxWidth:12, font:{size:11} } } }
+        }
+      });
+    }
   }
 }
 
@@ -5398,6 +5685,7 @@ function renderSummaryReport(){
   const ps={};RI.forEach(inv=>(inv.items||[]).forEach(item=>{ps[item.name]=(ps[item.name]||0)+parseFloat(item.total||0);}));
   const tp=Object.entries(ps).sort((a,b)=>b[1]-a[1]).slice(0,5);
   document.getElementById('r-top-rev').innerHTML=tp.length?tp.map(([n,a],i)=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>${i+1}. ${n}</span><strong style="font-family:'DM Mono',monospace">₹${a.toFixed(0)}</strong></div>`).join(''):'<div class="empty"><div class="ei">📊</div><p>No data</p></div>';
+  renderTopProductsChart(tp);
 
   // Top by profit — use stored cost at bill time only
   const pp={};RI.forEach(inv=>(inv.items||[]).forEach(item=>{
@@ -5428,6 +5716,35 @@ function renderSummaryReport(){
       <td style="font-family:'DM Mono',monospace;color:var(--accent)">₹${d.profit.toFixed(2)}</td>
       <td><span class="badge ${parseFloat(m)>20?'badge-green':parseFloat(m)>10?'badge-yellow':'badge-red'}">${m}%</span></td>
     </tr>`;}).join(''):'<tr><td colspan="5" class="empty">No data</td></tr>';
+}
+
+let _chartTopProducts = null;
+function renderTopProductsChart(tp){
+  if(typeof Chart==='undefined') return;
+  const canvas = document.getElementById('chartTopProducts');
+  if(!canvas) return;
+  if(_chartTopProducts) _chartTopProducts.destroy();
+  if(!tp.length){
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    return;
+  }
+  _chartTopProducts = new Chart(canvas, {
+    type:'bar',
+    data:{
+      labels: tp.map(([n])=> n.length>22 ? n.slice(0,20)+'…' : n),
+      datasets:[{ data: tp.map(([,a])=>a), backgroundColor:'#6ee7b7', borderRadius:5 }]
+    },
+    options:{
+      indexAxis:'y',
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false} },
+      scales:{
+        x:{ ticks:{ color:'#6b7280', callback:v=>'₹'+v }, grid:{ color:'rgba(255,255,255,0.05)' } },
+        y:{ ticks:{ color:'#a0a0b0', font:{size:11} }, grid:{ display:false } }
+      }
+    }
+  });
 }
 
 function renderProductsReport(){
@@ -5800,7 +6117,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v12';
+const APP_VERSION = 'v15';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
