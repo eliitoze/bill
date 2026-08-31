@@ -1121,7 +1121,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
                 <div id="vbCustDrop" class="vb-cust-drop"></div>
                 <input type="hidden" id="vbCustId">
               </div>
-              <input type="tel" id="vbPhone" placeholder="Phone No." class="vb-input" maxlength="10" onkeydown="if(event.key==='Enter' && window.innerWidth<=768){event.preventDefault();this.blur();vbOpenItemPicker(null);}">
+              <input type="tel" id="vbPhone" placeholder="Phone No." class="vb-input" maxlength="10" onkeydown="if(event.key==='Enter' && window.innerWidth<=768){event.preventDefault();this.blur();vbTapAddItem();}">
               <input type="text" id="vbDob" class="vb-input" placeholder="🎂 DD/MM (Optional)" maxlength="5" inputmode="numeric" oninput="vbDobFormat(this)" style="color:var(--muted)">
               <textarea id="vbAddress" placeholder="Billing Address" class="vb-input vb-textarea" rows="2"></textarea>
             </div>
@@ -1177,7 +1177,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
         <!-- MOBILE ITEMS (card view, step-by-step) — only visible on mobile screens -->
         <div class="vb-mob-items" id="vbMobItems">
           <div class="vbm-wrap">
-            <button type="button" class="vbm-add-btn" onclick="vbOpenItemPicker()">➕ Item Umero</button>
+            <button type="button" class="vbm-add-btn" onclick="vbTapAddItem()">➕ Item Umero</button>
             <div id="vbmCards"></div>
           </div>
         </div>
@@ -1212,8 +1212,16 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
         </div>
 
         <!-- ACTION BUTTONS -->
-        <div class="vb-actions">
-          <button class="vb-btn-print" onclick="vbPrint()">🖨 Print <span style="font-size:10px">▼</span></button>
+        <div class="vb-actions" style="position:relative">
+          <div id="vbPrintMenu" class="overlay" style="position:absolute;bottom:100%;left:0;right:auto;top:auto;background:transparent;align-items:flex-end;justify-content:flex-start;padding:0;backdrop-filter:none">
+            <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;box-shadow:0 -8px 30px rgba(0,0,0,0.5);width:200px;margin-bottom:8px;overflow:hidden">
+              <button onclick="vbPrintMenuAction('print')" style="width:100%;text-align:left;padding:12px 14px;background:none;border:none;color:var(--text);font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)">🖨 Print</button>
+              <button onclick="vbPrintMenuAction('pdf')" style="width:100%;text-align:left;padding:12px 14px;background:none;border:none;color:var(--text);font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)">📄 PDF</button>
+              <button onclick="vbPrintMenuAction('wa')" style="width:100%;text-align:left;padding:12px 14px;background:none;border:none;color:#25D366;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)">💬 WhatsApp</button>
+              <button onclick="vbClosePrintMenu()" style="width:100%;text-align:left;padding:12px 14px;background:none;border:none;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px">✕ Close</button>
+            </div>
+          </div>
+          <button class="vb-btn-print" onclick="vbTogglePrintMenu()">🖨 Print <span style="font-size:10px">▼</span></button>
           <button class="vb-btn-save" id="vbSaveBtn" onclick="vbSave()">💾 Save</button>
         </div>
 
@@ -2905,8 +2913,48 @@ function showPage(page, el){
   }
 }
 
+// ===== MOBILE: back button e ek step j PACHHA jay (overlay khulu hoy to
+// e band kare, app/page thi bahar na jay) =====
+let _mobOverlayOpen = false;
+function _mobIsOverlayVisible(){
+  if(document.querySelector('.overlay.open')) return true;
+  const bd = document.getElementById('billDetailModal'); if(bd && bd.style.display==='flex') return true;
+  const ad = document.getElementById('advDetailModal');  if(ad && ad.style.display==='flex') return true;
+  const ip = document.getElementById('vbItemPickerOverlay'); if(ip && ip.classList.contains('open')) return true;
+  const pm = document.getElementById('vbPrintMenu'); if(pm && pm.classList.contains('open')) return true;
+  return false;
+}
+function _mobCloseAnyOverlay(){
+  document.querySelectorAll('.overlay.open').forEach(o=>o.classList.remove('open'));
+  const bd = document.getElementById('billDetailModal'); if(bd) bd.style.display='none';
+  const ad = document.getElementById('advDetailModal');  if(ad) ad.style.display='none';
+  const ip = document.getElementById('vbItemPickerOverlay'); if(ip) ip.classList.remove('open');
+  const pm = document.getElementById('vbPrintMenu'); if(pm) pm.classList.remove('open');
+}
+if(window.innerWidth <= 768){
+  // Koi pan overlay/modal/dropdown khule (kaya-thi pan) - AAPOAAP pakdi
+  // ne history ma ek step umervo, jethi back button ne kaik "band karva"
+  // mate male - nahi to back seedhu app/page thi bahar j jay.
+  const _mobOv = new MutationObserver(()=>{
+    const nowOpen = _mobIsOverlayVisible();
+    if(nowOpen && !_mobOverlayOpen){
+      _mobOverlayOpen = true;
+      history.pushState({mobOverlay:true}, '', '');
+    } else if(!nowOpen){
+      _mobOverlayOpen = false;
+    }
+  });
+  _mobOv.observe(document.body, {attributes:true, attributeFilter:['class','style'], subtree:true});
+}
+
 // Back button intercept
 window.addEventListener('popstate', function(e){
+  // Overlay khulu hoy to FAKT e band karo - page navigate na karo
+  if(_mobOverlayOpen || _mobIsOverlayVisible()){
+    _mobCloseAnyOverlay();
+    _mobOverlayOpen = false;
+    return;
+  }
   const page = e.state?.page || 'dashboard';
   const navEl = document.querySelector('.nav-item.nav-'+page);
   showPage(page, navEl);
@@ -3541,19 +3589,14 @@ function getBillData(invData){
     custPhone = c ? c.phone : (invData.phone||'');
     mobile = custPhone;
   } else {
-    if(!S.billItems.length){ toast('Add items first!','error'); return null; }
-    items = S.billItems; t = getTotals();
-    const mode = S.custMode||'existing';
-    let cust = null;
-    if(mode==='existing'){ const cid=document.getElementById('billCust').value; if(cid) cust=S.customers.find(c=>c.id===parseInt(cid)); }
-    else if(mode==='new'&&S.quickCust) cust=S.quickCust;
-    customer = cust ? cust.name : 'Walk-in';
-    custPhone = cust ? cust.phone : '';
-    mobile = custPhone;
-    billNum = parseInt(S.settings.bill_counter)||1;
-    dateStr = new Date().toLocaleDateString('en-IN');
-    payment = getActivePayMode();
-    note = document.getElementById('billNote').value||'';
+    // Juna S.billItems/billCust fields have vaparata nathi - resolveBillData()
+    // j actual (VB) billing data aape chhe, etle e j vaparo.
+    const bd = resolveBillData(null);
+    if(!bd){ toast('Add items first!','error'); return null; }
+    items = bd.items; t = bd.t;
+    customer = bd.customer; custPhone = bd.custPhone; mobile = custPhone;
+    billNum = bd.billNum; dateStr = bd.dateStr;
+    payment = bd.payment; note = bd.note;
   }
   const billTime = invData ? (invData.bill_time||'') : new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
   return {items, t, customer, custPhone, mobile, billNum, dateStr, payment, note, billTime};
@@ -3682,7 +3725,15 @@ function thermalPrint(invData){
   const s = S.settings;
   let items, t, customer, custPhone, billNum, dateStr, billTime, payment, note;
 
-  if(invData){
+  // Juno (na-vaparato) code-path have wala billing system na na-hoy tevа
+  // elements vapre chhe - etle tya jaya vagar j saaf message aapo,
+  // nahi to chup chaap JS error aave ane kai j na thay.
+  if(!invData){
+    toast('Print mate bill data nathi malyu','error');
+    return;
+  }
+
+  {
     items = invData.items || [];
     t = {
       sub: invData.subtotal,
@@ -3702,23 +3753,6 @@ function thermalPrint(invData){
     note = invData.note;
     const c = invData.customer_id ? S.customers.find(x=>x.id===invData.customer_id||String(x.id)===String(invData.customer_id)) : null;
     custPhone = c ? c.phone : (invData.phone || '');
-  } else {
-    if(!S.billItems.length){ toast('Add items first!','error'); return; }
-    items = S.billItems;
-    t = getTotals();
-    const mode = S.custMode || 'existing';
-    let cust = null;
-    if(mode==='existing'){
-      const cid = document.getElementById('billCust').value;
-      if(cid) cust = S.customers.find(c=>c.id===parseInt(cid));
-    } else if(mode==='new' && S.quickCust) cust = S.quickCust;
-    customer = cust ? cust.name : 'Walk-in';
-    custPhone = cust ? cust.phone : '';
-    billNum = parseInt(S.settings.bill_counter) || 1;
-    dateStr = new Date().toLocaleDateString('en-IN');
-    billTime = new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
-    payment = getActivePayMode();
-    note = document.getElementById('billNote').value;
   }
 
   const billStr = (typeof billNum === 'string' && billNum.startsWith('AD')) ? billNum : String(billNum).padStart(4,'0');
@@ -3984,28 +4018,29 @@ function resolveBillData(invoiceId){
       payment: inv.payment_mode, note: inv.note||''
     };
   } else {
-    if(!S.billItems.length) return null;
-    const t = getTotals();
-    const mode = S.custMode||'existing';
-    let cust = null;
-    let custName = 'Walk-in', custPhone = '';
-    if(mode==='existing'){
-      const cid=document.getElementById('billCust').value;
-      if(cid){ cust=S.customers.find(c=>c.id===parseInt(cid)); }
-      if(cust){ custName=cust.name; custPhone=cust.phone||''; }
-    } else if(mode==='new' && S.quickCust){
-      cust=S.quickCust; custName=cust.name; custPhone=cust.phone||'';
-    } else if(mode==='walkin'){
-      const wn=(document.getElementById('walkinName')||{value:''}).value.trim();
-      const wp=(document.getElementById('walkinPhone')||{value:''}).value.trim();
-      custName = wn||'Walk-in'; custPhone = wp||'';
-    }
+    // VB (Vyapar Billing) j actual system chhe have - S.billItems/billCust
+    // juna (vaparaya vagarna) fields hata, have vala bill ma khaali hoy chhe.
+    const validRows = (VB.rows||[]).filter(r=>r.itemName && parseFloat(r.price)>0);
+    if(!validRows.length) return null;
+    const items = validRows.map(r=>({
+      pid:r.pid, name:r.itemName, qty:parseFloat(r.qty)||1,
+      price:parseFloat(r.price)||0, cost:r.cost||0,
+      total:r.amount||0, unit:r.unit
+    }));
+    const subtotal = validRows.reduce((s,r)=>s+(r.amount||0),0);
+    const discPct = parseFloat(document.getElementById('vbDiscPct')?.value)||0;
+    const discAmt = subtotal * discPct / 100;
+    const afterDisc = subtotal - discAmt;
+    const roundOff = document.getElementById('vbRoundOff')?.checked;
+    const grand = roundOff ? Math.round(afterDisc) : afterDisc;
+    const custName = document.getElementById('vbCustName')?.value.trim() || 'Walk-in';
+    const custPhone = document.getElementById('vbPhone')?.value.trim() || '';
     return {
-      items: S.billItems, t,
+      items, t: {sub:subtotal, disc:discPct, discAmt, gst:0, grand, gstRate:0},
       customer: custName, custPhone,
       billNum: parseInt(S.settings.bill_counter)||1,
       dateStr: new Date().toLocaleDateString('en-IN'),
-      payment: getActivePayMode(), note: document.getElementById('billNote').value||''
+      payment: vbGetPayMode(), note: document.getElementById('vbNote')?.value||''
     };
   }
 }
@@ -6138,7 +6173,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v16';
+const APP_VERSION = 'v18';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
@@ -6368,7 +6403,7 @@ function vbRenderMobile(){
         </select>
         <div class="vbm-price-box">
           <span>₹</span>
-          <input type="number" id="vbm-price-${r.id}" value="${r.price}" placeholder="Price" inputmode="decimal" oninput="vbRowChange(${r.id},'price',this.value);vbCalcRow(${r.id})" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();vbOpenItemPicker(null);}">
+          <input type="number" id="vbm-price-${r.id}" value="${r.price}" placeholder="Price" inputmode="decimal" oninput="vbRowChange(${r.id},'price',this.value);vbCalcRow(${r.id})" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();vbTapAddItem();}">
         </div>
       </div>
       <div class="vbm-card-amt">Amount:<b id="vbm-amt-${r.id}">₹${r.amount>0?r.amount.toFixed(0):'0'}</b></div>
@@ -6389,6 +6424,22 @@ function vbMobQtyStep(id, delta){
 // Item picker (bottom sheet) — used for both adding a new item and editing an existing card's item
 let vbPickerRowId = null;
 let vbPickerCat = 'ALL';
+// "+ Item Umero" dabavo tyare - jo chhelli row PEHLA THI J khaali hoy
+// (item pasand nathi karyu), to e j row vaparo - NAVI row na banavo.
+// (Aa na karvathi khaali row #1 hammesha khaali rahi jati hati, ane
+// navo item #2 ma jato hato - user ne confuse karto bug hato.)
+function vbTapAddItem(){
+  const last = VB.rows[VB.rows.length-1];
+  let rowId;
+  if(last && !last.itemName){
+    rowId = last.id;
+  } else {
+    vbAddRow();
+    rowId = VB.rows[VB.rows.length-1].id;
+  }
+  vbOpenItemPicker(rowId);
+}
+
 function vbOpenItemPicker(rowId){
   vbPickerRowId = rowId || null;
   const overlay = document.getElementById('vbItemPickerOverlay');
@@ -7108,6 +7159,25 @@ function _fallbackWAText(d, phone){
   sendToWA(phone, msg);
 }
 
+function vbTogglePrintMenu(){
+  const m = document.getElementById('vbPrintMenu');
+  if(!m) return;
+  m.classList.toggle('open');
+}
+function vbClosePrintMenu(){
+  const m = document.getElementById('vbPrintMenu');
+  if(!m) return;
+  m.classList.remove('open');
+}
+function vbPrintMenuAction(type){
+  vbClosePrintMenu();
+  setTimeout(()=>{
+    if(type==='print') vbPrint();
+    else if(type==='pdf') exportBillPDF(null);   // null = have wala (unsaved) bill
+    else if(type==='wa') shareImageWA(null);
+  }, 150);   // menu band thava do, pachi j action karo
+}
+
 function vbPrint(){
   const validRows = VB.rows.filter(r=>r.itemName && parseFloat(r.price)>0);
   if(!validRows.length){ toast('Ek pan item add karo!','error'); return; }
@@ -7239,7 +7309,7 @@ function viewAdvanceDetail(id){
     <div style="display:flex;gap:8px">
       ${isPending ? `<button onclick="document.getElementById('advDetailModal').style.display='none';openReceivePay('${a.id}')" style="flex:1;padding:10px;background:var(--accent);border:none;border-radius:8px;color:#000;font-weight:700;font-size:13px;cursor:pointer">💳 Receive Payment</button>` : ''}
       <button onclick="advSendWA('${a.id}')" style="padding:10px 14px;background:#25D366;border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer">💬</button>
-      <button onclick="thermalPrint(S.advanceBills.find(x=>x.id==='${a.id}'))" style="padding:10px 14px;background:var(--s3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;cursor:pointer">🖨</button>
+      <button onclick="thermalPrint(S.advanceBills.find(x=>String(x.id)===String('${a.id}')))" style="padding:10px 14px;background:var(--s3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;cursor:pointer">🖨</button>
     </div>`;
   document.getElementById('advDetailModal').style.display='flex';
 }
@@ -7268,7 +7338,7 @@ function renderAdvanceBills(){
         <div style="display:flex;gap:8px" onclick="event.stopPropagation()">
           ${isPending ? `<button onclick="openReceivePay('${a.id}')" style="flex:1;padding:9px;background:var(--accent);border:none;border-radius:8px;color:#000;font-weight:700;font-size:13px;cursor:pointer">💳 Receive Payment</button>` : ''}
           <button onclick="advSendWA('${a.id}')" style="padding:9px 14px;background:#25D366;border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer">💬</button>
-          <button onclick="thermalPrint(S.advanceBills.find(x=>x.id==='${a.id}'))" style="padding:9px 14px;background:var(--s3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;cursor:pointer">🖨</button>
+          <button onclick="thermalPrint(S.advanceBills.find(x=>String(x.id)===String('${a.id}')))" style="padding:9px 14px;background:var(--s3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;cursor:pointer">🖨</button>
         </div>
       </div>`;
 
