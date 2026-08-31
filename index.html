@@ -499,6 +499,9 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
 .toast.success { border-color: var(--accent); color: var(--accent); }
 .toast.error { border-color: var(--red); color: var(--red); }
+@media (max-width: 768px) {
+  .toast { bottom: calc(72px + env(safe-area-inset-bottom,0px)); white-space: normal; text-align: center; }
+}
 
 /* PROFIT PREVIEW */
 .profit-preview { background: rgba(110,231,183,0.07); border: 1px solid rgba(110,231,183,0.2); border-radius: 8px; padding: 10px 14px; margin-top: 10px; font-size: 13px; color: var(--accent); display: none; }
@@ -917,11 +920,18 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
   }
   .vb-actions button { flex: 1; padding: 13px; font-size: 14px; }
   /* Billing page scrolls via .content - no override needed */
+
+  /* PRODUCTS LIST VIEW - mobile: stack instead of side-by-side columns */
+  #prodListView { flex-direction: column; height: auto; }
+  #prodListPanel { width: 100%; max-height: 55vh; }
+  #itemDetailPanel { min-height: 300px; }
+  /* JS toggles .mob-show-detail on #prodListView once an item is selected */
+  #prodListView.mob-show-detail #prodListPanel { display: none; }
+  #prodListView:not(.mob-show-detail) #itemDetailPanel { display: none; }
+  .prod-detail-back { display: inline-block !important; }
 }
 
 /* Billing page takes full content area */
-#page-billing { height: 100%; display: none; flex-direction: column; }
-#page-billing.active { display: flex; }
 
 </style>
 </head>
@@ -1111,7 +1121,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
                 <div id="vbCustDrop" class="vb-cust-drop"></div>
                 <input type="hidden" id="vbCustId">
               </div>
-              <input type="tel" id="vbPhone" placeholder="Phone No." class="vb-input" maxlength="10">
+              <input type="tel" id="vbPhone" placeholder="Phone No." class="vb-input" maxlength="10" onkeydown="if(event.key==='Enter' && window.innerWidth<=768){event.preventDefault();this.blur();vbOpenItemPicker(null);}">
               <input type="text" id="vbDob" class="vb-input" placeholder="🎂 DD/MM (Optional)" maxlength="5" inputmode="numeric" oninput="vbDobFormat(this)" style="color:var(--muted)">
               <textarea id="vbAddress" placeholder="Billing Address" class="vb-input vb-textarea" rows="2"></textarea>
             </div>
@@ -1278,14 +1288,14 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 
       <!-- LIST VIEW: item list (left) + item-wise bill history (right) -->
       <div id="prodListView" style="display:flex;gap:14px;height:calc(100vh - 190px);min-height:400px">
-        <div style="width:270px;flex-shrink:0;background:var(--s1);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;overflow:hidden">
+        <div id="prodListPanel" style="width:270px;flex-shrink:0;background:var(--s1);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;overflow:hidden">
           <div style="padding:10px;border-bottom:1px solid var(--border)">
             <input type="text" id="itemListSearch" placeholder="🔍 Item search..." oninput="renderItemList()"
               style="width:100%;padding:8px 11px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;box-sizing:border-box">
           </div>
           <div id="itemListBody" style="flex:1;overflow-y:auto"></div>
         </div>
-        <div style="flex:1;background:var(--s1);border:1px solid var(--border);border-radius:12px;overflow-y:auto;padding:16px" id="itemDetailPanel">
+        <div id="itemDetailPanel" style="flex:1;background:var(--s1);border:1px solid var(--border);border-radius:12px;overflow-y:auto;padding:16px">
           <div style="text-align:center;color:var(--muted);padding:60px 20px;font-size:13px">
             👈 Item par click karo — teni bills ni list ahi dekhashe<br>
             <span style="font-size:11px">(Double-click = item edit karo)</span>
@@ -4509,6 +4519,14 @@ function selectProdItem(id){
   _selectedItemId = id;
   renderItemList();          // highlight update
   renderItemBillHistory(id);
+  // Mobile: list-detail vachche switch karo (side-by-side jagya nathi)
+  const lv = document.getElementById('prodListView');
+  if(lv) lv.classList.add('mob-show-detail');
+}
+
+function closeItemDetailMobile(){
+  const lv = document.getElementById('prodListView');
+  if(lv) lv.classList.remove('mob-show-detail');
 }
 
 function renderItemBillHistory(id){
@@ -4549,7 +4567,10 @@ function renderItemBillHistory(id){
 
     panel.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <div style="font-size:16px;font-weight:700">${p.name}</div>
+        <div style="display:flex;align-items:center;gap:8px;min-width:0">
+          <button onclick="closeItemDetailMobile()" class="prod-detail-back" style="display:none;background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);cursor:pointer;flex-shrink:0">←</button>
+          <div style="font-size:16px;font-weight:700">${p.name}</div>
+        </div>
         <button class="btn btn-ghost btn-sm" onclick="editProd(${p.id})">✏️ Edit Item</button>
       </div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:14px">${p.category||'General'} · SKU: ${p.sku||'—'}</div>
@@ -6117,7 +6138,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v15';
+const APP_VERSION = 'v16';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
@@ -6335,7 +6356,7 @@ function vbRenderMobile(){
       <div class="vbm-card-row">
         <div class="vbm-stepper">
           <button type="button" onclick="vbMobQtyStep(${r.id},-1)">−</button>
-          <input type="number" id="vbm-qty-${r.id}" value="${r.qty}" inputmode="decimal" oninput="vbRowChange(${r.id},'qty',this.value);vbCalcRow(${r.id})">
+          <input type="number" id="vbm-qty-${r.id}" value="${r.qty}" inputmode="decimal" oninput="vbRowChange(${r.id},'qty',this.value);vbCalcRow(${r.id})" onkeydown="if(event.key==='Enter'){event.preventDefault();const pe=document.getElementById('vbm-price-${r.id}');if(pe){pe.focus();pe.select();}}">
           <button type="button" onclick="vbMobQtyStep(${r.id},1)">+</button>
         </div>
         <select class="vbm-unit-sel" id="vbm-unit-${r.id}" onchange="vbRowChange(${r.id},'unit',this.value)">
@@ -6347,7 +6368,7 @@ function vbRenderMobile(){
         </select>
         <div class="vbm-price-box">
           <span>₹</span>
-          <input type="number" id="vbm-price-${r.id}" value="${r.price}" placeholder="Price" inputmode="decimal" oninput="vbRowChange(${r.id},'price',this.value);vbCalcRow(${r.id})">
+          <input type="number" id="vbm-price-${r.id}" value="${r.price}" placeholder="Price" inputmode="decimal" oninput="vbRowChange(${r.id},'price',this.value);vbCalcRow(${r.id})" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();vbOpenItemPicker(null);}">
         </div>
       </div>
       <div class="vbm-card-amt">Amount:<b id="vbm-amt-${r.id}">₹${r.amount>0?r.amount.toFixed(0):'0'}</b></div>
@@ -6749,7 +6770,6 @@ function vbClear(){
   document.getElementById('vbRowTotal').textContent='0';
 
   vbUpdateInvInfo();
-  vbAddRow();
   vbAddRow();
 }
 
