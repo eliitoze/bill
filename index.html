@@ -553,6 +553,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   }
   .topbar { padding: 10px 14px; }
   .mobile-bottom-nav { display: flex; }
+  .content { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; }
 }
 
 /* IMPORT */
@@ -913,9 +914,9 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
   .vb-bottom { grid-template-columns: 1fr; }
   .vb-bottom-left { border-right: none; border-bottom: 1px solid var(--border); }
   .vb-actions {
-    position: sticky; bottom: 0; z-index: 20;
+    position: sticky; bottom: calc(60px + env(safe-area-inset-bottom,0px)); z-index: 20;
     margin: 8px -14px -20px -14px;
-    padding: 10px 14px calc(10px + env(safe-area-inset-bottom,0px)) 14px;
+    padding: 10px 14px 10px 14px;
     box-shadow: 0 -6px 20px rgba(0,0,0,0.35);
   }
   .vb-actions button { flex: 1; padding: 13px; font-size: 14px; }
@@ -5212,16 +5213,52 @@ function renderInvs(){
       <td style="cursor:pointer" onclick="openBillDetail(${inv.id})">${inv.customer_name}</td>
       <td style="cursor:pointer" onclick="openBillDetail(${inv.id})"><span class="badge badge-yellow">${pm[inv.payment_mode]||inv.payment_mode}</span></td>
       <td style="font-family:'DM Mono',monospace;cursor:pointer" onclick="openBillDetail(${inv.id})"><strong>₹${parseFloat(inv.total).toFixed(2)}</strong></td>
-      <td style="display:flex;gap:5px;flex-wrap:wrap">
-        <button class="btn btn-print btn-sm" onclick="thermalPrint(S.invoices.find(x=>x.id==${inv.id}))">🖨</button>
-        <button class="btn btn-wa btn-sm" onclick="shareImageWA(${inv.id})" title="WhatsApp Share">💬</button>
-        <button class="btn btn-blue btn-sm" onclick="openFullInvoice(${inv.id})" title="Open Full Invoice">🔗</button>
-        <button class="btn btn-sm" onclick="toggleExcludeRegister(${inv.id})" title="${inv.exclude_from_register?'Register ma include karo':'Register thi exclude karo'}" style="background:${inv.exclude_from_register?'rgba(110,231,183,0.15)':'rgba(239,68,68,0.12)'};color:${inv.exclude_from_register?'var(--accent)':'#f87171'}">
-          ${inv.exclude_from_register?'✅':'🚫'}
-        </button>
-        <button class="btn btn-red btn-sm" onclick="deleteInvoice(${inv.id})" title="Delete">🗑</button>
+      <td style="text-align:center">
+        <button class="btn btn-ghost btn-sm" onclick="toggleInvActionMenu(event, ${inv.id})" style="padding:6px 12px;font-size:16px">⋮</button>
       </td>
     </tr>`).join('');
+}
+
+// ===== BILL HISTORY: per-row action dropdown (kebab menu) =====
+// 5 button ek row ma hata te wrap thai ne row ni height moti kari deta hata -
+// have ek j "⋮" button, tap karo etle badha options dropdown ma khule.
+function toggleInvActionMenu(event, invId){
+  event.stopPropagation();
+  let menu = document.getElementById('invActionMenu');
+  if(!menu){
+    menu = document.createElement('div');
+    menu.id = 'invActionMenu';
+    menu.className = 'overlay';
+    menu.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.3);align-items:flex-start;justify-content:flex-start;padding:0;z-index:210';
+    menu.onclick = (e)=>{ if(e.target===menu) closeInvActionMenu(); };
+    document.body.appendChild(menu);
+  }
+  const inv = S.invoices.find(x=>x.id===invId);
+  if(!inv) return;
+  menu.innerHTML = `<div style="position:absolute;background:var(--s1);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.5);width:210px;overflow:hidden" id="invActionMenuBox">
+    <button onclick="closeInvActionMenu();thermalPrint(S.invoices.find(x=>x.id===${invId}))" style="width:100%;text-align:left;padding:12px 14px;background:none;border:none;color:var(--text);font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--border)">🖨 Print</button>
+    <button onclick="closeInvActionMenu();shareImageWA(${invId})" style="width:100%;text-align:left;padding:12px 14px;background:none;border:none;color:#25D366;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--border)">💬 WhatsApp Share</button>
+    <button onclick="closeInvActionMenu();openFullInvoice(${invId})" style="width:100%;text-align:left;padding:12px 14px;background:none;border:none;color:var(--blue);font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--border)">🔗 Open Full Invoice</button>
+    <button onclick="closeInvActionMenu();toggleExcludeRegister(${invId})" style="width:100%;text-align:left;padding:12px 14px;background:none;border:none;color:${inv.exclude_from_register?'var(--accent)':'#f87171'};font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--border)">${inv.exclude_from_register?'✅ Register ma Include karo':'🚫 Register thi Exclude karo'}</button>
+    <button onclick="closeInvActionMenu();deleteInvoice(${invId})" style="width:100%;text-align:left;padding:12px 14px;background:none;border:none;color:var(--red);font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:9px">🗑 Delete</button>
+  </div>`;
+  menu.classList.add('open');
+  // Button ni najik j dropdown mukho (screen bahar na jay tenu dhyan rakhi ne)
+  const btn = event.currentTarget;
+  const rect = btn.getBoundingClientRect();
+  const box = document.getElementById('invActionMenuBox');
+  const boxW = 210;
+  let left = rect.right - boxW;
+  if(left < 8) left = 8;
+  if(left + boxW > window.innerWidth - 8) left = window.innerWidth - boxW - 8;
+  let top = rect.bottom + 4;
+  if(top + 260 > window.innerHeight) top = Math.max(8, rect.top - 264);
+  box.style.left = left+'px';
+  box.style.top = top+'px';
+}
+function closeInvActionMenu(){
+  const menu = document.getElementById('invActionMenu');
+  if(menu) menu.classList.remove('open');
 }
 
 function openBillDetail(id){
@@ -6173,7 +6210,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v18';
+const APP_VERSION = 'v20';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
