@@ -915,7 +915,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
   .vb-bottom-left { border-right: none; border-bottom: 1px solid var(--border); }
   .vb-actions {
     position: sticky; bottom: calc(60px + env(safe-area-inset-bottom,0px)); z-index: 20;
-    margin: 8px -14px -20px -14px;
+    margin: 8px -14px calc(-76px - env(safe-area-inset-bottom,0px)) -14px;
     padding: 10px 14px 10px 14px;
     box-shadow: 0 -6px 20px rgba(0,0,0,0.35);
   }
@@ -6210,7 +6210,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v20';
+const APP_VERSION = 'v21';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
