@@ -2083,7 +2083,7 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 
 // ===== WORKER API — JWT authenticated =====
 // Login ne baad badha calls Worker through JWT sathe jaay chhe
-const api = async (endpoint, method='GET', body=null, extraHeaders={}) => {
+const api = async (endpoint, method='GET', body=null, extraHeaders={}, signal=null) => {
   // Worker URL available hoy to Worker through call karo
   if(WORKER_URL && _workerToken){
     const base = WORKER_URL.replace(/\/$/, '');
@@ -2098,6 +2098,7 @@ const api = async (endpoint, method='GET', body=null, extraHeaders={}) => {
         ...extraHeaders
       }
     };
+    if(signal) opts.signal = signal;
     if(body) opts.body = JSON.stringify(body);
     try {
       const res = await fetch(url, opts);
@@ -2149,6 +2150,7 @@ const api = async (endpoint, method='GET', body=null, extraHeaders={}) => {
     },
     mode: 'cors'
   };
+  if(signal) opts.signal = signal;
   if(body) opts.body = JSON.stringify(body);
   try {
     const res = await fetch(`${SUPA_URL}/rest/v1/${endpoint}`, opts);
@@ -6028,7 +6030,14 @@ async function ensureReportData(force){
   if(el){ el.style.display='block'; el.textContent='⏳ Juna bills load thai rahya chhe...'; }
   try{
     const bid = S.activeBranchId || 1;
-    const all = await api('invoices?order=created_at.desc&branch_id=eq.'+bid+'&limit=10000');
+    // Dhimu internet hoy to pan aa call kayamna atki na rahe - 12 second ma
+    // fail thai jay (2.5 MB jetlu data hoy chhe, etle thodo vadhare time aapyo chhe).
+    // Nahi to History/Reports/Products/Customers page "load thai rahyu chhe" j
+    // dekhadta rahe jo net dhimu/kharab hoy to.
+    const ctrl = new AbortController();
+    const timeoutId = setTimeout(()=>ctrl.abort(), 12000);
+    const all = await api('invoices?order=created_at.desc&branch_id=eq.'+bid+'&limit=10000', 'GET', null, {}, ctrl.signal);
+    clearTimeout(timeoutId);
     if(Array.isArray(all) && all.length){
       S.reportInvoices = all;
       if(el){ el.style.display='none'; }
@@ -6036,8 +6045,8 @@ async function ensureReportData(force){
       if(el){ el.style.display='none'; }
     }
   } catch(e){
-    // Offline/error - je 200 chhe te thi j kaam chalavo
-    if(el){ el.textContent='⚠️ Juna bills load na thaya - fakt recent bills dekhay chhe.'; }
+    // Offline/dhimu net/timeout - je 200 chhe te thi j kaam chalavo
+    if(el){ el.textContent='⚠️ Juna bills load na thaya (net dhimu chhe?) - fakt recent bills dekhay chhe.'; }
   }
   _rptLoading = false;
 }
@@ -6301,7 +6310,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v21';
+const APP_VERSION = 'v22';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
