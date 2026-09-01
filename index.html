@@ -592,7 +592,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   .mob-bill { display: none; }
   #page-billing { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
   /* When billing active, content div should not add extra padding */
-  #page-billing.active ~ * { display: none; }
+  #page-billing.active ~ *:not(.overlay) { display: none; }
   .content:has(#page-billing.active) { padding: 0 !important; overflow: hidden; }
 }
 @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
@@ -6310,7 +6310,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v22';
+const APP_VERSION = 'v23';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
