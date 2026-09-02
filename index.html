@@ -2332,6 +2332,8 @@ function switchActiveBranch(id, name){
   const overlay = document.getElementById('loadingOverlay');
   if(overlay) overlay.style.display='flex';
   toast('🔄 "'+name+'" branch — data load thay chhe...','success');
+  // Reports cache invalidate — juni branch nu cached data navi branch ma na dekhay
+  S.reportInvoices = null;
   loadAll().then(()=>{
     renderAll();
     if(overlay) overlay.style.display='none';
@@ -6310,7 +6312,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v23';
+const APP_VERSION = 'v25';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
@@ -6439,10 +6441,11 @@ function vbGetPayMode(){
   return document.getElementById('vbPaySelect').value;
 }
 
-function vbAddRow(){
+function vbAddRow(focus=true){
   const id = Date.now() + Math.random();
   VB.rows.push({id, category:'ALL', itemName:'', pid:null, mrp:'', qty:'1', unit:'NONE', price:'', amount:0});
   vbRender();
+  if(!focus) return;
   // Focus last item cell
   setTimeout(()=>{
     const inputs = document.querySelectorAll('.vb-item-input');
@@ -6958,7 +6961,7 @@ function vbClear(){
   document.getElementById('vbRowTotal').textContent='0';
 
   vbUpdateInvInfo();
-  vbAddRow();
+  vbAddRow(false);
 }
 
 async function vbSave(){
