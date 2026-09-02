@@ -590,7 +590,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 @media (min-width: 769px) {
   .desk-bill { display: flex; }
   .mob-bill { display: none; }
-  #page-billing { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+  #page-billing.active { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
   /* When billing active, content div should not add extra padding */
   #page-billing.active ~ *:not(.overlay) { display: none; }
   .content:has(#page-billing.active) { padding: 0 !important; overflow: hidden; }
@@ -6312,7 +6312,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v25';
+const APP_VERSION = 'v27';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
@@ -6394,7 +6394,7 @@ let VB = {
 
 function vbInit(){
   vbUpdateInvInfo();
-  vbAddRow();
+  vbAddRow(false);
   // Update time every minute
   setInterval(vbUpdateTime, 60000);
 }
