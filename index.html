@@ -13,6 +13,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&family=Noto+Sans+Gujarati:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <style>
@@ -2081,6 +2082,37 @@ let _workerToken = sessionStorage.getItem('sb_token') || null;
 const SUPA_URL = 'https://jfsozatpvnnwrykdunni.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impmc296YXRwdm5ud3J5a2R1bm5pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2Mzk5NTksImV4cCI6MjA4ODIxNTk1OX0.axksIYJB3xyGULIo4y_Qmhfti0lwVsp65b9O5gssUxU';
 
+// ===== SUPABASE REALTIME — bills biji device par banta j live sync mate =====
+const _supaClient = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+let _invoiceRealtimeChannel = null;
+
+function subscribeInvoiceRealtime(){
+  if(_invoiceRealtimeChannel){
+    _supaClient.removeChannel(_invoiceRealtimeChannel);
+    _invoiceRealtimeChannel = null;
+  }
+  const bid = S.activeBranchId || 1;
+  _invoiceRealtimeChannel = _supaClient
+    .channel('invoices-branch-'+bid)
+    .on('postgres_changes', { event:'*', schema:'public', table:'invoices', filter:'branch_id=eq.'+bid }, (payload)=>{
+      if(payload.eventType === 'INSERT'){
+        if(!S.invoices.some(i=>i.id===payload.new.id)){
+          S.invoices.unshift(payload.new);
+          S.invoices = S.invoices.slice(0,200);
+          toast('🔄 Navu Bill #'+(payload.new.bill_number||'')+' sync thayu','success');
+        }
+      } else if(payload.eventType === 'UPDATE'){
+        const idx = S.invoices.findIndex(i=>i.id===payload.new.id);
+        if(idx>-1) S.invoices[idx] = payload.new;
+      } else if(payload.eventType === 'DELETE'){
+        S.invoices = S.invoices.filter(i=>i.id!==payload.old.id);
+      }
+      saveOffline();
+      renderAll();
+    })
+    .subscribe();
+}
+
 // ===== WORKER API — JWT authenticated =====
 // Login ne baad badha calls Worker through JWT sathe jaay chhe
 const api = async (endpoint, method='GET', body=null, extraHeaders={}, signal=null) => {
@@ -2336,6 +2368,7 @@ function switchActiveBranch(id, name){
   S.reportInvoices = null;
   loadAll().then(()=>{
     renderAll();
+    subscribeInvoiceRealtime();
     if(overlay) overlay.style.display='none';
     // Toggle reload after data
     if(card && S.branches.length > 1) card.style.display = 'block';
@@ -2725,6 +2758,7 @@ async function init(){
     // Ensure master user exists on Supabase (background)
     ensureMasterUser().catch(e=>console.warn('ensureMasterUser bg error:',e));
     setSyncStatus('online');
+    subscribeInvoiceRealtime();
     vbInit();
     document.getElementById('loadingOverlay').style.display='none';
     applySettings();
@@ -6312,7 +6346,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v27';
+const APP_VERSION = 'v28';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
