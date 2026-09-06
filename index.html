@@ -2958,6 +2958,7 @@ function showPage(page, el){
   document.getElementById('pageTitle').textContent = t[page]||page;
   if(page==='reports') updateReports();
   if(page==='invoices'){ ensureReportData().then(()=>renderInvs()); }
+  if(page==='dashboard'){ refreshDashInvoices().then(updateDash); }
   if(page==='products'){ ensureReportData(); if(_prodViewMode==='list') renderItemList(); else renderProds(); }
   if(page==='customers'){ ensureReportData(); }
   if(page==='billing'){ vbSyncOnOpen(); }
@@ -5488,6 +5489,35 @@ function toggleDashPrivacy(){
     btn.style.color = 'var(--muted)';
   }
   updateDash();
+}
+
+// Dashboard S.invoices ne login vakhate EK j vaar (limit 200) load kare chhe,
+// pachi fakt AA device par thayela save/edit/delete thi j update thay chhe.
+// Bija device (mobile/laptop) par thayeli bill entry aa list ma nathi aavti,
+// jyare Bill History khulta j (ensureReportData) SERVER thi FRESH+FULL list
+// mangavay chhe — banne alag alag samay e alag source thi aavta hova thi
+// Dashboard no total History/Reports na total kartaa juda dekhay chhe.
+// Aa function Dashboard kholta j taja invoices server thi fari mangave chhe.
+async function refreshDashInvoices(){
+  try{
+    const bid = S.activeBranchId || 1;
+    const ctrl = new AbortController();
+    const timeoutId = setTimeout(()=>ctrl.abort(), 6000);
+    const fresh = await api('invoices?order=created_at.desc&branch_id=eq.'+bid+'&limit=200', 'GET', null, {}, ctrl.signal);
+    clearTimeout(timeoutId);
+    if(Array.isArray(fresh)){
+      S.invoices = fresh;
+      if(S.reportInvoices){
+        // Jo Reports/History pehla thi loaded hoy, tene pan taju rakho -
+        // nahi to History no total have pan juno j dekhaay.
+        ensureReportData(true).then(()=>{ if(document.getElementById('page-invoices')?.classList.contains('active')) renderInvs(); }).catch(()=>{});
+      }
+      saveOffline();
+    }
+  } catch(e){
+    // Offline/dhimu net — jem chhe tem cached S.invoices thi j Dashboard bataavo
+    console.warn('Dashboard refresh failed (offline?):', e.message);
+  }
 }
 
 function updateDash(){
