@@ -5703,16 +5703,24 @@ function renderDailyReport(){
   }
 
   // Items sold — profit based on cost stored AT BILL TIME only
+  // Key = normalized (trim+lowercase) to prevent duplicates like "Gold Ring" vs "gold ring"
   const itemMap = {};
+  const itemDisplayName = {}; // normalized key → original display name
   dayInvs.forEach(inv=>(inv.items||[]).forEach(item=>{
-    const k = item.name;
+    const k = (item.name||'').trim().toLowerCase();
+    if(!k) return;
     const storedCost = parseFloat(item.cost||0);
     const hasCost = storedCost > 0;
-    if(!itemMap[k]) itemMap[k]={qty:0,revenue:0,profit:0,hasCost:hasCost,pid:item.pid||null};
+    if(!itemMap[k]){
+      itemMap[k]={qty:0,revenue:0,profit:0,hasCost:false,pid:item.pid||null};
+      itemDisplayName[k] = (item.name||'').trim(); // first seen name rakhvo
+    }
     itemMap[k].qty     += parseInt(item.qty||1);
     itemMap[k].revenue += parseFloat(item.total||0);
     itemMap[k].profit  += (parseFloat(item.price||0) - storedCost) * parseInt(item.qty||1);
     if(hasCost) itemMap[k].hasCost = true;
+    // pid meli jay to store karo (merge case)
+    if(item.pid && !itemMap[k].pid) itemMap[k].pid = item.pid;
   }));
 
   const itemsTbl = document.getElementById('day-items-tbl');
@@ -5720,28 +5728,32 @@ function renderDailyReport(){
   if(!itemList.length){
     itemsTbl.innerHTML='<tr><td colspan="4" class="empty">No items sold</td></tr>';
   } else {
-    itemsTbl.innerHTML = itemList.map(([name,d])=>`
+    itemsTbl.innerHTML = itemList.map(([k,d])=>{
+      const dispName = itemDisplayName[k]||k;
+      return `
       <tr>
-        <td>${name} ${!d.hasCost?'<span style="color:#f59e0b;font-size:10px">⚠️ no cost</span>':''}</td>
+        <td>${dispName} ${!d.hasCost?'<span style="color:#f59e0b;font-size:10px">⚠️ no cost</span>':''}</td>
         <td><strong>${d.qty}</strong></td>
         <td style="font-family:'DM Mono',monospace">₹${d.revenue.toFixed(2)}</td>
         <td style="font-family:'DM Mono',monospace;color:${d.hasCost?'var(--accent)':'#f59e0b'}">
           ${d.hasCost?'₹'+d.profit.toFixed(2):'—'}
         </td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
   }
 
   // Missing cost price section
-  const missingItems = itemList.filter(([name,d])=>!d.hasCost);
+  const missingItems = itemList.filter(([k,d])=>!d.hasCost);
   const missingCard = document.getElementById('missingCostCard');
   const missingList = document.getElementById('missingCostList');
   if(missingItems.length){
     missingCard.style.display='block';
-    missingList.innerHTML = missingItems.map(([name,d])=>{
+    missingList.innerHTML = missingItems.map(([k,d])=>{
+      const name = itemDisplayName[k]||k; // original display name
       const isNew = !d.pid;
-      const safeKey = (d.pid||name.replace(/[^a-zA-Z0-9]/g,'_'));
+      const safeKey = (d.pid||k.replace(/[^a-zA-Z0-9]/g,'_'));
       return `
-      <div data-smc-pid="${d.pid||''}" data-smc-name="${name.replace(/'/g,'&apos;')}" style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
+      <div data-smc-pid="${d.pid||''}" data-smc-name="${name.replace(/'/g,'&apos;').replace(/"/g,'&quot;')}" style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
         <div style="flex:1;min-width:120px">
           <div style="font-size:13px;font-weight:600">${name}</div>
           <div style="font-size:11px;color:var(--muted)">Sold: ${d.qty} pcs · Revenue: ₹${d.revenue.toFixed(0)}</div>
@@ -5751,9 +5763,9 @@ function renderDailyReport(){
           <input type="number" id="cost_${safeKey}"
             placeholder="Purchase price ₹"
             style="width:130px;padding:7px 10px;background:var(--s2);border:1px solid #f59e0b;border-radius:8px;color:var(--text);font-size:13px;outline:none;"
-            onkeydown="if(event.key==='Enter') saveMissingCost('${d.pid||''}','${name.replace(/'/g,"\\'")}',this.value)">
+            onkeydown="if(event.key==='Enter') saveMissingCost('${d.pid||''}','${name.replace(/'/g,"\\'").replace(/"/g,'\\"')}',this.value)">
           <button class="btn btn-sm" style="background:#f59e0b;color:#000;font-weight:700;white-space:nowrap"
-            onclick="saveMissingCost('${d.pid||''}','${name.replace(/'/g,"\\'")}',document.getElementById('cost_${safeKey}').value)">
+            onclick="saveMissingCost('${d.pid||''}','${name.replace(/'/g,"\\'").replace(/"/g,'\\"')}',document.getElementById('cost_${safeKey}').value)">
             💾 Save
           </button>
         </div>
@@ -5845,44 +5857,62 @@ async function saveMissingCost(pid, name, costVal){
   if(isNaN(cost)||cost<=0){ toast('Valid price nakho!','error'); return; }
 
   // 1. Update OR create product
-  if(pid){
-    const prod = S.products.find(p=>p.id===parseInt(pid));
+  // pid hoy to find by id (string/number both handle)
+  const pidNum = pid ? parseInt(pid) : null;
+  let prod = pidNum ? S.products.find(p=>parseInt(p.id)===pidNum) : null;
+
+  // Duplicate prevent: pid na hoy to same name product already chhe ke check karo
+  if(!prod && !pidNum){
+    const nameLow = name.trim().toLowerCase();
+    prod = S.products.find(p=>(p.name||'').trim().toLowerCase()===nameLow);
     if(prod){
-      prod.cost = cost;
-      try{ await api(`products/${prod.id}`,'PATCH',{cost}); } catch(e){}
+      pid = prod.id; // existing product saathe merge
     }
+  }
+
+  if(prod){
+    // Existing product — cost update
+    prod.cost = cost;
+    try{ await api(`products/${prod.id}`,'PATCH',{cost}); } catch(e){ console.warn('PATCH cost fail:',e.message); }
+    pid = prod.id;
   } else {
-    // No pid — manual item → create as new product (stock=1)
+    // No pid, no existing product — create as new product (stock=1)
     let salePrice = 0;
     for(const inv of S.invoices){
-      const found=(inv.items||[]).find(i=>i.name===name);
+      const found=(inv.items||[]).find(i=>(i.name||'').trim().toLowerCase()===name.trim().toLowerCase());
       if(found){ salePrice=parseFloat(found.price||0); break; }
     }
-    const newProd = { name, sku:'', price:salePrice||cost, cost, stock:1, min_stock:5, category:'General', branch_id:S.activeBranchId||1 };
+    const newProd = { name: name.trim(), sku:'', price:salePrice||cost, cost, stock:1, min_stock:5, category:'General', branch_id:S.activeBranchId||1 };
     try{
       const saved = await api('products','POST', newProd);
-      const sp = (saved&&saved[0]) ? saved[0] : {id:Date.now(),...newProd};
+      // saved may be array or object — normalize
+      const sp = Array.isArray(saved) ? (saved[0]||{id:Date.now(),...newProd}) : (saved&&saved.id ? saved : {id:Date.now(),...newProd});
       S.products.push(sp);
       pid = sp.id;
-      S.invoices.forEach(inv=>(inv.items||[]).forEach(item=>{ if(item.name===name && !item.pid) item.pid=sp.id; }));
+      S.invoices.forEach(inv=>(inv.items||[]).forEach(item=>{
+        if((item.name||'').trim().toLowerCase()===name.trim().toLowerCase() && !item.pid) item.pid=sp.id;
+      }));
       if(typeof populateSels==='function') populateSels();
       if(typeof renderProds==='function') renderProds();
     } catch(e){
+      console.warn('POST product fail:',e.message);
       const sp={id:Date.now(),...newProd}; S.products.push(sp); pid=sp.id;
     }
     toast('✨ "'+name+'" new product trike add thayu!','success');
   }
 
   // 2. Update cost in invoices + recalculate profit
-  // rptInvoices() vaparo - nahi to fakt chhella 200 bills ma j profit sudhare
-  // ane juna bills no profit khoto rahi jay (reports mismatch nu ek karan).
+  const nameLowFinal = name.trim().toLowerCase();
+  const pidFinal = pid ? parseInt(pid) : null;
   rptInvoices().forEach(inv => {
     let changed = false;
     (inv.items||[]).forEach(item => {
-      const matchPid = pid && item.pid && parseInt(item.pid)===parseInt(pid);
-      const matchName = !matchPid && item.name===name && (!item.cost||parseFloat(item.cost)===0);
+      const matchPid = pidFinal && item.pid && parseInt(item.pid)===pidFinal;
+      const matchName = !matchPid && (item.name||'').trim().toLowerCase()===nameLowFinal && (!item.cost||parseFloat(item.cost)===0);
       if((matchPid||matchName) && (!item.cost||parseFloat(item.cost)===0)){
         item.cost=cost; changed=true;
+        // pid link pan karo
+        if(pidFinal && !item.pid) item.pid = pidFinal;
       }
     });
     if(changed){
@@ -5892,7 +5922,10 @@ async function saveMissingCost(pid, name, costVal){
   });
 
   saveOffline();
-  const updatedInvs = rptInvoices().filter(inv=>(inv.items||[]).some(item=>pid?(item.pid&&parseInt(item.pid)===parseInt(pid)):(item.name===name)));
+  const updatedInvs = rptInvoices().filter(inv=>(inv.items||[]).some(item=>
+    pidFinal ? (item.pid && parseInt(item.pid)===pidFinal) :
+    (item.name||'').trim().toLowerCase()===nameLowFinal
+  ));
   // Ghana juna bills hoy to aa vaar lagi shake - progress batavo
   let _done=0;
   for(const inv of updatedInvs){
