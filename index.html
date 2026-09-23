@@ -1821,6 +1821,25 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
       <span style="font-size:13px;font-weight:600">Total Sale (Both Branches)</span>
       <span style="font-size:15px;font-weight:700;color:var(--accent)" id="drTotalSale">₹0</span>
     </div>
+    <!-- Calculated Total Profit -->
+    <div style="margin-top:6px;padding:10px;background:rgba(52,211,153,0.1);border-radius:8px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:13px;font-weight:600;color:#34d399">💚 Total Profit (Calculated)</span>
+      <span style="font-size:15px;font-weight:700;color:#34d399" id="drTotalProfit">₹0</span>
+    </div>
+    <!-- Correct Profit (editable) -->
+    <div style="margin-top:8px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.25);border-radius:10px;padding:10px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px">✏️ Profit Correct/Adjust karo (Optional) — Baad Save & WA ma use thashe</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="number" id="drCorrectProfit" placeholder="Correct profit nakho (₹)"
+          style="flex:1;padding:8px 12px;background:var(--s1);border:1px solid rgba(52,211,153,0.4);border-radius:8px;color:var(--text);font-size:14px;font-weight:600;outline:none"
+          oninput="drUpdateCorrectProfit()">
+        <button onclick="drApplyCalculatedProfit()" title="Calculated value bharo"
+          style="padding:8px 10px;background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);color:#34d399;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+          ↩ Auto
+        </button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:5px" id="drCorrectProfitNote"></div>
+    </div>
   </div>
 
   <!-- Bank Sale (manual) -->
@@ -6409,7 +6428,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v28';
+const APP_VERSION = 'v29';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
@@ -8139,6 +8158,12 @@ async function loadDailyRegister(){
       document.getElementById('drBankMain').value = saved.bank_sale_main||0;
       document.getElementById('drBankB2').value   = saved.bank_sale_branch2||0;
       document.getElementById('drOpNote').textContent = '✅ Saved data loaded';
+      // Restore correct profit if saved
+      const cpEl = document.getElementById('drCorrectProfit');
+      if(cpEl && saved.correct_profit != null){
+        cpEl.value = saved.correct_profit;
+        cpEl.dataset.autoFilled = '0';
+      }
     } else {
       // Auto-carry: fetch previous day closing
       const prevDate = new Date(date);
@@ -8210,6 +8235,46 @@ function drCalc(){
   document.getElementById('drTotalCash').textContent = drFmt(totalCash);
   document.getElementById('drClCash').textContent    = drFmt(clCash);
   document.getElementById('drClBank').textContent    = drFmt(clBank);
+
+  // Update calculated total profit
+  const calcProfit = DR.b1Profit + DR.b2Profit;
+  const profEl = document.getElementById('drTotalProfit');
+  if(profEl) profEl.textContent = drFmt(calcProfit);
+
+  // If correct profit field is empty, auto-fill with calculated
+  const cpEl = document.getElementById('drCorrectProfit');
+  if(cpEl && (cpEl.value==='' || cpEl.dataset.autoFilled==='1')){
+    cpEl.value = Math.round(calcProfit);
+    cpEl.dataset.autoFilled = '1';
+    drUpdateCorrectProfit();
+  }
+}
+
+function drUpdateCorrectProfit(){
+  const cpEl  = document.getElementById('drCorrectProfit');
+  const noteEl= document.getElementById('drCorrectProfitNote');
+  if(!cpEl || !noteEl) return;
+  cpEl.dataset.autoFilled = '0';
+  const calcProfit = DR.b1Profit + DR.b2Profit;
+  const entered = parseFloat(cpEl.value||0);
+  const diff = entered - calcProfit;
+  if(Math.abs(diff) < 1){
+    noteEl.textContent = '✅ Calculated profit saathe match thay chhe';
+    noteEl.style.color = '#34d399';
+  } else {
+    const sign = diff>0 ? '+' : '';
+    noteEl.textContent = `Calculated thi ${sign}${Math.round(diff).toLocaleString('en-IN')} fark`;
+    noteEl.style.color = diff<0 ? '#f87171' : '#fbbf24';
+  }
+}
+
+function drApplyCalculatedProfit(){
+  const cpEl = document.getElementById('drCorrectProfit');
+  if(!cpEl) return;
+  const calcProfit = DR.b1Profit + DR.b2Profit;
+  cpEl.value = Math.round(calcProfit);
+  cpEl.dataset.autoFilled = '1';
+  drUpdateCorrectProfit();
 }
 
 function renderDrExpenses(){
@@ -8276,9 +8341,10 @@ async function saveDailyRegister(){
   const opBank  = parseFloat(document.getElementById('drOpBank')?.value||0);
   const bankMain= parseFloat(document.getElementById('drBankMain')?.value||0);
   const bankB2  = parseFloat(document.getElementById('drBankB2')?.value||0);
+  const correctProfit = parseFloat(document.getElementById('drCorrectProfit')?.value||0);
   if(!date){ toast('Date select karo','error'); return; }
   try{
-    await api('daily','POST',{date, op_cash:opCash, op_bank:opBank, bank_sale_main:bankMain, bank_sale_branch2:bankB2});
+    await api('daily','POST',{date, op_cash:opCash, op_bank:opBank, bank_sale_main:bankMain, bank_sale_branch2:bankB2, correct_profit:correctProfit});
     toast('✅ Daily Register save thayu!','success');
   } catch(e){ toast('Error: '+e.message,'error'); }
 }
@@ -8310,6 +8376,11 @@ function drWhatsApp(){
 
   const fmt = n => '₹'+Math.round(n).toLocaleString('en-IN');
 
+  const calcProfit    = DR.b1Profit + DR.b2Profit;
+  const cpEl          = document.getElementById('drCorrectProfit');
+  const correctProfit = cpEl && cpEl.value!=='' ? parseFloat(cpEl.value) : calcProfit;
+  const profitLine    = `Total Profit: ${fmt(correctProfit)}`;
+
   const msg =
 `${dateStr}
 Op.Cash: ${fmt(opCash)}
@@ -8321,6 +8392,7 @@ Total Sale: ${fmt(totalSale)}
 Debit: ${fmt(expTotal)}${expNotes?' ('+expNotes+')':''}
 Branch 1 Profit: ${fmt(DR.b1Profit)}
 Branch 2 Profit: ${fmt(DR.b2Profit)}
+${profitLine}
 Cl.Cash: ${fmt(clCash)}
 Cl.Bank: ${fmt(clBank)}`;
 
