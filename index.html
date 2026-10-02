@@ -1826,19 +1826,38 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
       <span style="font-size:13px;font-weight:600;color:#34d399">💚 Total Profit (Calculated)</span>
       <span style="font-size:15px;font-weight:700;color:#34d399" id="drTotalProfit">₹0</span>
     </div>
-    <!-- Correct Profit (editable) -->
+    <!-- Branch-wise Profit Correction (editable, default = actual) -->
     <div style="margin-top:8px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.25);border-radius:10px;padding:10px">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:6px">✏️ Profit Correct/Adjust karo (Optional) — Baad Save & WA ma use thashe</div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <input type="number" id="drCorrectProfit" placeholder="Correct profit nakho (₹)"
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">✏️ Profit Correction (Default: Actual) — Save & WA ma use thashe</div>
+
+      <div style="font-size:11px;color:var(--muted)">Branch 1 Profit Correction</div>
+      <div style="display:flex;gap:8px;align-items:center;margin:4px 0 2px">
+        <input type="number" id="drCorrectProfitB1" placeholder="Branch 1 profit (₹)"
           style="flex:1;padding:8px 12px;background:var(--s1);border:1px solid rgba(52,211,153,0.4);border-radius:8px;color:var(--text);font-size:14px;font-weight:600;outline:none"
-          oninput="drUpdateCorrectProfit()">
-        <button onclick="drApplyCalculatedProfit()" title="Calculated value bharo"
+          oninput="drProfitInput('b1')">
+        <button onclick="drApplyCalculatedProfit('b1')" title="Actual value bharo"
           style="padding:8px 10px;background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);color:#34d399;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
           ↩ Auto
         </button>
       </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:5px" id="drCorrectProfitNote"></div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px" id="drCorrectProfitNoteB1"></div>
+
+      <div style="font-size:11px;color:var(--muted)">Branch 2 Profit Correction</div>
+      <div style="display:flex;gap:8px;align-items:center;margin:4px 0 2px">
+        <input type="number" id="drCorrectProfitB2" placeholder="Branch 2 profit (₹)"
+          style="flex:1;padding:8px 12px;background:var(--s1);border:1px solid rgba(52,211,153,0.4);border-radius:8px;color:var(--text);font-size:14px;font-weight:600;outline:none"
+          oninput="drProfitInput('b2')">
+        <button onclick="drApplyCalculatedProfit('b2')" title="Actual value bharo"
+          style="padding:8px 10px;background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);color:#34d399;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+          ↩ Auto
+        </button>
+      </div>
+      <div style="font-size:11px;color:var(--muted)" id="drCorrectProfitNoteB2"></div>
+
+      <div style="margin-top:8px;padding:8px 10px;background:rgba(52,211,153,0.1);border-radius:8px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:12px;font-weight:600;color:#34d399">💚 Total Profit (Final)</span>
+        <span style="font-size:15px;font-weight:700;color:#34d399" id="drTotalCorrected">₹0</span>
+      </div>
     </div>
   </div>
 
@@ -1869,10 +1888,17 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 
   <!-- Expenses -->
   <div class="card" style="margin-bottom:12px">
-    <div class="card-title">💸 Expenses (Debit)</div>
+    <div class="card-title">💸 Spend (Debit)</div>
     <!-- Add expense form -->
     <div style="background:var(--s2);border-radius:10px;padding:12px;margin-bottom:12px">
-      <div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--muted)">➕ Navo Expense</div>
+      <div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--muted)">➕ Navo Spend</div>
+      <div style="margin-bottom:8px">
+        <label style="font-size:11px;color:var(--muted)">Type</label>
+        <select id="drExpType" style="width:100%;padding:8px 10px;background:var(--s1);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-weight:600;box-sizing:border-box;margin-top:3px;outline:none">
+          <option value="expense">💸 Expenses</option>
+          <option value="stock">📦 Stock Purchase</option>
+        </select>
+      </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
         <div style="flex:1;min-width:120px">
           <label style="font-size:11px;color:var(--muted)">Date</label>
@@ -1887,10 +1913,10 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
           <input type="number" id="drExpBank" placeholder="0" style="width:100%;padding:7px 10px;background:var(--s1);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;box-sizing:border-box;margin-top:3px">
         </div>
       </div>
-      <input type="text" id="drExpNote" placeholder="Note (e.g. Ramdev payment 1000, bag purchase 500)"
+      <input type="text" id="drExpNote" placeholder="Note (e.g. Ramdev payment, bag purchase)"
         style="width:100%;padding:7px 10px;background:var(--s1);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;box-sizing:border-box;margin-bottom:8px"
         onkeydown="if(event.key==='Enter') addDrExpense()">
-      <button onclick="addDrExpense()" class="btn btn-primary" style="width:100%">➕ Add Expense</button>
+      <button onclick="addDrExpense()" class="btn btn-primary" style="width:100%">➕ Add Spend</button>
     </div>
     <!-- Expense list -->
     <div id="drExpenseList"></div>
@@ -1903,6 +1929,16 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
       <div style="flex:1;padding:8px 12px;background:rgba(239,68,68,0.1);border-radius:8px;text-align:center">
         <div style="font-size:11px;color:var(--muted)">Total Bank Out</div>
         <div style="font-size:15px;font-weight:700;color:#f87171" id="drExpTotalBank">₹0</div>
+      </div>
+    </div>
+    <div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap">
+      <div style="flex:1;padding:8px 12px;background:var(--s2);border-radius:8px;text-align:center">
+        <div style="font-size:11px;color:var(--muted)">📦 Stock Purchase</div>
+        <div style="font-size:14px;font-weight:700;color:#fbbf24" id="drStockTotal">₹0</div>
+      </div>
+      <div style="flex:1;padding:8px 12px;background:var(--s2);border-radius:8px;text-align:center">
+        <div style="font-size:11px;color:var(--muted)">💸 Expenses</div>
+        <div style="font-size:14px;font-weight:700;color:#f87171" id="drExpOnlyTotal">₹0</div>
       </div>
     </div>
   </div>
@@ -6428,7 +6464,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v29';
+const APP_VERSION = 'v30';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
@@ -7165,8 +7201,13 @@ async function vbSave(){
   const custPhoneForInv = phone || (custObjForPhone ? custObjForPhone.phone||'' : '');
 
   // Edit mode ma original date preserve karo, navi bill ma current date
+  // Pan jya user e vbBillDate input ma change karyu hoy to e priority chhe
   const origInvForDate = S.editingInvoiceId ? (S.invoices.find(x=>x.id===S.editingInvoiceId)||{}) : {};
-  const billDate = origInvForDate.bill_date || nowVb.toLocaleDateString('en-IN');
+  const billDateInputEl = document.getElementById('vbBillDate');
+  const billDateInputVal = billDateInputEl && billDateInputEl.value
+    ? (()=>{ const p=billDateInputEl.value.split('-'); return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:'' })()
+    : '';
+  const billDate = billDateInputVal || origInvForDate.bill_date || nowVb.toLocaleDateString('en-IN');
   const billTime = origInvForDate.bill_time || nowVb.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
 
   const inv = {
@@ -8105,6 +8146,12 @@ async function loadDailyRegister(){
   const b1Id = parseInt(document.getElementById('drBranch1Id')?.value||1);
   const b2Id = parseInt(document.getElementById('drBranch2Id')?.value||2);
 
+  // Reset profit correction inputs (navi date -> default = actual)
+  ['drCorrectProfitB1','drCorrectProfitB2'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el){ el.value=''; el.dataset.autoFilled='1'; }
+  });
+
   // Loading state
   const loadEl = document.getElementById('drSalesLoading');
   if(loadEl) loadEl.textContent = '⏳ Loading...';
@@ -8158,12 +8205,14 @@ async function loadDailyRegister(){
       document.getElementById('drBankMain').value = saved.bank_sale_main||0;
       document.getElementById('drBankB2').value   = saved.bank_sale_branch2||0;
       document.getElementById('drOpNote').textContent = '✅ Saved data loaded';
-      // Restore correct profit if saved
-      const cpEl = document.getElementById('drCorrectProfit');
-      if(cpEl && saved.correct_profit != null){
-        cpEl.value = saved.correct_profit;
-        cpEl.dataset.autoFilled = '0';
-      }
+      // Restore branch-wise correct profit if saved (null = actual use thashe)
+      [['drCorrectProfitB1', saved.correct_profit_b1], ['drCorrectProfitB2', saved.correct_profit_b2]].forEach(([id,val])=>{
+        const el = document.getElementById(id);
+        if(el && val != null){
+          el.value = val;
+          el.dataset.autoFilled = '0';
+        }
+      });
     } else {
       // Auto-carry: fetch previous day closing
       const prevDate = new Date(date);
@@ -8241,39 +8290,61 @@ function drCalc(){
   const profEl = document.getElementById('drTotalProfit');
   if(profEl) profEl.textContent = drFmt(calcProfit);
 
-  // If correct profit field is empty, auto-fill with calculated
-  const cpEl = document.getElementById('drCorrectProfit');
-  if(cpEl && (cpEl.value==='' || cpEl.dataset.autoFilled==='1')){
-    cpEl.value = Math.round(calcProfit);
-    cpEl.dataset.autoFilled = '1';
-    drUpdateCorrectProfit();
-  }
+  // Correction fields: khali hoy ke auto-filled hoy to actual profit bharo
+  [['drCorrectProfitB1', DR.b1Profit], ['drCorrectProfitB2', DR.b2Profit]].forEach(([id, act])=>{
+    const el = document.getElementById(id);
+    if(el && (el.value==='' || el.dataset.autoFilled==='1')){
+      el.value = Math.round(act);
+      el.dataset.autoFilled = '1';
+    }
+  });
+  drUpdateCorrectProfit();
+}
+
+// Final (corrected) profit per branch — khali hoy to actual
+function drGetProfits(){
+  const g = (id, act)=>{
+    const el = document.getElementById(id);
+    if(el && el.value!=='' && !isNaN(parseFloat(el.value))) return parseFloat(el.value);
+    return act;
+  };
+  const b1 = g('drCorrectProfitB1', DR.b1Profit);
+  const b2 = g('drCorrectProfitB2', DR.b2Profit);
+  return {b1, b2, total: b1+b2};
+}
+
+function drProfitInput(which){
+  const el = document.getElementById(which==='b1' ? 'drCorrectProfitB1' : 'drCorrectProfitB2');
+  if(el) el.dataset.autoFilled = '0';
+  drUpdateCorrectProfit();
 }
 
 function drUpdateCorrectProfit(){
-  const cpEl  = document.getElementById('drCorrectProfit');
-  const noteEl= document.getElementById('drCorrectProfitNote');
-  if(!cpEl || !noteEl) return;
-  cpEl.dataset.autoFilled = '0';
-  const calcProfit = DR.b1Profit + DR.b2Profit;
-  const entered = parseFloat(cpEl.value||0);
-  const diff = entered - calcProfit;
-  if(Math.abs(diff) < 1){
-    noteEl.textContent = '✅ Calculated profit saathe match thay chhe';
-    noteEl.style.color = '#34d399';
-  } else {
-    const sign = diff>0 ? '+' : '';
-    noteEl.textContent = `Calculated thi ${sign}${Math.round(diff).toLocaleString('en-IN')} fark`;
-    noteEl.style.color = diff<0 ? '#f87171' : '#fbbf24';
-  }
+  [['drCorrectProfitB1','drCorrectProfitNoteB1',DR.b1Profit],
+   ['drCorrectProfitB2','drCorrectProfitNoteB2',DR.b2Profit]].forEach(([id, noteId, act])=>{
+    const el = document.getElementById(id);
+    const noteEl = document.getElementById(noteId);
+    if(!el || !noteEl) return;
+    const entered = el.value==='' ? act : parseFloat(el.value||0);
+    const diff = entered - act;
+    if(Math.abs(diff) < 1){
+      noteEl.textContent = '✅ Actual profit saathe match thay chhe';
+      noteEl.style.color = '#34d399';
+    } else {
+      const sign = diff>0 ? '+' : '';
+      noteEl.textContent = `Actual (${drFmt(act)}) thi ${sign}${Math.round(diff).toLocaleString('en-IN')} fark`;
+      noteEl.style.color = diff<0 ? '#f87171' : '#fbbf24';
+    }
+  });
+  const t = document.getElementById('drTotalCorrected');
+  if(t) t.textContent = drFmt(drGetProfits().total);
 }
 
-function drApplyCalculatedProfit(){
-  const cpEl = document.getElementById('drCorrectProfit');
-  if(!cpEl) return;
-  const calcProfit = DR.b1Profit + DR.b2Profit;
-  cpEl.value = Math.round(calcProfit);
-  cpEl.dataset.autoFilled = '1';
+function drApplyCalculatedProfit(which){
+  const el = document.getElementById(which==='b1' ? 'drCorrectProfitB1' : 'drCorrectProfitB2');
+  if(!el) return;
+  el.value = Math.round(which==='b1' ? DR.b1Profit : DR.b2Profit);
+  el.dataset.autoFilled = '1';
   drUpdateCorrectProfit();
 }
 
@@ -8285,15 +8356,24 @@ function renderDrExpenses(){
   document.getElementById('drExpTotalCash').textContent = drFmt(expCash);
   document.getElementById('drExpTotalBank').textContent = drFmt(expBank);
 
+  // Stock Purchase vs Expenses alag total
+  const rowAmt = e => parseFloat(e.expense_cash||0)+parseFloat(e.expense_bank||0);
+  const stockSum = DR.expenses.filter(e=>e.type==='stock').reduce((s,e)=>s+rowAmt(e),0);
+  const expOnlySum = DR.expenses.filter(e=>e.type!=='stock').reduce((s,e)=>s+rowAmt(e),0);
+  const stEl = document.getElementById('drStockTotal');
+  const exEl = document.getElementById('drExpOnlyTotal');
+  if(stEl) stEl.textContent = drFmt(stockSum);
+  if(exEl) exEl.textContent = drFmt(expOnlySum);
+
   if(!DR.expenses.length){
-    el.innerHTML='<div style="text-align:center;color:var(--muted);font-size:12px;padding:10px">Koi expense nathi</div>';
+    el.innerHTML='<div style="text-align:center;color:var(--muted);font-size:12px;padding:10px">Koi spend nathi</div>';
     return;
   }
   el.innerHTML = DR.expenses.map(e=>`
     <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--s2);border-radius:8px;margin-bottom:6px;gap:8px">
       <div style="flex:1">
-        <div style="font-size:12px;font-weight:600">${e.note||'—'}</div>
-        <div style="font-size:11px;color:var(--muted)">${e.date} · Cash: ${drFmt(e.expense_cash||0)} · Bank: ${drFmt(e.expense_bank||0)}</div>
+        <div style="font-size:12px;font-weight:600">${e.type==='stock'?'📦':'💸'} ${e.note||'—'}</div>
+        <div style="font-size:11px;color:var(--muted)">${e.type==='stock'?'Stock Purchase':'Expenses'} · ${e.date} · Cash: ${drFmt(e.expense_cash||0)} · Bank: ${drFmt(e.expense_bank||0)}</div>
       </div>
       <button onclick="deleteDrExpense(${e.id})" style="background:rgba(239,68,68,0.15);border:none;color:#f87171;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:12px">🗑</button>
     </div>
@@ -8305,12 +8385,13 @@ async function addDrExpense(){
   const cash  = parseFloat(document.getElementById('drExpCash')?.value||0);
   const bank  = parseFloat(document.getElementById('drExpBank')?.value||0);
   const note  = document.getElementById('drExpNote')?.value||'';
+  const type  = document.getElementById('drExpType')?.value==='stock' ? 'stock' : 'expense';
 
   if(!date){ toast('Date select karo','error'); return; }
   if(!cash && !bank){ toast('Cash ya Bank amount nakho','error'); return; }
 
   try{
-    await api('daily/expenses','POST',{date, expense_cash:cash, expense_bank:bank, note});
+    await api('daily/expenses','POST',{date, expense_cash:cash, expense_bank:bank, note, type});
     // Clear form
     document.getElementById('drExpCash').value='';
     document.getElementById('drExpBank').value='';
@@ -8320,12 +8401,12 @@ async function addDrExpense(){
     DR.expenses = exps||[];
     renderDrExpenses();
     drCalc();
-    toast('✅ Expense add thayu!','success');
+    toast(type==='stock' ? '✅ Stock Purchase add thayu!' : '✅ Expense add thayu!','success');
   } catch(e){ toast('Error: '+e.message,'error'); }
 }
 
 async function deleteDrExpense(id){
-  if(!confirm('Aa expense delete karvu?')) return;
+  if(!confirm('Aa spend entry delete karvi?')) return;
   try{
     await api(`daily/expenses/${id}`,'DELETE');
     DR.expenses = DR.expenses.filter(e=>e.id!==id);
@@ -8341,10 +8422,13 @@ async function saveDailyRegister(){
   const opBank  = parseFloat(document.getElementById('drOpBank')?.value||0);
   const bankMain= parseFloat(document.getElementById('drBankMain')?.value||0);
   const bankB2  = parseFloat(document.getElementById('drBankB2')?.value||0);
-  const correctProfit = parseFloat(document.getElementById('drCorrectProfit')?.value||0);
+  // Correction save: jo actual thi alag hoy to j value save (nahi to null = actual j count thashe)
+  const pf = drGetProfits();
+  const cB1 = Math.abs(pf.b1 - DR.b1Profit) < 1 ? null : Math.round(pf.b1*100)/100;
+  const cB2 = Math.abs(pf.b2 - DR.b2Profit) < 1 ? null : Math.round(pf.b2*100)/100;
   if(!date){ toast('Date select karo','error'); return; }
   try{
-    await api('daily','POST',{date, op_cash:opCash, op_bank:opBank, bank_sale_main:bankMain, bank_sale_branch2:bankB2, correct_profit:correctProfit});
+    await api('daily','POST',{date, op_cash:opCash, op_bank:opBank, bank_sale_main:bankMain, bank_sale_branch2:bankB2, correct_profit_b1:cB1, correct_profit_b2:cB2});
     toast('✅ Daily Register save thayu!','success');
   } catch(e){ toast('Error: '+e.message,'error'); }
 }
@@ -8364,8 +8448,12 @@ function drWhatsApp(){
 
   const expCash = DR.expenses.reduce((s,e)=>s+parseFloat(e.expense_cash||0),0);
   const expBank = DR.expenses.reduce((s,e)=>s+parseFloat(e.expense_bank||0),0);
-  const expTotal= expCash + expBank;
-  const expNotes= DR.expenses.map(e=>e.note).filter(Boolean).join(', ');
+  const stockRows = DR.expenses.filter(e=>e.type==='stock');
+  const spendRows = DR.expenses.filter(e=>e.type!=='stock');
+  const rowsTotal = a => a.reduce((s,e)=>s+parseFloat(e.expense_cash||0)+parseFloat(e.expense_bank||0),0);
+  const notesOf   = a => a.map(e=>e.note).filter(Boolean).join(', ');
+  const stockTotal = rowsTotal(stockRows), spendTotal = rowsTotal(spendRows);
+  const stockNotes = notesOf(stockRows),   spendNotes = notesOf(spendRows);
 
   const clCash = opCash + totalCash - expCash;
   const clBank = opBank + totalBank - expBank;
@@ -8376,10 +8464,8 @@ function drWhatsApp(){
 
   const fmt = n => '₹'+Math.round(n).toLocaleString('en-IN');
 
-  const calcProfit    = DR.b1Profit + DR.b2Profit;
-  const cpEl          = document.getElementById('drCorrectProfit');
-  const correctProfit = cpEl && cpEl.value!=='' ? parseFloat(cpEl.value) : calcProfit;
-  const profitLine    = `Total Profit: ${fmt(correctProfit)}`;
+  const pf = drGetProfits();
+  const profitLine = `Total Profit: ${fmt(pf.total)}`;
 
   const msg =
 `${dateStr}
@@ -8389,9 +8475,10 @@ Cash Sale Branch 1: ${fmt(cashB1)}
 Cash Sale Branch 2: ${fmt(cashB2)}
 Bank Sale: ${fmt(totalBank)}
 Total Sale: ${fmt(totalSale)}
-Debit: ${fmt(expTotal)}${expNotes?' ('+expNotes+')':''}
-Branch 1 Profit: ${fmt(DR.b1Profit)}
-Branch 2 Profit: ${fmt(DR.b2Profit)}
+Stock Purchase: ${fmt(stockTotal)}${stockNotes?' ('+stockNotes+')':''}
+Expenses: ${fmt(spendTotal)}${spendNotes?' ('+spendNotes+')':''}
+Branch 1 Profit: ${fmt(pf.b1)}
+Branch 2 Profit: ${fmt(pf.b2)}
 ${profitLine}
 Cl.Cash: ${fmt(clCash)}
 Cl.Bank: ${fmt(clBank)}`;
@@ -8436,9 +8523,7 @@ async function loadMonthlySummary(){
     const inv2 = filterMonth(r2);
 
     const b1Total  = inv1.reduce((s,i)=>s+parseFloat(i.total||0),0);
-    const b1Profit = inv1.reduce((s,i)=>s+parseFloat(i.profit||0),0);
     const b2Total  = inv2.reduce((s,i)=>s+parseFloat(i.total||0),0);
-    const b2Profit = inv2.reduce((s,i)=>s+parseFloat(i.profit||0),0);
 
     // Fetch all expenses for this month — ONE call with range
     const firstDate = `${year}-${mm}-01`;
@@ -8452,6 +8537,36 @@ async function loadMonthlySummary(){
     const totalExpCash = (allExpenses||[]).reduce((s,e)=>s+parseFloat(e.expense_cash||0),0);
     const totalExpBank = (allExpenses||[]).reduce((s,e)=>s+parseFloat(e.expense_bank||0),0);
     const totalExp     = totalExpCash + totalExpBank;
+
+    // Stock Purchase vs Expenses alag (type na hoy to Expenses ganvu)
+    const stockRows = (allExpenses||[]).filter(e=>e.type==='stock');
+    const expRows   = (allExpenses||[]).filter(e=>e.type!=='stock');
+    const rowsSum   = a => a.reduce((s,e)=>s+parseFloat(e.expense_cash||0)+parseFloat(e.expense_bank||0),0);
+    const stockTotal   = rowsSum(stockRows);
+    const expOnlyTotal = rowsSum(expRows);
+
+    // Branch-wise monthly profit: divas ma correction hoy to e, nahi to actual
+    const dayProfit = (invs) => {
+      const m = {};
+      invs.forEach(i=>{
+        const d = parseInt((i.bill_date||'').split('/')[0]);
+        m[d] = (m[d]||0) + parseFloat(i.profit||0);
+      });
+      return m;
+    };
+    const act1 = dayProfit(inv1), act2 = dayProfit(inv2);
+    const recByDay = {};
+    (Array.isArray(dailyRecs)?dailyRecs:[]).forEach(r=>{
+      recByDay[parseInt((r.date||'').split('-')[2])] = r;
+    });
+    let b1Profit = 0, b2Profit = 0;
+    for(let d=1; d<=daysInMonth; d++){
+      const r = recByDay[d] || {};
+      b1Profit += (r.correct_profit_b1 != null ? parseFloat(r.correct_profit_b1) : (act1[d]||0));
+      b2Profit += (r.correct_profit_b2 != null ? parseFloat(r.correct_profit_b2) : (act2[d]||0));
+    }
+    const totalProfit = b1Profit + b2Profit;
+    const netProfit   = totalProfit - expOnlyTotal;   // Stock Purchase minus nathi thatu
 
     const firstRec = Array.isArray(dailyRecs) ? (dailyRecs.find(r=>r.date===firstDate)||null) : dailyRecs;
 
@@ -8477,6 +8592,8 @@ async function loadMonthlySummary(){
       totalSale, totalBank, cashB1, cashB2,
       opCash, opBank, clCash, clBank,
       totalExp, totalExpCash, totalExpBank,
+      totalProfit, expOnlyTotal, stockTotal, netProfit,
+      stockRows, expRows,
       allExpenses
     };
 
@@ -8486,7 +8603,10 @@ async function loadMonthlySummary(){
       <div style="text-align:left;font-size:13px;line-height:2">
         <div>📦 Total Sale: <strong>${fmt(totalSale)}</strong></div>
         <div>💰 B1 Profit: <strong style="color:#34d399">${fmt(b1Profit)}</strong> | B2: <strong style="color:#34d399">${fmt(b2Profit)}</strong></div>
-        <div>💸 Total Debit: <strong style="color:#f87171">${fmt(totalExp)}</strong></div>
+        <div>💚 Total Profit: <strong style="color:#34d399">${fmt(totalProfit)}</strong></div>
+        <div>💸 Expenses: <strong style="color:#f87171">${fmt(expOnlyTotal)}</strong></div>
+        <div>✅ Net Profit: <strong style="color:#34d399">${fmt(netProfit)}</strong></div>
+        <div>📦 Stock Purchase: <strong style="color:#fbbf24">${fmt(stockTotal)}</strong></div>
         <div>🏦 Cl.Cash: <strong>${fmt(clCash)}</strong> | Cl.Bank: <strong>${fmt(clBank)}</strong></div>
       </div>`;
     btnsEl.style.display = 'flex';
@@ -8507,8 +8627,9 @@ function drMonthlyWhatsApp(){
   const yy = String(m.year).slice(2);
   const mm2 = String(m.month).padStart(2,'0');
 
-  // Expense notes — unique descriptions
-  const expNotes = m.allExpenses.map(e=>e.note).filter(Boolean).join(', ');
+  // Notes — Stock Purchase ane Expenses alag
+  const expNotes   = m.expRows.map(e=>e.note).filter(Boolean).join(', ');
+  const stockNotes = m.stockRows.map(e=>e.note).filter(Boolean).join(', ');
 
   const msg =
 `*01-${mm2}-${yy} to ${dd}-${mm2}-${yy}*
@@ -8518,9 +8639,12 @@ Cash Sale Branch 1: ${fmt(m.cashB1)}
 Cash Sale Branch 2: ${fmt(m.cashB2)}
 Bank Sale: ${fmt(m.totalBank)}
 Total Sale: ${fmt(m.totalSale)}
-Debit: ${fmt(m.totalExp)}${expNotes?' ('+expNotes+')':''}
 Branch 1 Profit: ${fmt(m.b1Profit)}
 Branch 2 Profit: ${fmt(m.b2Profit)}
+Total Profit: ${fmt(m.totalProfit)}
+Expenses: ${fmt(m.expOnlyTotal)}${expNotes?' ('+expNotes+')':''}
+*Net Profit: ${fmt(m.netProfit)}*
+Stock Purchase: ${fmt(m.stockTotal)}${stockNotes?' ('+stockNotes+')':''}
 Cl.Cash: ${fmt(m.clCash)}
 Cl.Bank: ${fmt(m.clBank)}`;
 
@@ -8533,13 +8657,10 @@ async function drExpensePDF(){
   const monthNames=['January','February','March','April','May','June','July','August','September','October','November','December'];
   const fmt = n => n ? '₹'+Math.round(n).toLocaleString('en-IN') : '';
 
-  // Build HTML table like screenshot
-  const rows = m.allExpenses.filter(e=>parseFloat(e.expense_cash||0)+parseFloat(e.expense_bank||0)>0);
-  const total = rows.reduce((s,e)=>s+parseFloat(e.expense_cash||0)+parseFloat(e.expense_bank||0),0);
-
-  const tableRows = rows.map(e=>{
-    const amt = parseFloat(e.expense_cash||0)+parseFloat(e.expense_bank||0);
-    // Format date DD/MM/YYYY → DD/MM/YY
+  // Expenses ane Stock Purchase alag table
+  const amtOf = e => parseFloat(e.expense_cash||0)+parseFloat(e.expense_bank||0);
+  const buildRows = (arr) => arr.filter(e=>amtOf(e)>0).map(e=>{
+    const amt = amtOf(e);
     const dp = (e.date||'').split('-');
     const dateStr = dp.length===3 ? `${dp[2]}/${dp[1]}/${dp[0]}` : e.date;
     return `<tr>
@@ -8548,6 +8669,10 @@ async function drExpensePDF(){
       <td>${e.note||''}</td>
     </tr>`;
   }).join('');
+  const expTableRows   = buildRows(m.expRows);
+  const stockTableRows = buildRows(m.stockRows);
+  const expTotalPdf    = m.expOnlyTotal;
+  const stockTotalPdf  = m.stockTotal;
 
   const html = `<!DOCTYPE html>
 <html>
@@ -8569,8 +8694,16 @@ async function drExpensePDF(){
   <table>
     <thead><tr><th>DATE</th><th>DEBIT</th><th>DESCRIPTION</th></tr></thead>
     <tbody>
-      ${tableRows}
-      <tr class="total-row"><td>TOTAL</td><td>${Math.round(total).toLocaleString('en-IN')}</td><td></td></tr>
+      ${expTableRows}
+      <tr class="total-row"><td>TOTAL</td><td>${Math.round(expTotalPdf).toLocaleString('en-IN')}</td><td></td></tr>
+    </tbody>
+  </table>
+  <h2 style="margin-top:24px">${monthNames[m.month-1]} ${m.year} — Stock Purchase</h2>
+  <table>
+    <thead><tr><th>DATE</th><th>DEBIT</th><th>DESCRIPTION</th></tr></thead>
+    <tbody>
+      ${stockTableRows}
+      <tr class="total-row"><td>TOTAL</td><td>${Math.round(stockTotalPdf).toLocaleString('en-IN')}</td><td></td></tr>
     </tbody>
   </table>
 </body>
