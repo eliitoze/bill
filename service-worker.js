@@ -1,4 +1,4 @@
-// ShopBill Pro — Service Worker (v1)
+// ShopBill Pro — Service Worker (v30)
 // Cache (jem pehla blob ma hatu, e j logic) + Push Notifications
 
 const CACHE = 'shopbill-v29';
