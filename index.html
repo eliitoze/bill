@@ -6464,7 +6464,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v31';
+const APP_VERSION = 'v32';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
@@ -8205,6 +8205,7 @@ async function loadDailyRegister(){
       document.getElementById('drBankMain').value = saved.bank_sale_main||0;
       document.getElementById('drBankB2').value   = saved.bank_sale_branch2||0;
       document.getElementById('drOpNote').textContent = '✅ Saved data loaded';
+      drCheckOpening(date, r1, r2);
       // Restore branch-wise correct profit if saved (null = actual use thashe)
       [['drCorrectProfitB1', saved.correct_profit_b1], ['drCorrectProfitB2', saved.correct_profit_b2]].forEach(([id,val])=>{
         const el = document.getElementById(id);
@@ -8214,37 +8215,14 @@ async function loadDailyRegister(){
         }
       });
     } else {
-      // Auto-carry: fetch previous day closing
-      const prevDate = new Date(date);
-      prevDate.setDate(prevDate.getDate()-1);
-      const prevStr = prevDate.toISOString().split('T')[0];
-      const prevSaved = await api(`daily?date=${prevStr}`).catch(()=>null);
-      if(prevSaved && prevSaved.date){
-        const prevExpenses = await api(`daily/expenses?date=${prevStr}`).catch(()=>[]);
-        const prevExpCash = (prevExpenses||[]).reduce((s,e)=>s+parseFloat(e.expense_cash||0),0);
-        const prevExpBank = (prevExpenses||[]).reduce((s,e)=>s+parseFloat(e.expense_bank||0),0);
-
-        // Prev day invoices — use already loaded r1/r2 filtered for prevStr
-        const [pYear,pMonth,pDay] = prevStr.split('-');
-        const iPDay = parseInt(pDay), iPMonth = parseInt(pMonth);
-        const matchPrev = (inv) => {
-          if(inv.exclude_from_register) return false;
-          const p = (inv.bill_date||'').split('/');
-          return p.length===3 && parseInt(p[0])===iPDay && parseInt(p[1])===iPMonth && p[2]===pYear;
-        };
-        const pi1 = (r1.invoices||r1||[]).filter(matchPrev);
-        const pi2 = (r2.invoices||r2||[]).filter(matchPrev);
-        const prevB1 = pi1.reduce((s,i)=>s+parseFloat(i.total||0),0);
-        const prevB2 = pi2.reduce((s,i)=>s+parseFloat(i.total||0),0);
-        const prevBankMain = parseFloat(prevSaved.bank_sale_main||0);
-        const prevBankB2   = parseFloat(prevSaved.bank_sale_branch2||0);
-        const prevCashSale = (prevB1+prevB2) - (prevBankMain+prevBankB2);
-        const prevClCash = parseFloat(prevSaved.op_cash||0) + prevCashSale - prevExpCash;
-        const prevClBank = parseFloat(prevSaved.op_bank||0) + (prevBankMain+prevBankB2) - prevExpBank;
-
-        document.getElementById('drOpCash').value = Math.round(prevClCash);
-        document.getElementById('drOpBank').value = Math.round(prevClBank);
-        document.getElementById('drOpNote').textContent = `✅ Auto: ${prevStr} ની Closing → આજ ની Opening`;
+      // Auto-carry: sauthi najik na saved divas thi aaj sudhi roll-forward (vache divas saved na hoy to pan chale)
+      const exp = await drExpectedOpening(date, r1, r2);
+      if(exp){
+        document.getElementById('drOpCash').value = Math.round(exp.cash);
+        document.getElementById('drOpBank').value = Math.round(exp.bank);
+        document.getElementById('drOpNote').textContent = exp.gaps.length
+          ? `⚠️ ${exp.baseDate} pachi ${exp.gaps.join(', ')} no register saved nathi — te divaso ni sale/spend thi ganti kari carry karyu (bank sale 0 gani). Check karjo.`
+          : `✅ Auto: ${exp.baseDate} ની Closing → આજ ની Opening`;
       } else {
         document.getElementById('drOpCash').value = '';
         document.getElementById('drOpBank').value = '';
@@ -8262,6 +8240,84 @@ async function loadDailyRegister(){
     if(loadEl) loadEl.textContent = '❌ Error';
     toast('Daily Register load error: '+e.message,'error');
   }
+}
+
+// Nearest saved previous divas thi (date-1) sudhi closing roll-forward kari 'expected opening' kaadho
+function drAddDays(ds, n){
+  const d = new Date(ds+'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate()+n);
+  return d.toISOString().slice(0,10);
+}
+
+async function drExpectedOpening(date, r1, r2){
+  const from = drAddDays(date,-90), to = drAddDays(date,-1);
+  const [recsRaw, expsRaw] = await Promise.all([
+    api(`daily?date_gte=${from}&date_lte=${to}`).catch(()=>[]),
+    api(`daily/expenses?date_gte=${from}&date_lte=${to}`).catch(()=>[])
+  ]);
+  const recs = Array.isArray(recsRaw) ? recsRaw : (recsRaw && recsRaw.date ? [recsRaw] : []);
+  const exps = Array.isArray(expsRaw) ? expsRaw : [];
+  if(!recs.length) return null;
+  recs.sort((a,b)=> String(a.date).slice(0,10) < String(b.date).slice(0,10) ? -1 : 1);
+  const base = recs[recs.length-1];
+  const baseDate = String(base.date).slice(0,10);
+
+  // divas-wise register sale (exclude vagar na bills)
+  const pad = n => String(n).padStart(2,'0');
+  const sales = {};
+  [...(r1.invoices||r1||[]), ...(r2.invoices||r2||[])].forEach(inv=>{
+    if(inv.exclude_from_register) return;
+    const p = (inv.bill_date||'').split('/');
+    if(p.length!==3) return;
+    const k = `${p[2]}-${pad(parseInt(p[1]))}-${pad(parseInt(p[0]))}`;
+    sales[k] = (sales[k]||0) + parseFloat(inv.total||0);
+  });
+  const expC = {}, expB = {};
+  exps.forEach(e=>{
+    const k = String(e.date).slice(0,10);
+    expC[k] = (expC[k]||0) + parseFloat(e.expense_cash||0);
+    expB[k] = (expB[k]||0) + parseFloat(e.expense_bank||0);
+  });
+
+  let cash = parseFloat(base.op_cash||0), bank = parseFloat(base.op_bank||0);
+  const gaps = [];
+  let cur = baseDate;
+  while(true){
+    // saved divas ni bank sale vaparvi; saved na hoy to bank sale 0
+    const bm = (cur===baseDate) ? parseFloat(base.bank_sale_main||0)+parseFloat(base.bank_sale_branch2||0) : 0;
+    cash = cash + ((sales[cur]||0) - bm) - (expC[cur]||0);
+    bank = bank + bm - (expB[cur]||0);
+    if(cur>=to) break;
+    cur = drAddDays(cur,1);
+    gaps.push(cur);
+  }
+  // gaps ma 'to' (aagal no divas) pan aave chhe; e saved na hoy to j gap ganvo
+  const realGaps = gaps.filter(d=> !recs.some(r=>String(r.date).slice(0,10)===d));
+  return {cash, bank, baseDate, gaps: realGaps};
+}
+
+// Saved opening ne expected opening sathe sarkhavo; fark hoy to warning + 'Sachu lagao' button
+async function drCheckOpening(date, r1, r2){
+  try{
+    const exp = await drExpectedOpening(date, r1, r2);
+    const note = document.getElementById('drOpNote');
+    if(!exp || !note) return;
+    if(document.getElementById('drDate')?.value !== date) return;
+    const sc = parseFloat(document.getElementById('drOpCash')?.value||0);
+    const sb = parseFloat(document.getElementById('drOpBank')?.value||0);
+    const ec = Math.round(exp.cash), eb = Math.round(exp.bank);
+    if(Math.abs(ec-Math.round(sc))>=1 || Math.abs(eb-Math.round(sb))>=1){
+      note.innerHTML = `⚠️ Saved opening mismatch — Cash ${drFmt(sc)} (sachu ${drFmt(ec)}), Bank ${drFmt(sb)} (sachu ${drFmt(eb)}). `
+        + `<button onclick="drApplyExpectedOpening(${ec},${eb})" style="margin-left:4px;padding:2px 8px;background:var(--accent);color:#000;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">Sachu lagao</button>`;
+    }
+  }catch(e){ /* silent */ }
+}
+
+function drApplyExpectedOpening(c, b){
+  document.getElementById('drOpCash').value = c;
+  document.getElementById('drOpBank').value = b;
+  document.getElementById('drOpNote').textContent = '✅ Sachu opening lagayu — 💾 Save dabavo';
+  drCalc();
 }
 
 function drCalc(){
@@ -8427,6 +8483,7 @@ async function saveDailyRegister(){
   const cB1 = Math.abs(pf.b1 - DR.b1Profit) < 1 ? null : Math.round(pf.b1*100)/100;
   const cB2 = Math.abs(pf.b2 - DR.b2Profit) < 1 ? null : Math.round(pf.b2*100)/100;
   if(!date){ toast('Date select karo','error'); return; }
+  if(!opCash && !opBank && !confirm('Opening Cash ane Opening Bank banne 0 chhe. Aagal na divas no record saved nathi? Su kharekhar save karvu?')) return;
   try{
     await api('daily','POST',{date, op_cash:opCash, op_bank:opBank, bank_sale_main:bankMain, bank_sale_branch2:bankB2, correct_profit_b1:cB1, correct_profit_b2:cB2});
     toast('✅ Daily Register save thayu!','success');
