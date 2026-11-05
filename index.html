@@ -1804,7 +1804,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
         <div style="font-size:11px;color:var(--muted)" id="drB1Bills">0 bills</div>
       </div>
       <div style="background:var(--s2);border-radius:8px;padding:10px">
-        <div style="font-size:11px;color:var(--muted)">Branch 2 Total Sale</div>
+        <div style="font-size:11px;color:var(--muted)"><span class="drB2Lbl">Branch 2</span> Total Sale</div>
         <div style="font-size:16px;font-weight:700;color:var(--accent)" id="drB2Total">₹0</div>
         <div style="font-size:11px;color:var(--muted)" id="drB2Bills">0 bills</div>
       </div>
@@ -1813,7 +1813,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
         <div style="font-size:16px;font-weight:700;color:#34d399" id="drB1Profit">₹0</div>
       </div>
       <div style="background:var(--s2);border-radius:8px;padding:10px">
-        <div style="font-size:11px;color:var(--muted)">Branch 2 Profit</div>
+        <div style="font-size:11px;color:var(--muted)"><span class="drB2Lbl">Branch 2</span> Profit</div>
         <div style="font-size:16px;font-weight:700;color:#34d399" id="drB2Profit">₹0</div>
       </div>
     </div>
@@ -1842,7 +1842,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
       </div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:8px" id="drCorrectProfitNoteB1"></div>
 
-      <div style="font-size:11px;color:var(--muted)">Branch 2 Profit Correction</div>
+      <div style="font-size:11px;color:var(--muted)"><span class="drB2Lbl">Branch 2</span> Profit Correction</div>
       <div style="display:flex;gap:8px;align-items:center;margin:4px 0 2px">
         <input type="number" id="drCorrectProfitB2" placeholder="Branch 2 profit (₹)"
           style="flex:1;padding:8px 12px;background:var(--s1);border:1px solid rgba(52,211,153,0.4);border-radius:8px;color:var(--text);font-size:14px;font-weight:600;outline:none"
@@ -1871,7 +1871,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
           style="width:100%;padding:9px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-weight:600;margin-top:4px;box-sizing:border-box">
       </div>
       <div style="flex:1;min-width:140px">
-        <label style="font-size:11px;color:var(--muted)">Branch 2 Bank Sale ₹</label>
+        <label style="font-size:11px;color:var(--muted)"><span class="drB2Lbl">Branch 2</span> Bank Sale ₹</label>
         <input type="number" id="drBankB2" placeholder="0" oninput="drCalc()"
           style="width:100%;padding:9px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-weight:600;margin-top:4px;box-sizing:border-box">
       </div>
@@ -8119,6 +8119,26 @@ const DR = {
   expenses:[]
 };
 
+
+// 1/11/2026 thi "Branch 2" ni jagya e North Star (branch 4) no hisab
+const DR_B2_CUTOFF = '2026-11-01';
+const DR_B2_NEW_ID = 4;
+function drB2IdFor(dateStr){
+  return (dateStr >= DR_B2_CUTOFF) ? DR_B2_NEW_ID : parseInt(document.getElementById('drBranch2Id')?.value||2);
+}
+function drB2NameFor(dateStr){ return (dateStr >= DR_B2_CUTOFF) ? 'North Star' : 'Branch 2'; }
+function drApplyB2Labels(dateStr){
+  const nm = drB2NameFor(dateStr);
+  document.querySelectorAll('.drB2Lbl').forEach(e=>{ e.textContent = nm; });
+  const pe = document.getElementById('drCorrectProfitB2');
+  if(pe) pe.placeholder = nm+' profit (₹)';
+}
+function drInvKey(inv){
+  const p = (inv.bill_date||'').split('/');
+  if(p.length!==3) return '';
+  return `${p[2]}-${String(parseInt(p[1])).padStart(2,'0')}-${String(parseInt(p[0])).padStart(2,'0')}`;
+}
+
 function drToday(){
   const d = new Date();
   return d.toISOString().split('T')[0]; // YYYY-MM-DD
@@ -8144,7 +8164,8 @@ async function loadDailyRegister(){
   if(expDateEl && !expDateEl.value) expDateEl.value = date;
 
   const b1Id = parseInt(document.getElementById('drBranch1Id')?.value||1);
-  const b2Id = parseInt(document.getElementById('drBranch2Id')?.value||2);
+  const b2Id = drB2IdFor(date);
+  drApplyB2Labels(date);
 
   // Reset profit correction inputs (navi date -> default = actual)
   ['drCorrectProfitB1','drCorrectProfitB2'].forEach(id=>{
@@ -8265,11 +8286,17 @@ async function drExpectedOpening(date, r1, r2){
   // divas-wise register sale (exclude vagar na bills)
   const pad = n => String(n).padStart(2,'0');
   const sales = {};
-  [...(r1.invoices||r1||[]), ...(r2.invoices||r2||[])].forEach(inv=>{
+  // 1/11/2026 pehla na divaso nu "Branch 2" juna branch (2) na bills, tyar pachi North Star (4)
+  let b2List = (r2.invoices||r2||[]);
+  if(date >= DR_B2_CUTOFF){
+    const oldRes = await api(`invoices?branch_id=eq.${parseInt(document.getElementById('drBranch2Id')?.value||2)}&order=created_at.desc&limit=2000`).catch(()=>[]);
+    const oldList = (oldRes.invoices||oldRes||[]).filter(i=> drInvKey(i) < DR_B2_CUTOFF);
+    b2List = [...oldList, ...b2List.filter(i=> drInvKey(i) >= DR_B2_CUTOFF)];
+  }
+  [...(r1.invoices||r1||[]), ...b2List].forEach(inv=>{
     if(inv.exclude_from_register) return;
-    const p = (inv.bill_date||'').split('/');
-    if(p.length!==3) return;
-    const k = `${p[2]}-${pad(parseInt(p[1]))}-${pad(parseInt(p[0]))}`;
+    const k = drInvKey(inv);
+    if(!k) return;
     sales[k] = (sales[k]||0) + parseFloat(inv.total||0);
   });
   const expC = {}, expB = {};
@@ -8529,13 +8556,13 @@ function drWhatsApp(){
 Op.Cash: ${fmt(opCash)}
 Op.Bank: ${fmt(opBank)}
 Cash Sale Branch 1: ${fmt(cashB1)}
-Cash Sale Branch 2: ${fmt(cashB2)}
+Cash Sale ${drB2NameFor(date)}: ${fmt(cashB2)}
 Bank Sale: ${fmt(totalBank)}
 Total Sale: ${fmt(totalSale)}
 Stock Purchase: ${fmt(stockTotal)}${stockNotes?' ('+stockNotes+')':''}
 Expenses: ${fmt(spendTotal)}${spendNotes?' ('+spendNotes+')':''}
 Branch 1 Profit: ${fmt(pf.b1)}
-Branch 2 Profit: ${fmt(pf.b2)}
+${drB2NameFor(date)} Profit: ${fmt(pf.b2)}
 ${profitLine}
 Cl.Cash: ${fmt(clCash)}
 Cl.Bank: ${fmt(clBank)}`;
@@ -8551,7 +8578,7 @@ async function loadMonthlySummary(){
   const month = parseInt(document.getElementById('drMonthSel').value);
   const year  = parseInt(document.getElementById('drYearSel').value);
   const b1Id  = parseInt(document.getElementById('drBranch1Id')?.value||1);
-  const b2Id  = parseInt(document.getElementById('drBranch2Id')?.value||2);
+  const b2Id  = drB2IdFor(`${year}-${String(month).padStart(2,'0')}-01`);
 
   const resultEl = document.getElementById('drMonthlyResult');
   const btnsEl   = document.getElementById('drMonthlyBtns');
@@ -8644,7 +8671,7 @@ async function loadMonthlySummary(){
     const clBank = opBank + totalBank - totalExpBank;
 
     DR_MONTHLY = {
-      month, year, daysInMonth, mm,
+      month, year, daysInMonth, mm, b2Name: drB2NameFor(`${year}-${mm}-01`),
       b1Total, b1Profit, b2Total, b2Profit,
       totalSale, totalBank, cashB1, cashB2,
       opCash, opBank, clCash, clBank,
@@ -8659,7 +8686,7 @@ async function loadMonthlySummary(){
     resultEl.innerHTML = `
       <div style="text-align:left;font-size:13px;line-height:2">
         <div>📦 Total Sale: <strong>${fmt(totalSale)}</strong></div>
-        <div>💰 B1 Profit: <strong style="color:#34d399">${fmt(b1Profit)}</strong> | B2: <strong style="color:#34d399">${fmt(b2Profit)}</strong></div>
+        <div>💰 B1 Profit: <strong style="color:#34d399">${fmt(b1Profit)}</strong> | ${drB2NameFor(`${year}-${mm}-01`)}: <strong style="color:#34d399">${fmt(b2Profit)}</strong></div>
         <div>💚 Total Profit: <strong style="color:#34d399">${fmt(totalProfit)}</strong></div>
         <div>💸 Expenses: <strong style="color:#f87171">${fmt(expOnlyTotal)}</strong></div>
         <div>✅ Net Profit: <strong style="color:#34d399">${fmt(netProfit)}</strong></div>
@@ -8693,11 +8720,11 @@ function drMonthlyWhatsApp(){
 Op.Cash: ${fmt(m.opCash)}
 Op.Bank: ${fmt(m.opBank)}
 Cash Sale Branch 1: ${fmt(m.cashB1)}
-Cash Sale Branch 2: ${fmt(m.cashB2)}
+Cash Sale ${m.b2Name}: ${fmt(m.cashB2)}
 Bank Sale: ${fmt(m.totalBank)}
 Total Sale: ${fmt(m.totalSale)}
 Branch 1 Profit: ${fmt(m.b1Profit)}
-Branch 2 Profit: ${fmt(m.b2Profit)}
+${m.b2Name} Profit: ${fmt(m.b2Profit)}
 Total Profit: ${fmt(m.totalProfit)}
 Expenses: ${fmt(m.expOnlyTotal)}${expNotes?' ('+expNotes+')':''}
 *Net Profit: ${fmt(m.netProfit)}*
