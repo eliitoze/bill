@@ -1799,7 +1799,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
     <div class="card-title">🛍️ Sales <span id="drSalesLoading" style="font-size:11px;color:var(--muted)"></span></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div style="background:var(--s2);border-radius:8px;padding:10px">
-        <div style="font-size:11px;color:var(--muted)">Branch 1 Total Sale</div>
+        <div style="font-size:11px;color:var(--muted)"><span class="drB1Lbl">Branch 1</span> Total Sale</div>
         <div style="font-size:16px;font-weight:700;color:var(--accent)" id="drB1Total">₹0</div>
         <div style="font-size:11px;color:var(--muted)" id="drB1Bills">0 bills</div>
       </div>
@@ -1809,7 +1809,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
         <div style="font-size:11px;color:var(--muted)" id="drB2Bills">0 bills</div>
       </div>
       <div style="background:var(--s2);border-radius:8px;padding:10px">
-        <div style="font-size:11px;color:var(--muted)">Branch 1 Profit</div>
+        <div style="font-size:11px;color:var(--muted)"><span class="drB1Lbl">Branch 1</span> Profit</div>
         <div style="font-size:16px;font-weight:700;color:#34d399" id="drB1Profit">₹0</div>
       </div>
       <div style="background:var(--s2);border-radius:8px;padding:10px">
@@ -1830,7 +1830,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
     <div style="margin-top:8px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.25);border-radius:10px;padding:10px">
       <div style="font-size:11px;color:var(--muted);margin-bottom:8px">✏️ Profit Correction (Default: Actual) — Save & WA ma use thashe</div>
 
-      <div style="font-size:11px;color:var(--muted)">Branch 1 Profit Correction</div>
+      <div style="font-size:11px;color:var(--muted)"><span class="drB1Lbl">Branch 1</span> Profit Correction</div>
       <div style="display:flex;gap:8px;align-items:center;margin:4px 0 2px">
         <input type="number" id="drCorrectProfitB1" placeholder="Branch 1 profit (₹)"
           style="flex:1;padding:8px 12px;background:var(--s1);border:1px solid rgba(52,211,153,0.4);border-radius:8px;color:var(--text);font-size:14px;font-weight:600;outline:none"
@@ -1866,7 +1866,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
     <div class="card-title">🏦 Bank Sale (Manual Enter)</div>
     <div style="display:flex;gap:12px;flex-wrap:wrap">
       <div style="flex:1;min-width:140px">
-        <label style="font-size:11px;color:var(--muted)">Branch 1 Bank Sale ₹</label>
+        <label style="font-size:11px;color:var(--muted)"><span class="drB1Lbl">Branch 1</span> Bank Sale ₹</label>
         <input type="number" id="drBankMain" placeholder="0" oninput="drCalc()"
           style="width:100%;padding:9px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-weight:600;margin-top:4px;box-sizing:border-box">
       </div>
@@ -8126,12 +8126,17 @@ const DR_B2_NEW_ID = 4;
 function drB2IdFor(dateStr){
   return (dateStr >= DR_B2_CUTOFF) ? DR_B2_NEW_ID : parseInt(document.getElementById('drBranch2Id')?.value||2);
 }
-function drB2NameFor(dateStr){ return (dateStr >= DR_B2_CUTOFF) ? 'North Star' : 'Branch 2'; }
+function drB2NameFor(dateStr){ return (dateStr >= DR_B2_CUTOFF) ? 'Northstar' : 'Branch 2'; }
+function drB1NameFor(dateStr){ return (dateStr >= DR_B2_CUTOFF) ? 'Eliitoze' : 'Branch 1'; }
 function drApplyB2Labels(dateStr){
   const nm = drB2NameFor(dateStr);
   document.querySelectorAll('.drB2Lbl').forEach(e=>{ e.textContent = nm; });
   const pe = document.getElementById('drCorrectProfitB2');
   if(pe) pe.placeholder = nm+' profit (₹)';
+  const n1 = drB1NameFor(dateStr);
+  document.querySelectorAll('.drB1Lbl').forEach(e=>{ e.textContent = n1; });
+  const pe1 = document.getElementById('drCorrectProfitB1');
+  if(pe1) pe1.placeholder = n1+' profit (₹)';
 }
 function drInvKey(inv){
   const p = (inv.bill_date||'').split('/');
@@ -8555,13 +8560,13 @@ function drWhatsApp(){
 `${dateStr}
 Op.Cash: ${fmt(opCash)}
 Op.Bank: ${fmt(opBank)}
-Cash Sale Branch 1: ${fmt(cashB1)}
+Cash Sale ${drB1NameFor(date)}: ${fmt(cashB1)}
 Cash Sale ${drB2NameFor(date)}: ${fmt(cashB2)}
 Bank Sale: ${fmt(totalBank)}
 Total Sale: ${fmt(totalSale)}
 Stock Purchase: ${fmt(stockTotal)}${stockNotes?' ('+stockNotes+')':''}
 Expenses: ${fmt(spendTotal)}${spendNotes?' ('+spendNotes+')':''}
-Branch 1 Profit: ${fmt(pf.b1)}
+${drB1NameFor(date)} Profit: ${fmt(pf.b1)}
 ${drB2NameFor(date)} Profit: ${fmt(pf.b2)}
 ${profitLine}
 Cl.Cash: ${fmt(clCash)}
@@ -8686,7 +8691,7 @@ async function loadMonthlySummary(){
     resultEl.innerHTML = `
       <div style="text-align:left;font-size:13px;line-height:2">
         <div>📦 Total Sale: <strong>${fmt(totalSale)}</strong></div>
-        <div>💰 B1 Profit: <strong style="color:#34d399">${fmt(b1Profit)}</strong> | ${drB2NameFor(`${year}-${mm}-01`)}: <strong style="color:#34d399">${fmt(b2Profit)}</strong></div>
+        <div>💰 ${drB1NameFor(`${year}-${mm}-01`)} Profit: <strong style="color:#34d399">${fmt(b1Profit)}</strong> | ${drB2NameFor(`${year}-${mm}-01`)}: <strong style="color:#34d399">${fmt(b2Profit)}</strong></div>
         <div>💚 Total Profit: <strong style="color:#34d399">${fmt(totalProfit)}</strong></div>
         <div>💸 Expenses: <strong style="color:#f87171">${fmt(expOnlyTotal)}</strong></div>
         <div>✅ Net Profit: <strong style="color:#34d399">${fmt(netProfit)}</strong></div>
@@ -8719,11 +8724,11 @@ function drMonthlyWhatsApp(){
 `*01-${mm2}-${yy} to ${dd}-${mm2}-${yy}*
 Op.Cash: ${fmt(m.opCash)}
 Op.Bank: ${fmt(m.opBank)}
-Cash Sale Branch 1: ${fmt(m.cashB1)}
+Cash Sale ${drB1NameFor(`${m.year}-${m.mm}-01`)}: ${fmt(m.cashB1)}
 Cash Sale ${m.b2Name}: ${fmt(m.cashB2)}
 Bank Sale: ${fmt(m.totalBank)}
 Total Sale: ${fmt(m.totalSale)}
-Branch 1 Profit: ${fmt(m.b1Profit)}
+${drB1NameFor(`${m.year}-${m.mm}-01`)} Profit: ${fmt(m.b1Profit)}
 ${m.b2Name} Profit: ${fmt(m.b2Profit)}
 Total Profit: ${fmt(m.totalProfit)}
 Expenses: ${fmt(m.expOnlyTotal)}${expNotes?' ('+expNotes+')':''}
