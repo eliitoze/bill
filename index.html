@@ -874,7 +874,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 }
 #vbItemPickerOverlay.open { display: flex; }
 .vbip-sheet {
-  background: var(--s1); width: 100%; max-width: 560px; max-height: 84vh;
+  background: var(--s1); width: 100%; max-width: 560px; max-height: 84vh; max-height: var(--vbip-max, 84vh);
   border-radius: 18px 18px 0 0; display: flex; flex-direction: column;
   box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
   padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -899,6 +899,12 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 .vbip-item-name { font-weight: 600; font-size: 13px; }
 .vbip-item-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .vbip-item-price { font-family: 'DM Mono', monospace; font-weight: 700; color: var(--accent); font-size: 13px; flex-shrink: 0; }
+/* Keyboard khule tyare: sheet ne dekhati jagya ma j fit karo, list scroll thay */
+#vbItemPickerOverlay.kb .vbip-sheet { height: var(--vbip-max); border-radius: 14px 14px 0 0; padding-bottom: 0; }
+#vbItemPickerOverlay.kb .vbip-header { padding: 10px 14px 6px; }
+#vbItemPickerOverlay.kb .vbip-title { margin-bottom: 8px; }
+.vbip-sheet { min-height: 0; }
+.vbip-list { min-height: 0; overscroll-behavior: contain; touch-action: pan-y; }
 .vbip-custom { background: rgba(110,231,183,0.08); border: 1px dashed var(--accent); border-radius: 9px; padding: 11px 12px; margin-bottom: 8px; color: var(--accent); font-weight: 600; font-size: 13px; cursor: pointer; text-align: center; }
 
 /* Everything below is scoped to mobile screens only — desktop (>768px) is 100% unaffected */
@@ -7084,13 +7090,49 @@ function vbOpenItemPicker(rowId){
   document.getElementById('vbipSearch').value = '';
   vbRenderPickerCats();
   vbFilterPicker('');
-  setTimeout(()=>{ const s=document.getElementById('vbipSearch'); if(s) s.focus(); }, 200);
+  vbipFitViewport();
+  setTimeout(()=>{ const s=document.getElementById('vbipSearch'); if(s) s.focus(); vbipFitViewport(); }, 200);
 }
 function vbCloseItemPicker(){
   const overlay = document.getElementById('vbItemPickerOverlay');
-  if(overlay) overlay.classList.remove('open');
+  if(overlay){
+    overlay.classList.remove('open','kb');
+    overlay.style.top = ''; overlay.style.bottom = ''; overlay.style.height = '';
+    overlay.style.removeProperty('--vbip-max');
+  }
   vbPickerRowId = null;
 }
+// Mobile keyboard: overlay ne ONLY dekhati (visible) screen jetli j height aapo,
+// jethi list keyboard pachhal chhupai na jay ane scroll thai shake.
+function vbipFitViewport(){
+  const overlay = document.getElementById('vbItemPickerOverlay');
+  if(!overlay || !overlay.classList.contains('open')) return;
+  const vv = window.visualViewport;
+  if(!vv) return;
+  const kbOpen = (window.innerHeight - vv.height) > 120;
+  overlay.style.top = vv.offsetTop + 'px';
+  overlay.style.bottom = 'auto';
+  overlay.style.height = vv.height + 'px';
+  overlay.style.setProperty('--vbip-max', Math.round(kbOpen ? vv.height - 8 : vv.height * 0.84) + 'px');
+  overlay.classList.toggle('kb', kbOpen);
+}
+(function(){
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize', vbipFitViewport);
+    window.visualViewport.addEventListener('scroll', vbipFitViewport);
+  }
+  function bindPickerUX(){
+    const list = document.getElementById('vbipList');
+    const search = document.getElementById('vbipSearch');
+    if(!list || !search || list._vbipBound) return;
+    list._vbipBound = true;
+    // List scroll karo tyare keyboard aapoaap band thay - badhi items dekhay
+    list.addEventListener('touchmove', function(){ if(document.activeElement===search) search.blur(); }, {passive:true});
+    // Keyboard na Go/Enter dabavo to keyboard band thay ane list dekhay
+    search.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); search.blur(); } });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', bindPickerUX); else bindPickerUX();
+})();
 function vbRenderPickerCats(){
   const el = document.getElementById('vbipCats');
   if(!el) return;
