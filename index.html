@@ -900,7 +900,10 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 .vbip-item-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .vbip-item-price { font-family: 'DM Mono', monospace; font-weight: 700; color: var(--accent); font-size: 13px; flex-shrink: 0; }
 /* Keyboard khule tyare: sheet ne dekhati jagya ma j fit karo, list scroll thay */
-#vbItemPickerOverlay.kb .vbip-sheet { height: var(--vbip-max); border-radius: 14px 14px 0 0; padding-bottom: 0; }
+/* Sheet upar (top) ma - keyboard kyarey list ne dhake nahi */
+#vbItemPickerOverlay { align-items: flex-start; }
+#vbItemPickerOverlay .vbip-sheet { border-radius: 0 0 18px 18px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); padding-bottom: 0; padding-top: env(safe-area-inset-top, 0px); }
+#vbItemPickerOverlay.kb .vbip-sheet { height: var(--vbip-max); border-radius: 0 0 14px 14px; }
 #vbItemPickerOverlay.kb .vbip-header { padding: 10px 14px 6px; }
 #vbItemPickerOverlay.kb .vbip-title { margin-bottom: 8px; }
 .vbip-sheet { min-height: 0; }
@@ -6669,7 +6672,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v38';
+const APP_VERSION = 'v37';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
@@ -7126,8 +7129,7 @@ function vbipFitViewport(){
     const search = document.getElementById('vbipSearch');
     if(!list || !search || list._vbipBound) return;
     list._vbipBound = true;
-    // List scroll karo tyare keyboard aapoaap band thay - badhi items dekhay
-    list.addEventListener('touchmove', function(){ if(document.activeElement===search) search.blur(); }, {passive:true});
+    // (List scroll karti vakhte keyboard band NA karvo - e layout hilavi scroll atkavti hati)
     // Keyboard na Go/Enter dabavo to keyboard band thay ane list dekhay
     search.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); search.blur(); } });
   }
