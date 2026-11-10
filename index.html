@@ -935,6 +935,45 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 
 /* Billing page takes full content area */
 
+/* ===== MOBILE BILLING WIZARD: Step 1 (Customer) -> Step 2 (Items + Save) =====
+   Desktop (>768px) ma kain j badlatu nathi: navi elements hidden, .vbm-body = display:contents */
+.vbm-step1-bar, .vbm-step2-head { display: none; }
+.vbm-body { display: contents; }
+.vbm-step2-head { align-items: center; gap: 10px; padding: 8px 12px; background: var(--s1); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.vbm-back { background: var(--s2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 700; padding: 7px 12px; cursor: pointer; flex-shrink: 0; }
+.vbm-head-cust { flex: 1; min-width: 0; font-weight: 700; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vbm-head-total { font-family: 'DM Mono', monospace; font-weight: 800; font-size: 16px; color: var(--accent); flex-shrink: 0; }
+.vbm-step1-bar { padding: 10px 12px; background: var(--s1); border-top: 1px solid var(--border); flex-shrink: 0; }
+.vbm-next { flex: 1; padding: 14px; border: none; border-radius: 10px; background: var(--accent); color: #0a0a0f; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 800; cursor: pointer; }
+.vbm-next:active { transform: scale(0.98); }
+
+@media (max-width: 768px) {
+  /* Screen ni height ma j fit: topbar + content + bottom-nav, kain kapay nahi / overlay na thay */
+  .main:has(#page-billing.active) { height: 100vh; height: 100dvh; padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
+  .content:has(#page-billing.active) { flex: 1 1 auto !important; height: auto !important; min-height: 0 !important; padding: 0 !important; overflow: hidden !important; }
+  .main:has(#page-billing.active) .topbar h2 { white-space: nowrap; }
+  .main:has(#page-billing.active) #activeBranchChip { white-space: nowrap; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
+  .main:has(#page-billing.active) #dateChip { display: none; }
+  #page-billing.active { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; height: auto; overflow: hidden; }
+  #page-billing #vyaparBill { display: flex; flex-direction: column; flex: 1 1 auto; height: auto; min-height: 0; overflow: hidden; }
+  #vyaparBill .vbm-body { display: block; flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 12px; }
+  /* Action bar: have scroll area nI niche alag (overlay nahi) */
+  #vyaparBill .vb-actions { bottom: auto; margin: 0; padding: 10px 12px; box-shadow: none; border-top: 1px solid var(--border); flex-shrink: 0; }
+  #vyaparBill .vb-pay-toggle { flex-wrap: wrap; gap: 6px 8px; }
+  /* Step 1: fakt customer + invoice info */
+  #vyaparBill.vbm-s1 .vb-pay-toggle,
+  #vyaparBill.vbm-s1 .vb-mob-items,
+  #vyaparBill.vbm-s1 .vb-bottom,
+  #vyaparBill.vbm-s1 .vb-actions,
+  #vyaparBill.vbm-s1 .vbm-step2-head { display: none !important; }
+  #vyaparBill.vbm-s1 .vbm-step1-bar { display: flex; }
+  /* Step 2: payment + items + discount/total + Print/Save */
+  #vyaparBill.vbm-s2 .vb-cust-fields,
+  #vyaparBill.vbm-s2 .vb-inv-info,
+  #vyaparBill.vbm-s2 .vbm-step1-bar { display: none !important; }
+  #vyaparBill.vbm-s2 .vbm-step2-head { display: flex; }
+}
+
 </style>
 </head>
 <body>
@@ -1097,8 +1136,16 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 
     <!-- BILLING -->
     <div class="page" id="page-billing">
-      <div id="vyaparBill">
+      <div id="vyaparBill" class="vbm-s1">
 
+        <!-- MOBILE STEP 2 HEADER (desktop ma hidden) -->
+        <div class="vbm-step2-head" id="vbmStep2Head">
+          <button type="button" class="vbm-back" onclick="vbmGoStep(1)">← Back</button>
+          <div class="vbm-head-cust" id="vbmHeadCust">Walk-in</div>
+          <div class="vbm-head-total" id="vbmHeadTotal">₹0</div>
+        </div>
+
+        <div class="vbm-body">
         <!-- TOP: Customer + Invoice Info -->
         <div class="vb-top">
           <div class="vb-cust-section">
@@ -1125,7 +1172,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
                 <div id="vbCustDrop" class="vb-cust-drop"></div>
                 <input type="hidden" id="vbCustId">
               </div>
-              <input type="tel" id="vbPhone" placeholder="Phone No." class="vb-input" maxlength="10" onkeydown="if(event.key==='Enter' && window.innerWidth<=768){event.preventDefault();this.blur();vbTapAddItem();}">
+              <input type="tel" id="vbPhone" placeholder="Phone No." class="vb-input" maxlength="10" onkeydown="if(event.key==='Enter' && window.innerWidth<=768){event.preventDefault();this.blur();vbmGoStep(2);}">
               <input type="text" id="vbDob" class="vb-input" placeholder="🎂 DD/MM (Optional)" maxlength="5" inputmode="numeric" oninput="vbDobFormat(this)" style="color:var(--muted)">
               <textarea id="vbAddress" placeholder="Billing Address" class="vb-input vb-textarea" rows="2"></textarea>
             </div>
@@ -1213,6 +1260,13 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
               <span id="vbTotal">₹0</span>
             </div>
           </div>
+        </div>
+
+        </div><!-- end vbm-body -->
+
+        <!-- MOBILE STEP 1 BAR (desktop ma hidden) -->
+        <div class="vbm-step1-bar" id="vbmStep1Bar">
+          <button type="button" class="vbm-next" onclick="vbmGoStep(2)">Next ➜ Items</button>
         </div>
 
         <!-- ACTION BUTTONS -->
@@ -3693,6 +3747,7 @@ function loadBillToNewBill(inv){
 
     // 9. Edit banner
     showVbEditingBanner(inv);
+    vbmGoStep(2, true);   // mobile: edit ma seedha items vala step par
     toast('✏️ Bill #'+String(inv.bill_number).padStart(4,'0')+' loaded — edit karo!','success');
   }, 150);
 }
@@ -3727,6 +3782,7 @@ function cancelVbEdit(){
   vbUpdateInvInfo();
   vbRender();
   vbCalc();
+  vbmGoStep(1, true);
   toast('Edit cancelled','success');
 }
 
@@ -6607,7 +6663,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v36';
+const APP_VERSION = 'v37';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
@@ -7315,6 +7371,7 @@ function vbCalc(){
   document.getElementById('vbRoundAmt').textContent = roundDiff > 0 ? '+'+roundDiff : roundDiff;
   document.getElementById('vbTotal').textContent = '₹'+rounded.toFixed(0);
   document.getElementById('vbRowTotal').textContent = subtotal.toFixed(0);
+  const _vh = document.getElementById('vbmHeadTotal'); if(_vh) _vh.textContent = '₹'+rounded.toFixed(0);
 }
 
 function vbCalcFromAmt(){
@@ -7403,6 +7460,7 @@ function vbClear(){
 
   vbUpdateInvInfo();
   vbAddRow(false);
+  vbmGoStep(1, true);   // mobile: navo bill = pachho Step 1
 }
 
 async function vbSave(){
@@ -7798,6 +7856,36 @@ function vbPrint(){
   };
   thermalPrint(fakeInv);
 }
+// ===== MOBILE BILLING WIZARD (Step 1: Customer, Step 2: Items + Save) =====
+// Desktop ma aa function koi asar nathi karto (fakt class badle chhe, CSS fakt mobile media ma chhe).
+function vbmGoStep(n, silent){
+  const el = document.getElementById('vyaparBill');
+  if(!el) return;
+  if(n===2 && !silent){
+    const phEl = document.getElementById('vbPhone');
+    const raw = (phEl && phEl.value || '').trim();
+    if(raw && raw.replace(/\D/g,'').length !== 10){
+      toast('Phone number 10 digit no joiye (ya khali rakho)','error');
+      if(phEl) phEl.focus();
+      return;
+    }
+  }
+  if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  el.classList.remove('vbm-s1','vbm-s2');
+  el.classList.add('vbm-s'+n);
+  const body = el.querySelector('.vbm-body');
+  if(body) body.scrollTop = 0;
+  if(n===2){
+    const nm = (document.getElementById('vbCustName').value||'').trim() || 'Walk-in';
+    const ph = (document.getElementById('vbPhone').value||'').trim();
+    const hc = document.getElementById('vbmHeadCust'); if(hc) hc.textContent = nm + (ph ? ' · '+ph : '');
+    const ht = document.getElementById('vbmHeadTotal'), tt = document.getElementById('vbTotal');
+    if(ht && tt) ht.textContent = tt.textContent;
+    // Haju koi item nathi → seedho item picker kholo (ek tap bachave)
+    if(!silent && window.innerWidth<=768 && !VB.rows.some(r=>r.itemName)) setTimeout(vbTapAddItem, 150);
+  }
+}
+
 // ===== END VYAPAR BILLING JS =====
 
 // Start: check session first, show login if needed
