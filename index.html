@@ -3253,7 +3253,7 @@ function updateBillNo(){
   if(billNoEl) billNoEl.textContent = 'Bill #'+String(n).padStart(4,'0');
   // Also update vbInvNo if visible
   const vbEl = document.getElementById('vbInvNo');
-  if(vbEl) vbEl.value = n;
+  if(vbEl && !S.editingInvoiceId) vbEl.value = n;
 }
 
 function populateSels(){
@@ -3677,6 +3677,8 @@ function loadBillToNewBill(inv){
     VB.rows = [];
     S.editingInvoiceId = inv.id;
     S.editingInvoiceBillNo = inv.bill_number;
+    window._vbEditOrigInv = inv;      // original bill ni nakal (hisab revert mate)
+    window._manualBillNum = null;     // juno manual number edit ma na aave
     // Reset fields
     ['vbCustName','vbPhone','vbDob','vbNote','vbDiscPct','vbDiscAmt'].forEach(id=>{
       const el=document.getElementById(id); if(el) el.value='';
@@ -3779,6 +3781,7 @@ function showVbEditingBanner(inv){
 function cancelVbEdit(){
   S.editingInvoiceId = null;
   S.editingInvoiceBillNo = null;
+  window._vbEditOrigInv = null;
   const banner = document.getElementById('vbEditBanner');
   if(banner) banner.style.display='none';
   // VB reset
@@ -6672,7 +6675,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v51';
+const APP_VERSION = 'v37';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
@@ -6900,6 +6903,8 @@ function vbInit(){
 }
 
 function vbUpdateInvInfo(){
+  // EDIT MODE: juno bill number ane juni date j rehva do (counter / aaj ni date thi overwrite na karo)
+  if(S.editingInvoiceId){ vbUpdateTime(); return; }
   const num = parseInt(S.settings.bill_counter)||1;
   document.getElementById('vbInvNo').value = num;
   const now = new Date();
@@ -7606,7 +7611,7 @@ async function vbSave(){
 
   // Edit mode ma original date preserve karo, navi bill ma current date
   // Pan jya user e vbBillDate input ma change karyu hoy to e priority chhe
-  const origInvForDate = S.editingInvoiceId ? (S.invoices.find(x=>x.id===S.editingInvoiceId)||{}) : {};
+  const origInvForDate = S.editingInvoiceId ? (S.invoices.find(x=>x.id===S.editingInvoiceId) || (S.reportInvoices||[]).find(x=>x.id===S.editingInvoiceId) || window._vbEditOrigInv || {}) : {};
   const billDateInputEl = document.getElementById('vbBillDate');
   const billDateInputVal = billDateInputEl && billDateInputEl.value
     ? (()=>{ const p=billDateInputEl.value.split('-'); return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:'' })()
@@ -7634,8 +7639,20 @@ async function vbSave(){
       setSyncStatus('syncing');
       const {_localPhone:_lp, ...invForDB} = inv;
       // bill_number and public_token preserve karo original
-      const origInv = S.invoices.find(x=>x.id===editId)||{};
-      invForDB.bill_number = origInv.bill_number || S.editingInvoiceBillNo || billNum;
+      const origInv = S.invoices.find(x=>x.id===editId) || (S.reportInvoices||[]).find(x=>x.id===editId) || window._vbEditOrigInv || {};
+      // Bill number: user e manually badlyo hoy to e, nahi to juno j
+      const origNo = origInv.bill_number || S.editingInvoiceBillNo || billNum;
+      const typedNo = parseInt((document.getElementById('vbInvNo')||{}).value);
+      invForDB.bill_number = (typedNo>0) ? typedNo : origNo;
+      if(invForDB.bill_number !== origNo){
+        const dup = S.invoices.find(x=>x.id!==editId && String(x.bill_number)===String(invForDB.bill_number) && (x.branch_id||1)===(S.activeBranchId||1));
+        if(dup && !confirm('Bill #'+String(invForDB.bill_number).padStart(4,'0')+' pehla thi chhe. Tame ema j save karva mango chho?')){
+          window._vbSaving=false;
+          const sb2=document.getElementById('vbSaveBtn'); if(sb2){sb2.disabled=false;sb2.textContent='💾 Save';}
+          setSyncStatus('online');
+          return;
+        }
+      }
       invForDB.public_token = origInv.public_token || vbToken;
       await api('invoices/'+editId,'PATCH',invForDB);
 
@@ -7652,7 +7669,7 @@ async function vbSave(){
       setSyncStatus('online');
       saveOffline(); updateDash(); renderInvs(); renderCusts(); renderProds();
       // Banner hide + reset edit state
-      S.editingInvoiceId=null; S.editingInvoiceBillNo=null;
+      S.editingInvoiceId=null; S.editingInvoiceBillNo=null; window._vbEditOrigInv=null;
       const banner=document.getElementById('vbEditBanner'); if(banner) banner.style.display='none';
       vbClear(); vbUpdateInvInfo();
       toast('✅ Bill #'+String(invForDB.bill_number).padStart(4,'0')+' updated!','success');
