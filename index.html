@@ -1661,6 +1661,19 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
               <input type="number" id="sGSTRate" value="18" min="0" max="28">
             </div>
           </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Print Method <span style="font-size:10px;color:var(--muted)">(fakt aa device mate)</span></label>
+              <select id="sPrintMode" onchange="setPrintMode(this.value)">
+                <option value="auto">Auto (Android = RawBT, Laptop = System)</option>
+                <option value="rawbt">RawBT (Bluetooth)</option>
+                <option value="system">System Print (window.print)</option>
+              </select>
+            </div>
+            <div class="form-group" style="display:flex;align-items:flex-end">
+              <button type="button" class="btn btn-ghost" onclick="rawbtTestPrint()" style="width:100%">🧪 Test Print</button>
+            </div>
+          </div>
           <button class="btn btn-primary" onclick="saveSettings()">💾 Save</button>
         </div>
         <div class="card">
@@ -3972,6 +3985,12 @@ function thermalPrint(invData){
   <div style="${f}font-size:9px;line-height:1.7">${terms}</div>
   <div style="height:8mm"></div>`;
 
+  // Android (RawBT) — Bluetooth thermal printer mate. Laptop ma aa branch skip thay chhe.
+  if(rawbtWanted()){
+    rawbtPrintHTML(html).then(ok=>{ if(!ok) systemPrintHTML(html); });
+    return;
+  }
+
   const el = document.getElementById('thermalPrint');
   el.innerHTML = html;
   el.style.display = 'block';
@@ -3979,6 +3998,110 @@ function thermalPrint(invData){
     window.print();
     setTimeout(()=>{ el.style.display = 'none'; }, 1500);
   }, 300);
+}
+
+// ===== RAWBT PRINT (Android Bluetooth thermal printer) =====
+// Bill ne image banavi ne ESC/POS raster tarike RawBT app ne moklay chhe.
+// Gujarati font + bill layout jem chhe tem j chhape. Laptop par aano upyog nathi thato.
+const RAWBT_DOTS = 384;   // 2-inch (58mm) printer = 384 dots. 3-inch hoy to 576 karo.
+
+function getPrintMode(){
+  try{ return localStorage.getItem('sb_print_mode') || 'auto'; }catch(e){ return 'auto'; }
+}
+function setPrintMode(v){
+  try{ localStorage.setItem('sb_print_mode', v); }catch(e){}
+  toast('✅ Print method: '+(v==='auto'?'Auto':v==='rawbt'?'RawBT':'System'),'success');
+}
+function rawbtWanted(){
+  const m = getPrintMode();
+  if(m==='rawbt') return true;
+  if(m==='system') return false;
+  return /Android/i.test(navigator.userAgent);   // auto: faqat Android phone par
+}
+
+// Jo RawBT na chale to juno System print (window.print) fallback
+function systemPrintHTML(html){
+  const el = document.getElementById('thermalPrint');
+  el.innerHTML = html;
+  el.style.display = 'block';
+  setTimeout(()=>{
+    window.print();
+    setTimeout(()=>{ el.style.display = 'none'; }, 1500);
+  }, 300);
+}
+
+async function rawbtPrintHTML(html){
+  if(typeof html2canvas === 'undefined'){
+    toast('html2canvas load nathi — System print vaparu chhu','error');
+    return false;
+  }
+  const wrap = document.createElement('div');
+  wrap.style.cssText = "position:fixed;left:-9999px;top:0;width:220px;box-sizing:border-box;padding:3mm 2mm;background:#fff;color:#000;font-family:'Courier New',monospace;font-size:12px;font-weight:700;line-height:1.6";
+  wrap.innerHTML = html;
+  document.body.appendChild(wrap);
+  try{
+    if(document.fonts && document.fonts.ready) await document.fonts.ready;
+    const src = await html2canvas(wrap, {scale: RAWBT_DOTS/220, backgroundColor:'#fff', useCORS:true});
+    const W = RAWBT_DOTS;
+    const H = Math.max(1, Math.round(src.height * W / src.width));
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,W,H);
+    ctx.drawImage(src, 0, 0, W, H);
+    const px = ctx.getImageData(0,0,W,H).data;
+
+    // ESC/POS: init + GS v 0 raster (200-line bands, jethi nana buffer vala printer pan chale) + feed
+    const wb = W/8, BAND = 200, bands = Math.ceil(H/BAND);
+    const bytes = new Uint8Array(2 + bands*8 + wb*H + 3);
+    let p = 0;
+    bytes[p++] = 0x1B; bytes[p++] = 0x40;
+    for(let y0=0; y0<H; y0+=BAND){
+      const bh = Math.min(BAND, H-y0);
+      bytes[p++]=0x1D; bytes[p++]=0x76; bytes[p++]=0x30; bytes[p++]=0x00;
+      bytes[p++]=wb & 255; bytes[p++]=wb >> 8; bytes[p++]=bh & 255; bytes[p++]=bh >> 8;
+      for(let y=y0; y<y0+bh; y++){
+        for(let xb=0; xb<wb; xb++){
+          let b = 0;
+          for(let bit=0; bit<8; bit++){
+            const i = (y*W + xb*8 + bit) * 4;
+            const lum = 0.299*px[i] + 0.587*px[i+1] + 0.114*px[i+2];
+            if(lum < 150) b |= (0x80 >> bit);
+          }
+          bytes[p++] = b;
+        }
+      }
+    }
+    bytes[p++]=0x1B; bytes[p++]=0x64; bytes[p++]=0x04;   // 4 line feed
+
+    // base64 (3 na multiple na chunk — vachche padding na aave)
+    let b64 = '';
+    for(let i=0; i<bytes.length; i+=24576){
+      b64 += btoa(String.fromCharCode.apply(null, bytes.subarray(i, i+24576)));
+    }
+    toast('🖨 RawBT ma bill moklu chhu...','success');
+    window.location.href = 'intent:base64,' + b64 + '#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;';
+    return true;
+  } catch(e){
+    console.error('RawBT print failed:', e);
+    toast('RawBT print na thayu — System print vaparu chhu','error');
+    return false;
+  } finally {
+    if(wrap.parentNode) wrap.parentNode.removeChild(wrap);
+  }
+}
+
+// Settings ma "Test Print" — bill banavya vagar printer check karva
+function rawbtTestPrint(){
+  const f = "font-family:'Courier New',monospace;";
+  const html = `<div style="${f}font-weight:bold;font-size:13px;text-align:center">ELIITOZE JEWELZ</div>
+  <div class="tp-solid"></div>
+  <div style="${f}font-size:11px;text-align:center">Test Print OK</div>
+  <div style="${f}font-size:12px;text-align:center">ગુજરાતી ટેસ્ટ પ્રિન્ટ</div>
+  <div class="tp-solid"></div>
+  <div style="height:8mm"></div>`;
+  if(rawbtWanted()) rawbtPrintHTML(html).then(ok=>{ if(!ok) systemPrintHTML(html); });
+  else systemPrintHTML(html);
 }
 
 // ===== WHATSAPP MESSAGE — PHOTO LAYOUT =====
@@ -6484,10 +6607,14 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v35';
+const APP_VERSION = 'v36';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
+});
+document.addEventListener('DOMContentLoaded', ()=>{
+  const pm = document.getElementById('sPrintMode');
+  if(pm) pm.value = getPrintMode();
 });
 
 // ===== SERVICE WORKER (PWA) + PUSH NOTIFICATIONS =====
