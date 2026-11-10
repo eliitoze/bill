@@ -6675,7 +6675,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v51';
+const APP_VERSION = 'v37';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
@@ -7437,6 +7437,12 @@ function vbFilterCust(){
   const q = (document.getElementById('vbCustName').value||'').toLowerCase();
   const rawQ = (document.getElementById('vbCustName').value||'').trim();
   const drop = document.getElementById('vbCustDrop');
+  // Nam badlyu hoy to pehla select thayela customer (juno ID) nu link hatavo
+  const _cidEl = document.getElementById('vbCustId');
+  if(_cidEl && _cidEl.value){
+    const _sc = S.customers.find(c=>String(c.id)===String(_cidEl.value));
+    if(_sc && (_sc.name||'').trim().toLowerCase() !== rawQ.toLowerCase()) _cidEl.value = '';
+  }
   if(!q){ drop.style.display='none'; return; }
   const matches = S.customers.filter(c=>
     c.name.toLowerCase().includes(q)||(c.phone||'').includes(q)
@@ -7539,11 +7545,27 @@ async function vbSave(){
     }
   }
 
-  const custId_raw = parseInt(document.getElementById('vbCustId').value)||null;
+  let custId_raw = parseInt(document.getElementById('vbCustId').value)||null;
   const custName = document.getElementById('vbCustName').value.trim() || 'Walk-in';
   const phone = document.getElementById('vbPhone').value.trim();
   const note = document.getElementById('vbNote').value.trim();
   const payMode = vbGetPayMode();
+
+  // Pehla select thayela customer karta nam ya number alag hoy to e customer sathe link na rakho
+  // (galti thi same-name vado customer select thayo hoy to edit ma sudhari shakay)
+  if(custId_raw){
+    const selC = S.customers.find(c=>String(c.id)===String(custId_raw));
+    if(selC){
+      const nameChanged  = custName!=='Walk-in' && (selC.name||'').trim().toLowerCase() !== custName.toLowerCase();
+      const phoneChanged = !!(phone && selC.phone && String(selC.phone).trim() !== phone);
+      if(nameChanged || phoneChanged){
+        custId_raw = null;   // niche phone thi existing shodhshe, nahi male to navo customer banshe
+      } else if(phone && !selC.phone){
+        selC.phone = phone;  // customer ne number nahoto - have save karo
+        api('customers/'+selC.id,'PATCH',{phone}).catch(()=>{});
+      }
+    }
+  }
 
   // Auto-save customer — name fill karyu hoy to hamesha save karvo
   let custId = custId_raw;
@@ -7751,8 +7773,8 @@ function showAfterSaveOptions(inv, billNum){
   const custForPhone = inv.customer_id 
     ? S.customers.find(c=>c.id===inv.customer_id || String(c.id)===String(inv.customer_id))
     : null;
-  const phone = (custForPhone && custForPhone.phone)
-    || inv._localPhone || inv.phone || '';
+  const phone = inv._localPhone
+    || (custForPhone && custForPhone.phone) || inv.phone || '';
   const waNum = phone.replace(/\D/g,'');
   window._lastSavedPhone = waNum;
 
