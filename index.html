@@ -8,7 +8,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0a0a0f">
 <title>ShopBill Pro</title>
-<link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;ShopBill Pro&quot;,&quot;short_name&quot;:&quot;ShopBill&quot;,&quot;start_url&quot;:&quot;.&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%230a0a0f&quot;,&quot;theme_color&quot;:&quot;%230a0a0f&quot;,&quot;icons&quot;:[{&quot;src&quot;:&quot;data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230a0a0f'/><text y='.9em' font-size='80'>🏪</text></svg>&quot;,&quot;sizes&quot;:&quot;192x192&quot;}]}">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -6675,7 +6677,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v21';
+const APP_VERSION = 'v38';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;

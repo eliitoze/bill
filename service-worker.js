@@ -1,7 +1,7 @@
-// ShopBill Pro — Service Worker (v21)
+// ShopBill Pro — Service Worker (v38)
 // Cache (jem pehla blob ma hatu, e j logic) + Push Notifications
 
-const CACHE = 'shopbill-v21';
+const CACHE = 'shopbill-v38';
 const FILES = ['./', './index.html'];
 
 self.addEventListener('install', e => {
@@ -28,7 +28,7 @@ self.addEventListener('push', e => {
 
   const options = {
     body: data.body,
-    icon: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" rx="20" fill="%230a0a0f"/%3E%3Ctext y=".9em" font-size="80"%3E%F0%9F%8F%AA%3C/text%3E%3C/svg%3E',
+    icon: './icon-192.png',
     badge: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect width="100" height="100" rx="20" fill="%230a0a0f"/%3E%3C/svg%3E',
     data: { url: data.url || '/' },
     vibrate: [100, 50, 100]
