@@ -1901,6 +1901,8 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
       <span style="font-size:13px;font-weight:600">Total Sale (Both Branches)</span>
       <span style="font-size:15px;font-weight:700;color:var(--accent)" id="drTotalSale">₹0</span>
     </div>
+    <!-- Weight (product code parun) -->
+    <div id="drWeightBox" style="margin-top:6px;padding:10px;background:rgba(251,191,36,0.08);border-radius:8px"></div>
     <!-- Calculated Total Profit -->
     <div style="margin-top:6px;padding:10px;background:rgba(52,211,153,0.1);border-radius:8px;display:flex;justify-content:space-between;align-items:center">
       <span style="font-size:13px;font-weight:600;color:#34d399">💚 Total Profit (Calculated)</span>
@@ -6676,7 +6678,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v51';
+const APP_VERSION = 'v52';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
@@ -8628,6 +8630,85 @@ function drToday(){
 
 function drFmt(n){ return '₹'+Math.round(n).toLocaleString('en-IN'); }
 
+// ===== WEIGHT (product code parun) =====
+// Code = item name no PELO shabd (jem ke "V754500R3600 SILVER P.SET 925" ma V754500R3600).
+// Rule A: pehla akshar pachi 2 ank x10 = divisor; weight = R pachi ni kimat / divisor
+// Rule B: pehla akshar pachi "1k" = 1000, "1k20" = 1020 (biju kai nahi), pachi R + kimat
+// Koi pattern na male to None (anumaan nahi) -> 0 ganvu + alag list ma batavvu
+function drEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function drParseWeight(name){
+  const code = String(name||'').trim().split(/\s+/)[0];
+  let div = 0, rate = 0, m = code.match(/^[A-Za-z](\d+)[kK](\d*)R(\d+(?:\.\d+)?)$/i);
+  if(m){ div = parseInt(m[1],10)*1000 + (m[2]?parseInt(m[2],10):0); rate = parseFloat(m[3]); }
+  else {
+    m = code.match(/^[A-Za-z](\d{2})\d*R(\d+(?:\.\d+)?)$/i);
+    if(m){ div = parseInt(m[1],10)*10; rate = parseFloat(m[2]); }
+  }
+  if(!(div>0) || !(rate>0)) return null;
+  return rate/div;
+}
+function drWtFmt(n){ return (Math.round(n*100)/100).toFixed(2); }
+// Invoice list -> {total, rows:[{bill,name,qty,w,wt}], bad:{name:qty}}  (weight = item weight x qty)
+function drWeightOf(invs){
+  const out = {total:0, rows:[], bad:{}};
+  (invs||[]).forEach(inv=>{
+    if(inv.exclude_from_register) return;
+    if(inv.status==='advance' || inv.status==='advance_closed') return;
+    (inv.items||[]).forEach(it=>{
+      const qty = parseFloat(it.qty)||1;
+      const w = drParseWeight(it.name);
+      const nm = String(it.name||'').trim() || '(naam nathi)';
+      if(w===null){ out.bad[nm] = (out.bad[nm]||0) + qty; return; }
+      out.total += w*qty;
+      out.rows.push({bill:inv.bill_number, name:nm, qty, w, wt:w*qty});
+    });
+  });
+  return out;
+}
+function drBadHtml(bad){
+  const k = Object.keys(bad||{});
+  if(!k.length) return '';
+  return `<div style="margin-top:8px;font-size:11px;color:#fbbf24"><div style="font-weight:600">⚠️ Weight ન કાઢી શકાયા તેવા items (0 ગણ્યા):</div>${k.map(n=>`<div>• ${drEsc(n)} × ${bad[n]}</div>`).join('')}</div>`;
+}
+// Daily Register: pasand karel tarikh nu weight (branch-wise + total + item-wise detail)
+function drShowDayWeight(inv1, inv2, date){
+  const el = document.getElementById('drWeightBox');
+  if(!el) return;
+  const w1 = drWeightOf(inv1), w2 = drWeightOf(inv2);
+  const n1 = drB1NameFor(date), n2 = drB2NameFor(date);
+  const bad = {};
+  [w1.bad, w2.bad].forEach(b=>Object.keys(b).forEach(k=>{ bad[k] = (bad[k]||0) + b[k]; }));
+  const rows = [...w1.rows.map(r=>({...r,br:n1})), ...w2.rows.map(r=>({...r,br:n2}))];
+  const detail = rows.length ? rows.map(r=>`<div style="padding:2px 0;border-bottom:1px solid var(--border)">${drEsc(r.br)} #${r.bill} · ${drEsc(r.name)} × ${r.qty} = <strong>${drWtFmt(r.wt)}</strong> <span style="color:var(--muted)">(${drWtFmt(r.w)} each)</span></div>`).join('') : '<div style="color:var(--muted)">કોઈ item નથી</div>';
+  el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;font-weight:600">⚖️ Weight (gm)</span><span style="font-size:15px;font-weight:700">${drWtFmt(w1.total+w2.total)}</span></div>
+    <div style="font-size:11px;color:var(--muted);margin-top:4px">${drEsc(n1)}: ${drWtFmt(w1.total)} | ${drEsc(n2)}: ${drWtFmt(w2.total)}</div>
+    <details style="margin-top:6px"><summary style="font-size:11px;cursor:pointer;color:var(--accent)">Item-wise weight detail</summary><div style="font-size:11px;margin-top:4px">${detail}</div></details>
+    ${drBadHtml(bad)}`;
+}
+// Monthly Summary: day-wise weight table + month total + (weight na nikde teva items)
+function drMonthWeightHtml(inv1, inv2, year, month, daysInMonth){
+  const mm = String(month).padStart(2,'0');
+  const n1 = drB1NameFor(`${year}-${mm}-01`), n2 = drB2NameFor(`${year}-${mm}-01`);
+  const byDay = invs => { const m = {}; (invs||[]).forEach(i=>{ const d = parseInt((i.bill_date||'').split('/')[0]); (m[d] = m[d]||[]).push(i); }); return m; };
+  const d1 = byDay(inv1), d2 = byDay(inv2);
+  let t1 = 0, t2 = 0, rowsHtml = '';
+  const bad = {};
+  for(let d=1; d<=daysInMonth; d++){
+    const a = drWeightOf(d1[d]), b = drWeightOf(d2[d]);
+    [a.bad, b.bad].forEach(x=>Object.keys(x).forEach(k=>{ bad[k] = (bad[k]||0) + x[k]; }));
+    if(a.total===0 && b.total===0) continue;
+    t1 += a.total; t2 += b.total;
+    rowsHtml += `<tr><td style="padding:3px 6px">${String(d).padStart(2,'0')}/${mm}</td><td style="padding:3px 6px;text-align:right">${drWtFmt(a.total)}</td><td style="padding:3px 6px;text-align:right">${drWtFmt(b.total)}</td><td style="padding:3px 6px;text-align:right"><strong>${drWtFmt(a.total+b.total)}</strong></td></tr>`;
+  }
+  return `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+    <div style="font-weight:700">⚖️ Weight (gm) — day-wise</div>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:6px">
+      <tr style="color:var(--muted)"><th style="padding:3px 6px;text-align:left">Date</th><th style="padding:3px 6px;text-align:right">${drEsc(n1)}</th><th style="padding:3px 6px;text-align:right">${drEsc(n2)}</th><th style="padding:3px 6px;text-align:right">Total</th></tr>
+      ${rowsHtml || '<tr><td colspan="4" style="padding:6px;color:var(--muted)">કોઈ weight નથી</td></tr>'}
+      <tr style="border-top:1px solid var(--border)"><td style="padding:4px 6px"><strong>Month Total</strong></td><td style="padding:4px 6px;text-align:right"><strong>${drWtFmt(t1)}</strong></td><td style="padding:4px 6px;text-align:right"><strong>${drWtFmt(t2)}</strong></td><td style="padding:4px 6px;text-align:right"><strong>${drWtFmt(t1+t2)}</strong></td></tr>
+    </table></div>${drBadHtml(bad)}</div>`;
+}
+
 async function loadDailyRegister(){
   const dateEl = document.getElementById('drDate');
   if(!dateEl) return;
@@ -8701,6 +8782,7 @@ async function loadDailyRegister(){
     document.getElementById('drB1Profit').textContent = drFmt(DR.b1Profit);
     document.getElementById('drB2Profit').textContent = drFmt(DR.b2Profit);
     document.getElementById('drTotalSale').textContent= drFmt(DR.b1Total+DR.b2Total);
+    try{ drShowDayWeight(inv1, inv2, date); }catch(e){ console.warn('weight',e); }
 
     // Fetch saved register data for this date
     const saved = await api(`daily?date=${date}`).catch(()=>null);
@@ -9230,6 +9312,7 @@ async function loadMonthlySummary(){
     const opBank = parseFloat(firstRec?.op_bank||0);
     const clCash = opCash + (totalSale - totalBank - totalExch) - totalExpCash;
     const clBank = opBank + totalBank - totalExpBank;
+    let wtHtml = ''; try{ wtHtml = drMonthWeightHtml(inv1, inv2, year, month, daysInMonth); }catch(e){ console.warn('weight',e); }
 
     DR_MONTHLY = {
       month, year, daysInMonth, mm, b2Name: drB2NameFor(`${year}-${mm}-01`),
@@ -9254,7 +9337,7 @@ async function loadMonthlySummary(){
         <div>✅ Net Profit: <strong style="color:#34d399">${fmt(netProfit)}</strong></div>
         <div>📦 Stock Purchase: <strong style="color:#fbbf24">${fmt(stockTotal)}</strong></div>
         <div>🏦 Cl.Cash: <strong>${fmt(clCash)}</strong> | Cl.Bank: <strong>${fmt(clBank)}</strong></div>
-      </div>`;
+      </div>${wtHtml}`;
     btnsEl.style.display = 'flex';
 
   } catch(e){
