@@ -6678,7 +6678,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v52';
+const APP_VERSION = 'v53';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
@@ -8636,16 +8636,24 @@ function drFmt(n){ return '₹'+Math.round(n).toLocaleString('en-IN'); }
 // Rule B: pehla akshar pachi "1k" = 1000, "1k20" = 1020 (biju kai nahi), pachi R + kimat
 // Koi pattern na male to None (anumaan nahi) -> 0 ganvu + alag list ma batavvu
 function drEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+// Fakt SILVER item j ganvu (imitation na ganvu). Naam ma "silv" (SILVER/SILVR/SILVRR) athva "sterling" hoy to silver.
+function drIsSilverName(name){ return /silv|sterling/i.test(String(name||'')); }
+// Code naam ma kyay pan hoy: "A804500R2344 SILVER..", "( A804000R2400) SILVER..", "SILVER RING (M853800R1450)"
 function drParseWeight(name){
-  const code = String(name||'').trim().split(/\s+/)[0];
-  let div = 0, rate = 0, m = code.match(/^[A-Za-z](\d+)[kK](\d*)R(\d+(?:\.\d+)?)$/i);
-  if(m){ div = parseInt(m[1],10)*1000 + (m[2]?parseInt(m[2],10):0); rate = parseFloat(m[3]); }
-  else {
-    m = code.match(/^[A-Za-z](\d{2})\d*R(\d+(?:\.\d+)?)$/i);
-    if(m){ div = parseInt(m[1],10)*10; rate = parseFloat(m[2]); }
+  const toks = String(name||'').replace(/[()]/g,' ').trim().split(/\s+/);
+  for(const code of toks){
+    let div = 0, rate = 0;
+    // Rule B: pehla akshar pachi "1k" = 1000, "1k20" = 1020; pachi optional 4 ank (cost), pachi R + kimat
+    let m = code.match(/^[A-Za-z](\d+)[kK](\d{2})?(?:\d{4})?R(\d+(?:\.\d+)?)$/i);
+    if(m){ div = parseInt(m[1],10)*1000 + (m[2]?parseInt(m[2],10):0); rate = parseFloat(m[3]); }
+    else {
+      // Rule A: pehla akshar pachi 2 ank x10 = divisor; weight = R pachi ni kimat / divisor
+      m = code.match(/^[A-Za-z](\d{2})\d*R(\d+(?:\.\d+)?)$/i);
+      if(m){ div = parseInt(m[1],10)*10; rate = parseFloat(m[2]); }
+    }
+    if(div>0 && rate>0) return rate/div;
   }
-  if(!(div>0) || !(rate>0)) return null;
-  return rate/div;
+  return null;
 }
 function drWtFmt(n){ return (Math.round(n*100)/100).toFixed(2); }
 // Invoice list -> {total, rows:[{bill,name,qty,w,wt}], bad:{name:qty}}  (weight = item weight x qty)
@@ -8655,6 +8663,7 @@ function drWeightOf(invs){
     if(inv.exclude_from_register) return;
     if(inv.status==='advance' || inv.status==='advance_closed') return;
     (inv.items||[]).forEach(it=>{
+      if(!drIsSilverName(it.name)) return;   // imitation/biju item na ganvu
       const qty = parseFloat(it.qty)||1;
       const w = drParseWeight(it.name);
       const nm = String(it.name||'').trim() || '(naam nathi)';
@@ -8680,7 +8689,7 @@ function drShowDayWeight(inv1, inv2, date){
   [w1.bad, w2.bad].forEach(b=>Object.keys(b).forEach(k=>{ bad[k] = (bad[k]||0) + b[k]; }));
   const rows = [...w1.rows.map(r=>({...r,br:n1})), ...w2.rows.map(r=>({...r,br:n2}))];
   const detail = rows.length ? rows.map(r=>`<div style="padding:2px 0;border-bottom:1px solid var(--border)">${drEsc(r.br)} #${r.bill} · ${drEsc(r.name)} × ${r.qty} = <strong>${drWtFmt(r.wt)}</strong> <span style="color:var(--muted)">(${drWtFmt(r.w)} each)</span></div>`).join('') : '<div style="color:var(--muted)">કોઈ item નથી</div>';
-  el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;font-weight:600">⚖️ Weight (gm)</span><span style="font-size:15px;font-weight:700">${drWtFmt(w1.total+w2.total)}</span></div>
+  el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;font-weight:600">⚖️ Silver Weight (gm)</span><span style="font-size:15px;font-weight:700">${drWtFmt(w1.total+w2.total)}</span></div>
     <div style="font-size:11px;color:var(--muted);margin-top:4px">${drEsc(n1)}: ${drWtFmt(w1.total)} | ${drEsc(n2)}: ${drWtFmt(w2.total)}</div>
     <details style="margin-top:6px"><summary style="font-size:11px;cursor:pointer;color:var(--accent)">Item-wise weight detail</summary><div style="font-size:11px;margin-top:4px">${detail}</div></details>
     ${drBadHtml(bad)}`;
@@ -8701,7 +8710,7 @@ function drMonthWeightHtml(inv1, inv2, year, month, daysInMonth){
     rowsHtml += `<tr><td style="padding:3px 6px">${String(d).padStart(2,'0')}/${mm}</td><td style="padding:3px 6px;text-align:right">${drWtFmt(a.total)}</td><td style="padding:3px 6px;text-align:right">${drWtFmt(b.total)}</td><td style="padding:3px 6px;text-align:right"><strong>${drWtFmt(a.total+b.total)}</strong></td></tr>`;
   }
   return `<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
-    <div style="font-weight:700">⚖️ Weight (gm) — day-wise</div>
+    <div style="font-weight:700">⚖️ Silver Weight (gm) — day-wise</div>
     <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:6px">
       <tr style="color:var(--muted)"><th style="padding:3px 6px;text-align:left">Date</th><th style="padding:3px 6px;text-align:right">${drEsc(n1)}</th><th style="padding:3px 6px;text-align:right">${drEsc(n2)}</th><th style="padding:3px 6px;text-align:right">Total</th></tr>
       ${rowsHtml || '<tr><td colspan="4" style="padding:6px;color:var(--muted)">કોઈ weight નથી</td></tr>'}
