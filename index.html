@@ -1451,10 +1451,11 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
     <!-- PROFIT REPORTS (PIN protected) -->
     <div class="page" id="page-reports">
       <!-- Report Tabs -->
-      <div style="display:flex;gap:0;margin-bottom:16px;background:var(--s2);border-radius:10px;padding:4px;border:1px solid var(--border);max-width:420px">
+      <div style="display:flex;gap:0;margin-bottom:16px;background:var(--s2);border-radius:10px;padding:4px;border:1px solid var(--border);max-width:560px">
         <button id="rtab-daily" onclick="switchRTab('daily')" style="flex:1;padding:8px;border:none;border-radius:7px;background:var(--accent);color:#0a0a0f;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all 0.2s">📅 Daily</button>
         <button id="rtab-summary" onclick="switchRTab('summary')" style="flex:1;padding:8px;border:none;border-radius:7px;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s">📊 Summary</button>
         <button id="rtab-products" onclick="switchRTab('products')" style="flex:1;padding:8px;border:none;border-radius:7px;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s">📦 Products</button>
+        <button id="rtab-silver" onclick="switchRTab('silver')" style="flex:1;padding:8px;border:none;border-radius:7px;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s">⚖️ Silver</button>
       </div>
 
       <div id="rptLoadNote" style="display:none;margin-bottom:12px;padding:8px 12px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);border-radius:8px;font-size:12px;color:var(--yellow)"></div>
@@ -1614,6 +1615,31 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
             </table>
           </div>
         </div>
+      </div>
+
+      <!-- SILVER WEIGHT REPORT -->
+      <div id="rpanel-silver" style="display:none">
+        <div style="display:flex;align-items:flex-end;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+          <div class="form-group" style="flex:0 0 auto">
+            <label style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px">From Date</label>
+            <input type="date" id="swFrom" style="padding:8px 11px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;">
+          </div>
+          <div class="form-group" style="flex:0 0 auto">
+            <label style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px">To Date</label>
+            <input type="date" id="swTo" style="padding:8px 11px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;">
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="renderSilverReport()">Show</button>
+          <button class="btn btn-ghost btn-sm" onclick="swPDF()">📄 PDF</button>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+          <button class="btn btn-ghost btn-sm" onclick="swSetRange('today')">Today</button>
+          <button class="btn btn-ghost btn-sm" onclick="swSetRange('yesterday')">Yesterday</button>
+          <button class="btn btn-ghost btn-sm" onclick="swSetRange('week')">This Week</button>
+          <button class="btn btn-ghost btn-sm" onclick="swSetRange('lastweek')">Last Week</button>
+          <button class="btn btn-ghost btn-sm" onclick="swSetRange('month')">This Month</button>
+          <button class="btn btn-ghost btn-sm" onclick="swSetRange('lastmonth')">Last Month</button>
+        </div>
+        <div id="swResult"></div>
       </div>
     </div>
 
@@ -1901,8 +1927,6 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
       <span style="font-size:13px;font-weight:600">Total Sale (Both Branches)</span>
       <span style="font-size:15px;font-weight:700;color:var(--accent)" id="drTotalSale">₹0</span>
     </div>
-    <!-- Weight (product code parun) -->
-    <div id="drWeightBox" style="margin-top:6px;padding:10px;background:rgba(251,191,36,0.08);border-radius:8px"></div>
     <!-- Calculated Total Profit -->
     <div style="margin-top:6px;padding:10px;background:rgba(52,211,153,0.1);border-radius:8px;display:flex;justify-content:space-between;align-items:center">
       <span style="font-size:13px;font-weight:600;color:#34d399">💚 Total Profit (Calculated)</span>
@@ -5836,8 +5860,169 @@ function updateDash(){
 
 // ===== REPORTS (PIN protected) =====
 // ===== REPORT TABS =====
+// ===== SILVER WEIGHT REPORT (Reports > Silver) =====
+// Weight hamesha mool invoice na items parthi j ganay chhe (drWeightOf / drParseWeight). Alag thi kai save nathi thatu.
+let SW_LAST = null;
+let SW_CACHE = {};   // branchId -> {t, list}  (2 minute cache, vaarvaar 10000 bills na khenchva pade)
+function swFmtD(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function swDmy(k){ return String(k||'').split('-').reverse().join('/'); }
+function swSetRange(kind){
+  const now = new Date(); now.setHours(12,0,0,0);
+  const day = now.getDay();                                   // 0 = Ravivar
+  const mon = new Date(now); mon.setDate(now.getDate() - (day===0 ? 6 : day-1));   // week Somvar thi
+  let f = now, t = now;
+  if(kind==='yesterday'){ f = t = new Date(now.getFullYear(), now.getMonth(), now.getDate()-1, 12); }
+  else if(kind==='week'){ f = mon; t = now; }
+  else if(kind==='lastweek'){ f = new Date(mon); f.setDate(mon.getDate()-7); t = new Date(mon); t.setDate(mon.getDate()-1); }
+  else if(kind==='month'){ f = new Date(now.getFullYear(), now.getMonth(), 1, 12); t = now; }
+  else if(kind==='lastmonth'){ f = new Date(now.getFullYear(), now.getMonth()-1, 1, 12); t = new Date(now.getFullYear(), now.getMonth(), 0, 12); }
+  document.getElementById('swFrom').value = swFmtD(f);
+  document.getElementById('swTo').value   = swFmtD(t);
+  renderSilverReport();
+}
+function swInit(){
+  const f = document.getElementById('swFrom'), t = document.getElementById('swTo'), out = document.getElementById('swResult');
+  if(!f || !t || !out) return;
+  if(!f.value || !t.value){ const x = todayStr(); f.value = x.slice(0,8)+'01'; t.value = x; }
+  if(!SW_LAST) out.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:13px">તારીખ પસંદ કરી <b>Show</b> દબાવો, અથવા ઉપરનું કોઈ બટન (Today, This Month વગેરે) દબાવો.</div>';
+}
+async function swFetchBranch(id, signal){
+  const c = SW_CACHE[id];
+  if(c && Date.now()-c.t < 120000) return c.list;
+  const r = await api('invoices?order=created_at.desc&branch_id=eq.'+id+'&limit=10000','GET',null,{},signal);
+  const list = Array.isArray(r) ? r : ((r && r.invoices) || []);
+  SW_CACHE[id] = {t:Date.now(), list};
+  return list;
+}
+async function renderSilverReport(){
+  const fEl = document.getElementById('swFrom'), tEl = document.getElementById('swTo'), out = document.getElementById('swResult');
+  if(!fEl || !tEl || !out) return;
+  const x0 = todayStr();
+  if(!fEl.value) fEl.value = x0;
+  if(!tEl.value) tEl.value = x0;
+  let from = fEl.value, to = tEl.value;
+  if(from > to){ const z = from; from = to; to = z; fEl.value = from; tEl.value = to; }
+  out.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:13px">⏳ Loading...</div>';
+  SW_LAST = null;
+  try{
+    const b1Id   = parseInt(document.getElementById('drBranch1Id')?.value||1);
+    const oldB2  = parseInt(document.getElementById('drBranch2Id')?.value||2);
+    // 1/11/2026 pehla Branch 2 (juno id), pachi North Star (id 4) - Daily Register jevo j niyam
+    const jobs = [{id:b1Id, grp:'b1'}];
+    if(from < DR_B2_CUTOFF)  jobs.push({id:oldB2, grp:'b2', old:true});
+    if(to   >= DR_B2_CUTOFF) jobs.push({id:DR_B2_NEW_ID, grp:'b2', old:false});
+    const ctrl = new AbortController();
+    const tm = setTimeout(()=>ctrl.abort(), 25000);
+    let lists;
+    try{ lists = await Promise.all(jobs.map(j=>swFetchBranch(j.id, ctrl.signal))); }
+    finally{ clearTimeout(tm); }
+    const trunc = lists.some(l=>l.length>=10000);
+    const rows = [];
+    lists.forEach((list,i)=>{
+      const j = jobs[i];
+      list.forEach(inv=>{
+        const k = drInvKey(inv);
+        if(!k || k<from || k>to) return;
+        if(j.grp==='b2'){ if(j.old ? k>=DR_B2_CUTOFF : k<DR_B2_CUTOFF) return; }
+        rows.push({grp:j.grp, key:k, inv});
+      });
+    });
+    rows.sort((a,b)=> a.key<b.key ? -1 : a.key>b.key ? 1 : (parseInt(a.inv.bill_number)||0)-(parseInt(b.inv.bill_number)||0));
+    const det = [], bad = {};
+    let t1 = 0, t2 = 0, pcs = 0, badQty = 0;
+    rows.forEach(r=>{
+      const w = drWeightOf([r.inv]);          // exclude / advance / imitation na ganay
+      if(r.grp==='b1') t1 += w.total; else t2 += w.total;
+      const brName = r.grp==='b1' ? drB1NameFor(r.key) : drB2NameFor(r.key);
+      w.rows.forEach(it=>{ pcs += it.qty; det.push({key:r.key, bill:it.bill, br:brName, name:it.name, qty:it.qty, w:it.w, wt:it.wt}); });
+      Object.keys(w.bad).forEach(nm=>{
+        pcs += w.bad[nm]; badQty += w.bad[nm];
+        const o = bad[nm] || (bad[nm] = {qty:0, bills:[]});
+        o.qty += w.bad[nm];
+        const bn = '#'+r.inv.bill_number;
+        if(!o.bills.includes(bn)) o.bills.push(bn);
+      });
+    });
+    const n1 = from>=DR_B2_CUTOFF ? 'Eliitoze' : (to<DR_B2_CUTOFF ? 'Branch 1' : 'Eliitoze (Branch 1)');
+    const n2 = from>=DR_B2_CUTOFF ? 'Northstar' : (to<DR_B2_CUTOFF ? 'Branch 2' : 'Branch 2 / Northstar');
+    SW_LAST = {from, to, n1, n2, t1, t2, tot:t1+t2, pcs, badQty, det, bad, bills:rows.length};
+
+    const card = (lbl,val,col) => `<div class="card" style="padding:12px;margin:0"><div style="font-size:11px;color:var(--muted)">${lbl}</div><div style="font-size:19px;font-weight:700;color:${col||'var(--text)'}">${val}</div></div>`;
+    const detRows = det.length ? det.map(d=>`<tr><td>${swDmy(d.key)}</td><td>#${d.bill}</td><td>${drEsc(d.br)}</td><td>${drEsc(d.name)}</td><td style="text-align:right">${d.qty}</td><td style="text-align:right">${drWtFmt(d.w)}</td><td style="text-align:right"><strong>${drWtFmt(d.wt)}</strong></td></tr>`).join('') : '<tr><td colspan="7" style="color:var(--muted)">કોઈ item નથી</td></tr>';
+    const badKeys = Object.keys(bad);
+    const badHtml = badKeys.length ? `<div style="margin-top:12px;padding:10px;background:rgba(251,191,36,0.08);border-radius:8px;font-size:12px"><div style="font-weight:600;color:#fbbf24;margin-bottom:4px">⚠️ Weight ન કાઢી શકાયા તેવા items (0 ગણ્યા): ${badQty} pcs</div>${badKeys.map(k=>`<div style="padding:2px 0">• ${drEsc(k)} × ${bad[k].qty} <span style="color:var(--muted)">(${bad[k].bills.slice(0,8).join(', ')}${bad[k].bills.length>8?' ...':''})</span></div>`).join('')}</div>` : '';
+    out.innerHTML = `
+      ${trunc ? '<div style="margin-bottom:10px;padding:8px 12px;background:rgba(239,68,68,0.1);border-radius:8px;font-size:12px;color:#f87171">⚠️ 10000 bills ની limit પૂરી થઈ છે, જૂના bills અધૂરા હોઈ શકે.</div>' : ''}
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">${swDmy(from)} થી ${swDmy(to)} · ${rows.length} bills</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        ${card('⚖️ Total Silver Weight (gm)', drWtFmt(t1+t2), 'var(--accent)')}
+        ${card('Total Pieces (Nos.)', pcs)}
+        ${card(drEsc(n1)+' Weight (gm)', drWtFmt(t1))}
+        ${card(drEsc(n2)+' Weight (gm)', drWtFmt(t2))}
+      </div>
+      <details style="margin-top:12px"><summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--accent)">Item-wise detail (${det.length})</summary>
+        <div class="tbl-wrap" style="margin-top:8px"><table><thead><tr><th>Date</th><th>Bill</th><th>Branch</th><th>Item</th><th style="text-align:right">Qty</th><th style="text-align:right">Unit Wt</th><th style="text-align:right">Total Wt</th></tr></thead><tbody>${detRows}</tbody></table></div>
+      </details>
+      ${badHtml}`;
+  }catch(e){
+    SW_LAST = null;
+    out.innerHTML = '<div style="padding:14px;color:#f87171;font-size:13px">❌ Bills load na thaya: '+drEsc(e.message||e)+'. Net check karo ane fari Show dabavo.</div>';
+  }
+}
+function swPDF(){
+  const d = SW_LAST;
+  if(!d){ toast('Pehla report batavo (Show dabavo)','error'); return; }
+  const detRows = d.det.map(x=>`<tr><td>${swDmy(x.key)}</td><td>#${x.bill}</td><td>${drEsc(x.br)}</td><td>${drEsc(x.name)}</td><td class="r">${x.qty}</td><td class="r">${drWtFmt(x.w)}</td><td class="r">${drWtFmt(x.wt)}</td></tr>`).join('');
+  const badKeys = Object.keys(d.bad);
+  const badRows = badKeys.map(k=>`<tr><td>${drEsc(k)}</td><td class="r">${d.bad[k].qty}</td><td>${d.bad[k].bills.slice(0,12).join(', ')}</td></tr>`).join('');
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: Arial, sans-serif; font-size: 12px; padding: 20px; }
+  h2 { text-align:center; font-size:15px; margin-bottom:4px; text-transform:uppercase; letter-spacing:1px; }
+  .sub { text-align:center; color:#555; margin-bottom:14px; }
+  h3 { font-size:13px; margin:16px 0 6px; }
+  table { width:100%; border-collapse:collapse; }
+  th { background:#1a5276; color:#fff; padding:6px 8px; text-align:left; font-size:12px; }
+  td { padding:5px 8px; border-bottom:1px solid #e0e0e0; font-size:12px; }
+  tr:nth-child(even) { background:#d6eaf8; }
+  .r { text-align:right; }
+  .total-row td { font-weight:bold; border-top:2px solid #1a5276; background:#eaf4fc; }
+</style>
+</head>
+<body>
+  <h2>Silver Weight Report</h2>
+  <div class="sub">${swDmy(d.from)} - ${swDmy(d.to)} | ${d.bills} bills</div>
+  <table>
+    <thead><tr><th>Summary</th><th class="r">Weight (gm)</th></tr></thead>
+    <tbody>
+      <tr><td>${drEsc(d.n1)}</td><td class="r">${drWtFmt(d.t1)}</td></tr>
+      <tr><td>${drEsc(d.n2)}</td><td class="r">${drWtFmt(d.t2)}</td></tr>
+      <tr class="total-row"><td>TOTAL</td><td class="r">${drWtFmt(d.tot)}</td></tr>
+      <tr><td>Total Pieces (Nos.)</td><td class="r">${d.pcs}</td></tr>
+    </tbody>
+  </table>
+  <h3>Item-wise detail</h3>
+  <table>
+    <thead><tr><th>Date</th><th>Bill</th><th>Branch</th><th>Item</th><th class="r">Qty</th><th class="r">Unit Wt</th><th class="r">Total Wt</th></tr></thead>
+    <tbody>${detRows}<tr class="total-row"><td colspan="6">TOTAL</td><td class="r">${drWtFmt(d.tot)}</td></tr></tbody>
+  </table>
+  ${badKeys.length ? `<h3>Weight ન કાઢી શકાયા તેવા items (0 ગણ્યા): ${d.badQty} pcs</h3><table><thead><tr><th>Item</th><th class="r">Qty</th><th>Bills</th></tr></thead><tbody>${badRows}</tbody></table>` : ''}
+</body>
+</html>`;
+  const win = window.open('','_blank','width=700,height=800');
+  if(!win){ toast('Popup block thayu chhe','error'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(()=>{ win.print(); }, 500);
+}
+
 function switchRTab(tab){
-  ['daily','summary','products'].forEach(t=>{
+  ['daily','summary','products','silver'].forEach(t=>{
     document.getElementById('rpanel-'+t).style.display = t===tab ? 'block' : 'none';
     const btn = document.getElementById('rtab-'+t);
     btn.style.background = t===tab ? 'var(--accent)' : 'transparent';
@@ -5846,6 +6031,7 @@ function switchRTab(tab){
   if(tab==='daily')    { renderDailyReport(); renderDatewiseSummary(); }
   if(tab==='summary')  renderSummaryReport();
   if(tab==='products') renderProductsReport();
+  if(tab==='silver')   swInit();
 }
 
 // Daily report na andar na sub-tabs — lambu scroll ghatadva mate
@@ -6678,7 +6864,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v53';
+const APP_VERSION = 'v54';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
@@ -8679,21 +8865,6 @@ function drBadHtml(bad){
   if(!k.length) return '';
   return `<div style="margin-top:8px;font-size:11px;color:#fbbf24"><div style="font-weight:600">⚠️ Weight ન કાઢી શકાયા તેવા items (0 ગણ્યા):</div>${k.map(n=>`<div>• ${drEsc(n)} × ${bad[n]}</div>`).join('')}</div>`;
 }
-// Daily Register: pasand karel tarikh nu weight (branch-wise + total + item-wise detail)
-function drShowDayWeight(inv1, inv2, date){
-  const el = document.getElementById('drWeightBox');
-  if(!el) return;
-  const w1 = drWeightOf(inv1), w2 = drWeightOf(inv2);
-  const n1 = drB1NameFor(date), n2 = drB2NameFor(date);
-  const bad = {};
-  [w1.bad, w2.bad].forEach(b=>Object.keys(b).forEach(k=>{ bad[k] = (bad[k]||0) + b[k]; }));
-  const rows = [...w1.rows.map(r=>({...r,br:n1})), ...w2.rows.map(r=>({...r,br:n2}))];
-  const detail = rows.length ? rows.map(r=>`<div style="padding:2px 0;border-bottom:1px solid var(--border)">${drEsc(r.br)} #${r.bill} · ${drEsc(r.name)} × ${r.qty} = <strong>${drWtFmt(r.wt)}</strong> <span style="color:var(--muted)">(${drWtFmt(r.w)} each)</span></div>`).join('') : '<div style="color:var(--muted)">કોઈ item નથી</div>';
-  el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;font-weight:600">⚖️ Silver Weight (gm)</span><span style="font-size:15px;font-weight:700">${drWtFmt(w1.total+w2.total)}</span></div>
-    <div style="font-size:11px;color:var(--muted);margin-top:4px">${drEsc(n1)}: ${drWtFmt(w1.total)} | ${drEsc(n2)}: ${drWtFmt(w2.total)}</div>
-    <details style="margin-top:6px"><summary style="font-size:11px;cursor:pointer;color:var(--accent)">Item-wise weight detail</summary><div style="font-size:11px;margin-top:4px">${detail}</div></details>
-    ${drBadHtml(bad)}`;
-}
 // Monthly Summary: day-wise weight table + month total + (weight na nikde teva items)
 function drMonthWeightHtml(inv1, inv2, year, month, daysInMonth){
   const mm = String(month).padStart(2,'0');
@@ -8791,7 +8962,6 @@ async function loadDailyRegister(){
     document.getElementById('drB1Profit').textContent = drFmt(DR.b1Profit);
     document.getElementById('drB2Profit').textContent = drFmt(DR.b2Profit);
     document.getElementById('drTotalSale').textContent= drFmt(DR.b1Total+DR.b2Total);
-    try{ drShowDayWeight(inv1, inv2, date); }catch(e){ console.warn('weight',e); }
 
     // Fetch saved register data for this date
     const saved = await api(`daily?date=${date}`).catch(()=>null);
