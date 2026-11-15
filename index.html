@@ -6864,7 +6864,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v54';
+const APP_VERSION = 'v55';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
@@ -9366,6 +9366,13 @@ function drWhatsApp(){
   const dateStr = `${d}-${m}-${y.slice(2)}`;
 
   const fmt = n => '₹'+Math.round(n).toLocaleString('en-IN');
+  const drNoteLines = a => {
+    const r = a
+      .filter(e => parseFloat(e.expense_cash||0)+parseFloat(e.expense_bank||0) > 0)
+      .map(e => Math.round(parseFloat(e.expense_cash||0)+parseFloat(e.expense_bank||0)) + ' ' + String(e.note||'').trim())
+      .join(', ');
+    return r ? ' ('+r+')' : '';
+  };
 
   const pf = drGetProfits();
   const profitLine = `Total Profit: ${fmt(pf.total)}`;
@@ -9378,8 +9385,8 @@ Cash Sale ${drB1NameFor(date)}: ${fmt(cashB1)}
 Cash Sale ${drB2NameFor(date)}: ${fmt(cashB2)}
 Bank Sale: ${fmt(totalBank)}${totalEx>0?'\nJewellery Exchange: '+fmt(totalEx):''}
 Total Sale: ${fmt(totalSale)}
-Stock Purchase: ${fmt(stockTotal)}
-Expenses: ${fmt(spendTotal)}
+Stock Purchase: ${fmt(stockTotal)}${drNoteLines(stockRows)}
+Expenses: ${fmt(spendTotal)}${drNoteLines(spendRows)}
 ${drB1NameFor(date)} Profit: ${fmt(pf.b1)}
 ${drB2NameFor(date)} Profit: ${fmt(pf.b2)}
 ${profitLine}
