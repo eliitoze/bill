@@ -2251,9 +2251,50 @@ let _workerToken = sessionStorage.getItem('sb_token') || null;
 
 // ===== INVOICE SYNC (Worker polling) — realtime/anon-key hataavyu =====
 let _invoicePollTimer = null;
+let _liveWs = null, _liveRetryTimer = null, _liveRetries = 0, _liveHb = null;
+
+function liveClose(){
+  if(_liveRetryTimer){ clearTimeout(_liveRetryTimer); _liveRetryTimer = null; }
+  if(_liveHb){ clearInterval(_liveHb); _liveHb = null; }
+  if(_liveWs){ const w = _liveWs; _liveWs = null; w.onclose = null; try{ w.close(); }catch(e){} }
+}
+function liveConnect(bid){
+  if(!WORKER_URL || !_workerToken || typeof WebSocket==='undefined') return;
+  try{
+    const base = WORKER_URL.replace(/\/$/, '').replace(/^http/, 'ws');
+    // JWT URL ma nahi, Sec-WebSocket-Protocol header ma jay chhe (logs ma na dekhay)
+    const ws = new WebSocket(base+'/live?b='+bid, ['bearer', _workerToken]);
+    _liveWs = ws;
+    ws.onopen = ()=>{
+      _liveRetries = 0;
+      if(_liveHb) clearInterval(_liveHb);
+      _liveHb = setInterval(()=>{ try{ ws.send('ping'); }catch(e){} }, 30000);
+      if(window._invPollNow) window._invPollNow();
+    };
+    ws.onmessage = (ev)=>{
+      if(ev.data==='pong') return;
+      try{
+        const m = JSON.parse(ev.data);
+        if(m && m.t==='change' && window._invPollNow){
+          clearTimeout(window._liveDeb);
+          window._liveDeb = setTimeout(window._invPollNow, 300);
+        }
+      }catch(e){}
+    };
+    ws.onclose = ()=>{
+      if(_liveHb){ clearInterval(_liveHb); _liveHb = null; }
+      if(_liveWs!==ws) return;
+      _liveWs = null;
+      const d = Math.min(30000, 1000*Math.pow(2, _liveRetries++));
+      _liveRetryTimer = setTimeout(()=>liveConnect(S.activeBranchId||1), d);
+    };
+    ws.onerror = ()=>{ try{ ws.close(); }catch(e){} };
+  }catch(e){ console.warn('live connect failed:', e.message); }
+}
 
 function subscribeInvoiceRealtime(){
   if(_invoicePollTimer){ clearInterval(_invoicePollTimer); _invoicePollTimer = null; }
+  liveClose();
   const bid = S.activeBranchId || 1;
   const poll = async ()=>{
     if(document.hidden || !_workerToken) return;
@@ -2270,7 +2311,18 @@ function subscribeInvoiceRealtime(){
       renderAll();
     }catch(e){ console.warn('invoice poll failed:', e.message); }
   };
-  _invoicePollTimer = setInterval(poll, 30000);
+  window._invPollNow = poll;
+  // Live sanket (WebSocket) mukhya; 60 second polling safety-net tarike
+  _invoicePollTimer = setInterval(poll, 60000);
+  liveConnect(bid);
+  if(!window._liveVisBound){
+    window._liveVisBound = true;
+    document.addEventListener('visibilitychange', ()=>{
+      if(document.hidden || !_workerToken) return;
+      if(!_liveWs || _liveWs.readyState!==1){ liveClose(); liveConnect(S.activeBranchId||1); }
+      if(window._invPollNow) window._invPollNow();
+    });
+  }
 }
 
 // ===== WORKER API — JWT authenticated =====
@@ -2605,6 +2657,7 @@ async function changeMyPassword(){
 
 // ── LOGOUT ──
 function doLogout(){
+  liveClose();
   currentUser = null;
   _workerToken = null;
   sessionStorage.removeItem('sb_session');
@@ -6756,7 +6809,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v57';
+const APP_VERSION = 'v58';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
