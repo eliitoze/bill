@@ -1141,7 +1141,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
       </div>
       <div class="two-col">
         <div class="card"><div class="card-title">Recent Bills</div><div id="d-recent"><div class="empty"><div class="ei">🧾</div><p>No bills yet</p></div></div></div>
-        <div class="card"><div class="card-title">✅ All Good</div><div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Low Stock alert Products page thi joi shakay chhe</div></div>
+        <div class="card"><div class="card-title" style="display:flex;justify-content:space-between;align-items:center">🏆 Top 5 Items<span style="font-size:10px;color:var(--muted);font-weight:500">Aa mahino</span></div><div id="d-top5"><div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Loading...</div></div></div>
       </div>
     </div>
 
@@ -5670,6 +5670,72 @@ async function refreshDashInvoices(){
   }
 }
 
+// ===== TOP 5 ITEMS (aa mahino, branch-wise) — Dashboard =====
+window._topItems = { key:'', rows:[], t:0, loading:false, failed:false };
+async function loadTopItems(){
+  const T = window._topItems;
+  if(T.loading) return;
+  const bid = S.activeBranchId || 1;
+  const now = new Date();
+  const key = bid+'|'+now.getFullYear()+'-'+(now.getMonth()+1);
+  T.loading = true; T.failed = false;
+  try{
+    // Mahina ni shuruat - 2 din (timezone margin); pachi bill_date thi exact mahino filter
+    const from = new Date(now.getFullYear(), now.getMonth(), 1);
+    from.setDate(from.getDate()-2);
+    const iso = from.toISOString().slice(0,10);
+    const rows = await api('invoices?select=id,items,status,bill_date&branch_id=eq.'+bid+'&created_at=gte.'+iso+'&order=created_at.desc&limit=3000');
+    const m = now.getMonth()+1, y = now.getFullYear();
+    const map = {};
+    (Array.isArray(rows) ? rows : []).forEach(inv=>{
+      if(inv.status && inv.status!=='paid') return;
+      const p = normDate(inv.bill_date||'').split('/');
+      if(p.length!==3 || parseInt(p[1])!==m || parseInt(p[2])!==y) return;
+      let items = inv.items;
+      if(typeof items==='string'){ try{ items = JSON.parse(items); }catch(e){ items = []; } }
+      (items||[]).forEach(it=>{
+        const k = it.pid ? 'p'+it.pid : 'n'+(it.name||'');
+        const q = parseFloat(it.qty)||0;
+        const amt = parseFloat(it.total!=null ? it.total : (parseFloat(it.price)||0)*q)||0;
+        if(!map[k]) map[k] = {name: it.name||'Item', qty:0, amt:0};
+        map[k].qty += q; map[k].amt += amt;
+      });
+    });
+    T.rows = Object.values(map).sort((a,b)=> b.qty-a.qty || b.amt-a.amt).slice(0,5);
+    T.key = key; T.t = Date.now();
+  }catch(e){
+    console.warn('Top items load failed:', e.message);
+    T.rows = []; T.key = key; T.failed = true;
+    T.t = Date.now() - 4*60*1000; // ~1 minute pachi fari try
+  }
+  T.loading = false;
+  renderTopItems();
+}
+function renderTopItems(){
+  const el = document.getElementById('d-top5');
+  if(!el) return;
+  const T = window._topItems;
+  const now = new Date();
+  const key = (S.activeBranchId||1)+'|'+now.getFullYear()+'-'+(now.getMonth()+1);
+  if(!T.loading && (T.key!==key || Date.now()-T.t > 5*60*1000)) loadTopItems();
+  if(window._dashPrivacy){
+    el.innerHTML = '<div class="empty"><div class="ei">\ud83d\ude48</div><p>Privacy mode on</p></div>';
+    return;
+  }
+  if(T.key!==key){
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Loading...</div>';
+    return;
+  }
+  if(!T.rows.length){
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">'+(T.failed ? 'Load nathi thayu' : 'Aa mahine haju koi bill nathi')+'</div>';
+    return;
+  }
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  el.innerHTML = '<table><thead><tr><th>#</th><th>Item</th><th>Qty</th><th>Amount</th></tr></thead><tbody>'+
+    T.rows.map((r,i)=>'<tr><td>'+(i+1)+'</td><td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(r.name)+'</td><td><strong>'+(Math.round(r.qty*100)/100)+'</strong></td><td>\u20b9'+Math.round(r.amt)+'</td></tr>').join('')+
+    '</tbody></table>';
+}
+
 function updateDash(){
   const priv = window._dashPrivacy || false;
   const mask = '••••';
@@ -5684,6 +5750,7 @@ function updateDash(){
   const dp=document.getElementById('d-profit'); if(dp) dp.textContent='\ud83d\udd10';
   const dm=document.getElementById('d-margin'); if(dm) dm.textContent='PIN protected';
   document.getElementById('d-prods').textContent=S.products.length;
+  renderTopItems();
   const low=S.products.filter(p=>p.stock<=p.min_stock);
   const dtp=document.getElementById('d-totalprods'); if(dtp) dtp.textContent=S.products.length;
   const rd=document.getElementById('d-recent');
@@ -6689,7 +6756,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v56';
+const APP_VERSION = 'v57';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
