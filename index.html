@@ -15,7 +15,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.1/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&family=Noto+Sans+Gujarati:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <style>
@@ -2249,39 +2249,28 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 const WORKER_URL = 'https://shopbill-api.bhkmanish.workers.dev/'; // ← taro actual Worker URL
 let _workerToken = sessionStorage.getItem('sb_token') || null;
 
-// ===== SUPABASE CONFIG (fallback/direct use for ensureMasterUser) =====
-const SUPA_URL = 'https://jfsozatpvnnwrykdunni.supabase.co';
-const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impmc296YXRwdm5ud3J5a2R1bm5pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2Mzk5NTksImV4cCI6MjA4ODIxNTk1OX0.axksIYJB3xyGULIo4y_Qmhfti0lwVsp65b9O5gssUxU';
-
-// ===== SUPABASE REALTIME — bills biji device par banta j live sync mate =====
-const _supaClient = window.supabase.createClient(SUPA_URL, SUPA_KEY);
-let _invoiceRealtimeChannel = null;
+// ===== INVOICE SYNC (Worker polling) — realtime/anon-key hataavyu =====
+let _invoicePollTimer = null;
 
 function subscribeInvoiceRealtime(){
-  if(_invoiceRealtimeChannel){
-    _supaClient.removeChannel(_invoiceRealtimeChannel);
-    _invoiceRealtimeChannel = null;
-  }
+  if(_invoicePollTimer){ clearInterval(_invoicePollTimer); _invoicePollTimer = null; }
   const bid = S.activeBranchId || 1;
-  _invoiceRealtimeChannel = _supaClient
-    .channel('invoices-branch-'+bid)
-    .on('postgres_changes', { event:'*', schema:'public', table:'invoices', filter:'branch_id=eq.'+bid }, (payload)=>{
-      if(payload.eventType === 'INSERT'){
-        if(!S.invoices.some(i=>i.id===payload.new.id)){
-          S.invoices.unshift(payload.new);
-          S.invoices = S.invoices.slice(0,200);
-          toast('🔄 Navu Bill #'+(payload.new.bill_number||'')+' sync thayu','success');
-        }
-      } else if(payload.eventType === 'UPDATE'){
-        const idx = S.invoices.findIndex(i=>i.id===payload.new.id);
-        if(idx>-1) S.invoices[idx] = payload.new;
-      } else if(payload.eventType === 'DELETE'){
-        S.invoices = S.invoices.filter(i=>i.id!==payload.old.id);
-      }
+  const poll = async ()=>{
+    if(document.hidden || !_workerToken) return;
+    try{
+      const fresh = await api('invoices?order=created_at.desc&limit=200&branch_id=eq.'+bid);
+      if(!Array.isArray(fresh) || (S.activeBranchId||1) !== bid) return;
+      const sig = x => [x.id, x.updated_at||'', x.total||'', x.payment_status||'', x.paid||'', x.exclude_from_register||''].join('|');
+      if(S.invoices.map(sig).join(',') === fresh.map(sig).join(',')) return;
+      const oldIds = new Set(S.invoices.map(i=>i.id));
+      const newOnes = fresh.filter(i=>!oldIds.has(i.id));
+      S.invoices = fresh;
+      if(newOnes.length) toast('🔄 Navu Bill #'+(newOnes[0].bill_number||'')+' sync thayu','success');
       saveOffline();
       renderAll();
-    })
-    .subscribe();
+    }catch(e){ console.warn('invoice poll failed:', e.message); }
+  };
+  _invoicePollTimer = setInterval(poll, 30000);
 }
 
 // ===== WORKER API — JWT authenticated =====
@@ -2341,57 +2330,11 @@ const api = async (endpoint, method='GET', body=null, extraHeaders={}, signal=nu
     }
   }
 
-  // Fallback: Direct Supabase call (login pehla ya token na hoy to)
-  const opts = {
-    method,
-    headers: {
-      'Content-Type':'application/json',
-      'apikey': SUPA_KEY,
-      'Authorization': `Bearer ${SUPA_KEY}`,
-      'Prefer': 'return=representation',
-      ...extraHeaders
-    },
-    mode: 'cors'
-  };
-  if(signal) opts.signal = signal;
-  if(body) opts.body = JSON.stringify(body);
-  try {
-    const res = await fetch(`${SUPA_URL}/rest/v1/${endpoint}`, opts);
-    if(!res.ok){
-      const e = await res.text();
-      console.error('Supabase error:', endpoint, res.status, e);
-      throw new Error(e);
-    }
-    const txt = await res.text();
-    return txt ? JSON.parse(txt) : [];
-  } catch(err) {
-    console.error('API fetch failed:', endpoint, err.message);
-    const db = document.getElementById('debugBox');
-    const dm = document.getElementById('debugMsg');
-    if(db && dm){ db.style.display='block'; dm.textContent = endpoint+': '+err.message; }
-    throw err;
-  }
+  // Token na hoy to direct Supabase call have nathi — login jaruri chhe
+  throw new Error('Login jaruri chhe. Pharthi login karo.');
 };
 
-// Direct Supabase call — app_users management (Worker bypass)
-const apiDirect = async (endpoint, method='GET', body=null) => {
-  const opts = {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': SUPA_KEY,
-      'Authorization': `Bearer ${SUPA_KEY}`,
-      'Prefer': 'return=representation'
-    },
-    mode: 'cors'
-  };
-  if(body) opts.body = JSON.stringify(body);
-  const res = await fetch(`${SUPA_URL}/rest/v1/${endpoint}`, opts);
-  const txt = await res.text();
-  const data = txt ? JSON.parse(txt) : [];
-  if(!res.ok) throw new Error(typeof data==='object' ? (data.message||data.details||data.error||JSON.stringify(data)) : txt);
-  return data;
-};
+
 
 // ===== STATE =====
 let S = {
@@ -2568,66 +2511,18 @@ async function hashPass(pass){
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
-// ── Supabase thhi users fetch karo ──
+// ── Worker thi users fetch karo (master only; password hash aavto nathi) ──
 async function fetchUsersFromServer(){
   try{
-    const rows = await apiDirect('app_users?order=created_at');
-    // Cache locally for offline
-    localStorage.setItem('sb_users_cache', JSON.stringify(rows));
-    return rows;
+    const rows = await api('app_users');
+    const list = Array.isArray(rows) ? rows : (rows?.users||rows?.app_users||[]);
+    localStorage.setItem('sb_users_cache', JSON.stringify(list));
+    return list;
   } catch(e){
     // Offline fallback
     const cached = localStorage.getItem('sb_users_cache');
     if(cached) return JSON.parse(cached);
     return [];
-  }
-}
-
-// ── Default master user ensure karo (first time setup) ──
-async function ensureMasterUser(){
-  try{
-    const rows = await apiDirect('app_users?username=eq.281981');
-    if(!rows || rows.length===0){
-      // Master user nathi — banavo
-      const ph = await hashPass('152207');
-      await apiDirect('app_users','POST',{
-        username:'281981', password_hash:ph,
-        role:'master', approved:true
-      });
-      console.log('Master user created on server');
-    }
-    // Migrate localStorage users to server if any
-    await migrateLocalUsers();
-  } catch(e){
-    console.warn('ensureMasterUser failed (offline?):', e.message);
-  }
-}
-
-// ── Old localStorage users ne Supabase ma migrate karo ──
-async function migrateLocalUsers(){
-  const raw = localStorage.getItem('sb_users');
-  if(!raw) return;
-  try{
-    const localUsers = JSON.parse(raw);
-    for(const u of localUsers){
-      if(u.username === '281981') continue; // master skip
-      // Check if already on server
-      const exists = await apiDirect('app_users?username=eq.'+encodeURIComponent(u.username));
-      if(exists && exists.length > 0) continue; // already chhe
-      // Server par save karo
-      const ph = u.passwordHash || (u.password ? await hashPass(u.password) : await hashPass('changeme'));
-      await apiDirect('app_users','POST',{
-        username: u.username,
-        password_hash: ph,
-        role: u.role||'staff',
-        approved: u.approved===true
-      });
-    }
-    // Migration done — localStorage clear karo
-    localStorage.removeItem('sb_users');
-    console.log('Local users migrated to Supabase');
-  } catch(e){
-    console.warn('Migration failed:', e.message);
   }
 }
 
@@ -2690,28 +2585,13 @@ async function changeMyPassword(){
   if(np !== conf){ toast('New password match nathi!','error'); return; }
 
   try{
-    // Verify current password from server
-    const rows = await apiDirect('app_users?username=eq.'+encodeURIComponent(currentUser.username));
-    if(!rows||!rows.length){ toast('User maldo nahi!','error'); return; }
-    const u = rows[0];
-    const curHash = await hashPass(cur);
-    const oldSaltHash = await (async()=>{
-      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(cur+'shopbill_salt'));
-      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-    })();
-    const curOk = (u.password_hash === curHash)||(u.password_hash === oldSaltHash);
-    if(!curOk){ toast('Current password wrong chhe!','error'); return; }
-
-    // Save new password to Supabase
-    const newHash = await hashPass(np);
-    await apiDirect('app_users?id=eq.'+u.id,'PATCH',{password_hash: newHash});
-
-    // Update cache
-    const cached = localStorage.getItem('sb_users_cache');
-    if(cached){
-      const arr = JSON.parse(cached);
-      const idx = arr.findIndex(x=>x.id===u.id);
-      if(idx>=0){ arr[idx].password_hash = newHash; localStorage.setItem('sb_users_cache', JSON.stringify(arr)); }
+    // Worker server-side verify + update (password hash browser ma aavto j nathi)
+    try{
+      await api('change-password','POST',{current_password: cur, new_password: np});
+    }catch(e2){
+      let m = e2.message||'Error';
+      try{ m = JSON.parse(m).error || m; }catch(_){}
+      toast(m,'error'); return;
     }
 
     document.getElementById('cpCurrent').value='';
@@ -2810,29 +2690,15 @@ async function addUser(){
   if(password.length<4){ toast('Password min 4 characters joiye!','error'); return; }
 
   try{
-    // Check duplicate — handle Worker wrapper {users:[...]} and plain array both
-    let exists = [];
-    try{
-      const res = await apiDirect('app_users?username=eq.'+encodeURIComponent(username));
-      exists = Array.isArray(res) ? res : (res?.users||res?.app_users||[]);
-    } catch(e2){}
-    if(exists.length>0){
-      toast('❌ "'+username+'" username pahela thi exist kare chhe! Bijo naam apo.','error');
-      return;
-    }
-
-    const passwordHash = await hashPass(password);
-    await apiDirect('app_users','POST',{
-      username, password_hash: passwordHash,
-      role, approved: false
-    });
+    // Worker: duplicate username par 409 'Username already exists' aape chhe
+    await api('app_users','POST',{ username, password, role, approved: false });
     document.getElementById('nuUser').value='';
     document.getElementById('nuPass').value='';
     await renderUserList();
     toast('✅ User added! Approve karo tyare login kari shake.','success');
   } catch(e){
     const msg = e.message||'';
-    if(msg.includes('23505')||msg.toLowerCase().includes('duplicate')||msg.toLowerCase().includes('unique')){
+    if(msg.includes('already exists')||msg.includes('23505')||msg.toLowerCase().includes('duplicate')||msg.toLowerCase().includes('unique')){
       toast('❌ "'+username+'" pahela thi exist kare chhe! Bijo naam apo.','error');
     } else {
       toast('Error: '+msg,'error');
@@ -2845,7 +2711,7 @@ async function toggleUserApproval(userId, currentApproved){
   if(currentUser?.role!=='master'){ toast('Only master approve kari shake','error'); return; }
   try{
     const newVal = !currentApproved;
-    await apiDirect('app_users?id=eq.'+userId,'PATCH',{approved: newVal});
+    await api('app_users/'+userId,'PATCH',{approved: newVal});
     await renderUserList();
     toast(newVal?'✅ User approved!':'🚫 User revoked!','success');
   } catch(e){
@@ -2858,7 +2724,7 @@ async function deleteUser(userId, username){
   if(currentUser?.role!=='master'){ toast('Only master delete kari shake','error'); return; }
   if(!confirm('Delete user "'+username+'"?')) return;
   try{
-    await apiDirect('app_users?id=eq.'+userId,'DELETE');
+    await api('app_users/'+userId,'DELETE');
     await renderUserList();
     toast('✅ User deleted!','success');
   } catch(e){
@@ -2926,8 +2792,7 @@ async function init(){
   document.getElementById('dateChip').textContent = new Date().toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'});
   try {
     await loadAll();
-    // Ensure master user exists on Supabase (background)
-    ensureMasterUser().catch(e=>console.warn('ensureMasterUser bg error:',e));
+
     setSyncStatus('online');
     subscribeInvoiceRealtime();
     vbInit();
@@ -2958,13 +2823,11 @@ async function loadAll(){
     api('customers?order=name'),
     api('invoices?order=created_at.desc&limit=200&branch_id=eq.'+bid),
   ]);
-  // Settings — Supabase direct (Worker route nathi)
+  // Settings — Worker thi (JWT)
   let sets = [];
   try{
-    const setsRes = await fetch(`${SUPA_URL}/rest/v1/settings?branch_id=eq.${bid}`,{
-      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
-    });
-    if(setsRes.ok) sets = await setsRes.json();
+    const setsRes = await api('settings?branch_id=eq.'+bid);
+    if(Array.isArray(setsRes)) sets = setsRes;
   }catch(e){ console.warn('Settings fetch failed, using local cache:', e.message); }
   S.products = prods;
   S.customers = custs;
@@ -2984,12 +2847,8 @@ async function refreshBillCounter(){
     // fail thai jay, jethi kai pan bija flow ne asar na kare.
     const ctrl = new AbortController();
     const timeoutId = setTimeout(()=>ctrl.abort(), 5000);
-    const cntFetch = await fetch(`${SUPA_URL}/rest/v1/settings?key=eq.bill_counter_${bid}&branch_id=eq.${bid}`,{
-      headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY},
-      signal: ctrl.signal
-    });
+    const cntRows = await api(`settings?key=eq.bill_counter_${bid}&branch_id=eq.${bid}`, 'GET', null, {}, ctrl.signal);
     clearTimeout(timeoutId);
-    const cntRows = cntFetch.ok ? await cntFetch.json() : [];
     if(cntRows && cntRows.length){
       const dbVal = parseInt(cntRows[0].value)||1;
       // Safety check: DB value, loaded invoices ma max bill_number — jo bemo compare kariye
@@ -6694,33 +6553,8 @@ async function saveSettings(){
   saveOffline(); applySettings();
   try{
     const bid = S.activeBranchId || 1;
-    // Existing rows fetch karo
-    let existingKeys = [];
-    try{
-      const ex = await fetch(`${SUPA_URL}/rest/v1/settings?branch_id=eq.${bid}&select=key`,{
-        headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}
-      });
-      if(ex.ok){ const rows = await ex.json(); existingKeys = rows.map(r=>r.key); }
-    }catch(e){}
-
-    for(const [k,v] of Object.entries(updates)){
-      const row = {key:k, value:v, branch_id:bid, updated_at:new Date().toISOString()};
-      if(existingKeys.includes(k)){
-        // PATCH existing row
-        await fetch(`${SUPA_URL}/rest/v1/settings?key=eq.${k}&branch_id=eq.${bid}`,{
-          method:'PATCH',
-          headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Prefer':'return=minimal'},
-          body: JSON.stringify({value:v, updated_at:row.updated_at})
-        });
-      } else {
-        // POST new row
-        await fetch(`${SUPA_URL}/rest/v1/settings`,{
-          method:'POST',
-          headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Prefer':'return=minimal'},
-          body: JSON.stringify(row)
-        });
-      }
-    }
+    // Worker thi save (JWT) — ek j call
+    await api('settings','POST',{ settings: Object.entries(updates).map(([k,v])=>({key:k,value:v})), branch_id: bid });
     toast('✅ Settings saved!','success');
   } catch(e){
     toast('✅ Saved locally (sync later)','success');
@@ -6738,16 +6572,7 @@ async function savePIN(){
   document.getElementById('sConfPIN').value='';
   try{
     const pinBid = S.activeBranchId||1;
-    let pinExists=false;
-    try{
-      const ex=await fetch(`${SUPA_URL}/rest/v1/settings?key=eq.profit_pin&branch_id=eq.${pinBid}&select=key`,{headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}});
-      if(ex.ok){const rows=await ex.json();pinExists=rows.length>0;}
-    }catch(e){}
-    if(pinExists){
-      await fetch(`${SUPA_URL}/rest/v1/settings?key=eq.profit_pin&branch_id=eq.${pinBid}`,{method:'PATCH',headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Prefer':'return=minimal'},body:JSON.stringify({value:np,updated_at:new Date().toISOString()})});
-    } else {
-      await fetch(`${SUPA_URL}/rest/v1/settings`,{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Prefer':'return=minimal'},body:JSON.stringify({key:'profit_pin',value:np,branch_id:pinBid,updated_at:new Date().toISOString()})});
-    }
+    await api('settings','POST',{ settings:[{key:'profit_pin', value:np}], branch_id: pinBid });
     toast('✅ PIN updated!','success');
   } catch(e){
     toast('✅ PIN saved locally','success');
@@ -6864,7 +6689,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v55';
+const APP_VERSION = 'v56';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
@@ -8192,8 +8017,7 @@ function vbmGoStep(n, silent){
       const sel = document.getElementById('loginBranch');
       if(sel) sel.innerHTML = '<option value="1">Main Branch</option>';
     }
-    // Background ma master user ensure karo (Supabase available hoy to)
-    ensureMasterUser().catch(()=>{});
+
   } else {
     // Session chhe — token restore karo
     _workerToken = sessionStorage.getItem('sb_token') || _workerToken;
