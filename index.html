@@ -2080,6 +2080,20 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
     <button onclick="drWhatsApp()" style="flex:1;padding:12px;background:#25d366;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer">💬 Daily WA</button>
   </div>
 
+  <!-- Full Report: exclude bills sathe actual numbers -->
+  <details class="card" style="margin-bottom:12px;border:1px solid rgba(96,165,250,0.35)" ontoggle="if(this.open) frInit()">
+    <summary style="cursor:pointer;font-weight:700;font-size:14px;color:#60a5fa">📑 Full Report (actual)</summary>
+    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="frMode" style="padding:8px 10px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none">
+        <option value="day">Day</option>
+        <option value="month">Month</option>
+      </select>
+      <input type="date" id="frDate" style="flex:1;min-width:130px;padding:8px 10px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none">
+      <button type="button" onclick="drFullReport()" style="padding:8px 14px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">Show</button>
+    </div>
+    <div id="frBody" style="margin-top:10px;font-size:12px"></div>
+  </details>
+
   <!-- Monthly Summary Section -->
   <div class="card" style="margin-bottom:30px;border:1px solid rgba(251,191,36,0.3);background:rgba(251,191,36,0.04)">
     <div class="card-title" style="color:#fbbf24">📅 Monthly Summary</div>
@@ -2328,6 +2342,9 @@ function subscribeInvoiceRealtime(){
 // ===== WORKER API — JWT authenticated =====
 // Login ne baad badha calls Worker through JWT sathe jaay chhe
 const api = async (endpoint, method='GET', body=null, extraHeaders={}, signal=null) => {
+  // Exclude-from-register bills: bydefault badha GET invoices ma thi bahar. Daily Register '&incl_excl=1' mukine pachha mangi shake.
+  let _incExcl = false;
+  if(endpoint.indexOf('&incl_excl=1') > -1){ _incExcl = true; endpoint = endpoint.replace('&incl_excl=1',''); }
   // Worker URL available hoy to Worker through call karo
   if(WORKER_URL && _workerToken){
     const base = WORKER_URL.replace(/\/$/, '');
@@ -2361,18 +2378,19 @@ const api = async (endpoint, method='GET', body=null, extraHeaders={}, signal=nu
       }
       const txt = await res.text();
       const data = txt ? JSON.parse(txt) : [];
+      const _noExcl = a => (method==='GET' && !_incExcl && path==='invoices' && Array.isArray(a)) ? a.filter(i=>!(i && i.exclude_from_register)) : a;
       // Worker returns {products:[...]}, {invoices:[...]}, {customers:[...]}, {settings:[...]} wrappers
       // Supabase direct returns array — unwrap if needed
       if(data && typeof data === 'object' && !Array.isArray(data)){
         if(data.products !== undefined) return data.products;
-        if(data.invoices !== undefined) return data.invoices;
+        if(data.invoices !== undefined) return _noExcl(data.invoices);
         if(data.customers !== undefined) return data.customers;
         if(data.settings !== undefined) return data.settings;
         if(data.users !== undefined) return data.users;
         if(data.app_users !== undefined) return data.app_users;
         if(data.branches !== undefined) return data.branches;
       }
-      return data;
+      return _noExcl(data);
     } catch(err){
       console.error('Worker API failed:', url, err.message);
       const db = document.getElementById('debugBox');
@@ -2952,7 +2970,7 @@ function loadOffline(){
     S.products = o.products||[];
     S.customers = o.customers||[];
     // Invoices branch filter karo — legacy cache ma mix hoy to
-    S.invoices = (o.invoices||[]).filter(i=>!i.branch_id || parseInt(i.branch_id)===parseInt(bid));
+    S.invoices = (o.invoices||[]).filter(i=>!i.exclude_from_register && (!i.branch_id || parseInt(i.branch_id)===parseInt(bid)));
     S.settings = o.settings||S.settings;
   }
 }
@@ -5031,9 +5049,9 @@ async function saveProd(){
         // Pehla BADHA invoices load karo — S.invoices limited (200) hoy
         let allInvoices = [];
         try{
-          allInvoices = await api(`invoices?order=created_at.desc&branch_id=eq.${S.activeBranchId||1}&limit=10000`);
-          // S.invoices pan update karo
-          S.invoices = allInvoices;
+          allInvoices = await api(`invoices?order=created_at.desc&branch_id=eq.${S.activeBranchId||1}&limit=10000&incl_excl=1`);
+          // S.invoices pan update karo (exclude bills bahar)
+          S.invoices = allInvoices.filter(i=>!i.exclude_from_register);
         } catch(e){
           allInvoices = S.invoices; // fallback
         }
@@ -5740,7 +5758,7 @@ async function loadTopItems(){
     const from = new Date(now.getFullYear(), now.getMonth(), 1);
     from.setDate(from.getDate()-2);
     const iso = from.toISOString().slice(0,10);
-    const rows = await api('invoices?select=id,items,status,bill_date&branch_id=eq.'+bid+'&created_at=gte.'+iso+'&order=created_at.desc&limit=3000');
+    const rows = await api('invoices?select=id,items,status,bill_date,exclude_from_register&branch_id=eq.'+bid+'&created_at=gte.'+iso+'&order=created_at.desc&limit=3000');
     const m = now.getMonth()+1, y = now.getFullYear();
     const map = {};
     (Array.isArray(rows) ? rows : []).forEach(inv=>{
@@ -6812,7 +6830,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v59';
+const APP_VERSION = 'v60';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el){
@@ -8897,8 +8915,8 @@ async function loadDailyRegister(){
 
     // Fetch invoices for both branches
     const [r1, r2] = await Promise.all([
-      api(`invoices?branch_id=eq.${b1Id}&order=created_at.desc&limit=2000`),
-      api(`invoices?branch_id=eq.${b2Id}&order=created_at.desc&limit=2000`)
+      api(`invoices?branch_id=eq.${b1Id}&order=created_at.desc&limit=2000&incl_excl=1`),
+      api(`invoices?branch_id=eq.${b2Id}&order=created_at.desc&limit=2000&incl_excl=1`)
     ]);
 
     const inv1 = (r1.invoices||r1||[]).filter(matchDate);
@@ -8996,7 +9014,7 @@ async function drExpectedOpening(date, r1, r2){
   // 1/11/2026 pehla na divaso nu "Branch 2" juna branch (2) na bills, tyar pachi North Star (4)
   let b2List = (r2.invoices||r2||[]);
   if(date >= DR_B2_CUTOFF){
-    const oldRes = await api(`invoices?branch_id=eq.${parseInt(document.getElementById('drBranch2Id')?.value||2)}&order=created_at.desc&limit=2000`).catch(()=>[]);
+    const oldRes = await api(`invoices?branch_id=eq.${parseInt(document.getElementById('drBranch2Id')?.value||2)}&order=created_at.desc&limit=2000&incl_excl=1`).catch(()=>[]);
     const oldList = (oldRes.invoices||oldRes||[]).filter(i=> drInvKey(i) < DR_B2_CUTOFF);
     b2List = [...oldList, ...b2List.filter(i=> drInvKey(i) >= DR_B2_CUTOFF)];
   }
@@ -9595,8 +9613,74 @@ async function toggleExcludeRegister(invId){
   try{
     await api(`invoices/${invId}`,'PATCH',{exclude_from_register: newVal});
     inv.exclude_from_register = newVal;
-    renderInvs();
+    if(newVal){
+      // Exclude karelo bill have kyay dekhayo nahi (fakt Daily Register > Full Report ma)
+      S.invoices = S.invoices.filter(x=>x.id!==invId);
+      if(S.reportInvoices) S.reportInvoices = S.reportInvoices.filter(x=>x.id!==invId);
+      saveOffline();
+    }
+    renderInvs(); updateDash();
     toast(newVal ? '🚫 Register thi exclude karyu' : '✅ Register ma include karyu','success');
+  } catch(e){ toast('Error: '+e.message,'error'); }
+}
+
+// ===== DAILY REGISTER > FULL REPORT (exclude bills sathe actual) =====
+function frInit(){
+  const el = document.getElementById('frDate');
+  if(el && !el.value) el.value = document.getElementById('drDate')?.value || drToday();
+  drFullReport();
+}
+async function drFullReport(){
+  const body = document.getElementById('frBody'); if(!body) return;
+  const dv = document.getElementById('frDate')?.value || document.getElementById('drDate')?.value || drToday();
+  const mode = document.getElementById('frMode')?.value || 'day';
+  body.textContent = '⏳ Loading...';
+  try{
+    const b1Id = parseInt(document.getElementById('drBranch1Id')?.value||1);
+    const b2Id = drB2IdFor(dv);
+    const [r1, r2] = await Promise.all([
+      api(`invoices?branch_id=eq.${b1Id}&order=created_at.desc&limit=2000&incl_excl=1`),
+      api(`invoices?branch_id=eq.${b2Id}&order=created_at.desc&limit=2000&incl_excl=1`)
+    ]);
+    const pick = res => (res.invoices||res||[]).filter(inv=>{
+      const k = drInvKey(inv);
+      return mode==='month' ? k.slice(0,7)===dv.slice(0,7) : k===dv;
+    });
+    const l1 = pick(r1), l2 = pick(r2);
+    const blank = () => ({n:0,t:0,p:0});
+    const agg = list => {
+      const o = {all:blank(), reg:blank(), exc:blank()};
+      list.forEach(i=>{
+        const t = parseFloat(i.total||0), p = parseFloat(i.profit||0);
+        [o.all, i.exclude_from_register ? o.exc : o.reg].forEach(x=>{ x.n++; x.t+=t; x.p+=p; });
+      });
+      return o;
+    };
+    const a1 = agg(l1), a2 = agg(l2);
+    const sum = k => ({n:a1[k].n+a2[k].n, t:a1[k].t+a2[k].t, p:a1[k].p+a2[k].p});
+    const tot = {all:sum('all'), reg:sum('reg'), exc:sum('exc')};
+    const line = (lbl, x, st) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;${st}"><span>${lbl}</span><span>${x.n} bills · ${drFmt(x.t)} · profit ${drFmt(x.p)}</span></div>`;
+    const box = (nm, a) => `<div style="padding:8px 10px;background:var(--s2);border-radius:8px;margin-bottom:8px"><div style="font-weight:700;margin-bottom:4px">${drEsc(nm)}</div>${line('✅ Actual (badha bills)', a.all, 'font-weight:700;color:var(--accent)')}${line('📒 Register', a.reg, 'color:var(--muted)')}${line('🚫 Excluded', a.exc, 'color:#f87171')}</div>`;
+    const ex = l1.concat(l2).filter(i=>i.exclude_from_register).sort((a,b)=>drInvKey(a).localeCompare(drInvKey(b)));
+    const exHtml = ex.length ? ex.map(i=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--border)">
+        <div style="flex:1"><div style="font-weight:600">#${String(i.bill_number||'').padStart(4,'0')}${i.bill_code?' · '+drEsc(i.bill_code):''} · ${drEsc(i.bill_date||'')}</div>
+        <div style="color:var(--muted)">${drEsc(i.customer_name||'')} · ${drFmt(parseFloat(i.total||0))}</div></div>
+        <button type="button" onclick="drIncludeBill(${i.id})" style="padding:6px 10px;background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);color:#34d399;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">↩ Include</button>
+      </div>`).join('') : '<div style="color:var(--muted)">Koi excluded bill nathi</div>';
+    body.innerHTML = box('Total (both branches)', tot) + box(drB1NameFor(dv), a1) + box(drB2NameFor(dv), a2)
+      + '<div style="font-weight:700;margin:10px 0 4px">🚫 Excluded bills</div>' + exHtml;
+  }catch(e){
+    body.textContent = '❌ Error: '+e.message;
+  }
+}
+async function drIncludeBill(invId){
+  if(!confirm('Aa bill pachho badha reports ma ganvo?')) return;
+  try{
+    await api(`invoices/${invId}`,'PATCH',{exclude_from_register: false});
+    toast('✅ Register ma include karyu','success');
+    refreshDashInvoices().catch(()=>{});
+    loadDailyRegister();
+    drFullReport();
   } catch(e){ toast('Error: '+e.message,'error'); }
 }
 
