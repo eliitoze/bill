@@ -1542,6 +1542,8 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
                 </div>
               </div>
               <button class="btn btn-sm" style="background:#f59e0b;color:#000;font-weight:700;white-space:nowrap"
+                onclick="applyFormulaCosts()">⚡ Formula Cost</button>
+              <button class="btn btn-sm" style="background:#f59e0b;color:#000;font-weight:700;white-space:nowrap"
                 onclick="saveAllMissingCosts()">💾 Save All</button>
             </div>
             <div id="missingCostList"></div>
@@ -6410,6 +6412,20 @@ async function saveMissingCost(pid, name, costVal){
   renderDailyReport();
 }
 
+// Missing-cost list ma je items ma formula (North Star Silver code) lagu pade te badha ma ek click thi cost lagavo
+async function applyFormulaCosts(){
+  const rows = document.querySelectorAll('#missingCostList [data-smc-pid]');
+  const todo = [];
+  rows.forEach(row=>{
+    const name = row.getAttribute('data-smc-name');
+    const c = vbSilverCost(name);
+    if(c>0) todo.push({pid:row.getAttribute('data-smc-pid'), name, cost:c});
+  });
+  if(!todo.length){ toast('Formula vali koi item nathi (North Star Silver code joiye)','error'); return; }
+  if(!confirm(todo.length+' items ma formula thi cost lagavu?')) return;
+  for(const t of todo){ await saveMissingCost(t.pid, t.name, t.cost); }
+  toast('✅ '+todo.length+' items ma formula cost lagyu!','success');
+}
 async function saveAllMissingCosts(){
   const rows = document.querySelectorAll('#missingCostList [data-smc-pid]');
   let saved=0, skipped=0;
@@ -6847,7 +6863,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v62';
+const APP_VERSION = 'v63';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el){
