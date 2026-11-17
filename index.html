@@ -2320,7 +2320,7 @@ function subscribeInvoiceRealtime(){
       const oldIds = new Set(S.invoices.map(i=>i.id));
       const newOnes = fresh.filter(i=>!oldIds.has(i.id));
       S.invoices = fresh;
-      if(newOnes.length) toast('🔄 Navu Bill #'+(newOnes[0].bill_number||'')+' sync thayu','success');
+      if(newOnes.length) toast('🔄 Navu Bill #'+billLbl(newOnes[0])+' sync thayu','success');
       saveOffline();
       renderAll();
     }catch(e){ console.warn('invoice poll failed:', e.message); }
@@ -3206,6 +3206,23 @@ document.addEventListener('keydown', function(e){
   else if(e.key==='Backspace') pinDel();
   else if(e.key==='Escape') closeM('pinModal');
 });
+// ===== BILL CODE (North Star: random alphanumeric bill_code, baki branches: serial) =====
+function billLbl(inv){
+  if(!inv) return '';
+  return inv.bill_code ? String(inv.bill_code) : String(inv.bill_number==null ? '' : inv.bill_number).padStart(4,'0');
+}
+// Worker POST response ma bill_code na aave to DB thi fakt id+bill_code mangavi lo (fakt North Star)
+async function ensureBillCode(inv){
+  try{
+    if(inv && inv.id && !inv.bill_code && parseInt(inv.branch_id||S.activeBranchId||1)===DR_B2_NEW_ID){
+      const r = await api('invoices?select=id,bill_code&id=eq.'+inv.id+'&incl_excl=1');
+      const row = Array.isArray(r) ? r[0] : null;
+      if(row && row.bill_code) inv.bill_code = row.bill_code;
+    }
+  }catch(e){ console.warn('bill_code fetch failed:', e.message); }
+  return inv;
+}
+
 // ===== BILLING =====
 function updateBillNo(){
   const n = parseInt(S.settings.bill_counter)||1;
@@ -3719,7 +3736,7 @@ function loadBillToNewBill(inv){
     // 9. Edit banner
     showVbEditingBanner(inv);
     vbmGoStep(2, true);   // mobile: edit ma seedha items vala step par
-    toast('✏️ Bill #'+String(inv.bill_number).padStart(4,'0')+' loaded — edit karo!','success');
+    toast('✏️ Bill #'+billLbl(inv)+' loaded — edit karo!','success');
   }, 150);
 }
 
@@ -3733,7 +3750,7 @@ function showVbEditingBanner(inv){
     const vyapar = document.getElementById('vyaparBill');
     if(vyapar && billPage) billPage.insertBefore(banner, vyapar);
   }
-  const billStr = '#'+String(inv.bill_number).padStart(4,'0');
+  const billStr = '#'+billLbl(inv);
   banner.innerHTML = `✏️ Editing Bill ${billStr} &nbsp;·&nbsp; ${inv.customer_name} <span onclick="cancelVbEdit()" style="cursor:pointer;font-size:16px;margin-left:10px">✕</span>`;
   banner.style.display = 'flex';
 }
@@ -3769,7 +3786,7 @@ function getBillData(invData){
   if(invData){
     items = invData.items||[];
     t = {sub:invData.subtotal, disc:invData.discount_pct, discAmt:invData.discount, gst:invData.gst||0, grand:invData.total, gstRate:invData.gst_rate||0};
-    customer = invData.customer_name; billNum = invData.bill_number;
+    customer = invData.customer_name; billNum = invData.bill_code || invData.bill_number;
     dateStr = invData.bill_date; payment = payLabel(invData); note = invData.note||'';
     const c = invData.customer_id ? S.customers.find(x=>x.id===invData.customer_id) : null;
     custPhone = c ? c.phone : (invData.phone||'');
@@ -3932,7 +3949,7 @@ function thermalPrint(invData){
     customer = invData.customer_name || 'Walk-in';
     // Advance bill: AD series number, regular bill: normal number
     const isAdv = invData.status === 'advance' || invData.status === 'advance_closed' || invData.advance_bill_number;
-    billNum = isAdv ? ('AD'+String(invData.advance_bill_number||invData.bill_number||'').padStart(3,'0')) : invData.bill_number;
+    billNum = isAdv ? ('AD'+String(invData.advance_bill_number||invData.bill_number||'').padStart(3,'0')) : (invData.bill_code || invData.bill_number);
     dateStr = invData.bill_date;
     billTime = invData.bill_time || '';
     payment = payLabel(invData);
@@ -4310,7 +4327,7 @@ function resolveBillData(invoiceId){
       items: inv.items||[],
       t: {sub:inv.subtotal, disc:inv.discount_pct, discAmt:inv.discount, gst:inv.gst, grand:inv.total, gstRate:inv.gst_rate||18},
       customer: inv.customer_name, custPhone: c?c.phone:'',
-      billNum: inv.bill_number, dateStr: inv.bill_date,
+      billNum: inv.bill_code || inv.bill_number, dateStr: inv.bill_date,
       payment: payLabel(inv), note: inv.note||''
     };
   } else {
@@ -4489,7 +4506,7 @@ function buildBillHTMLForPDF(inv){
   const s = S.settings;
   const pm = {cash:'Cash',upi:'UPI',card:'Card',credit:'Credit'};
   const items = inv.items||[];
-  const billStr = '#'+String(inv.bill_number).padStart(4,'0');
+  const billStr = '#'+billLbl(inv);
   const terms = s.terms||'';
   return `
   <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#111;font-size:13px">
@@ -4584,7 +4601,7 @@ function exportBillPDF(invoiceId){
     };
   }
 
-  const billStr = String(inv.bill_number).padStart(4,'0');
+  const billStr = billLbl(inv);
   const html = `<!DOCTYPE html><html><head>
     <meta charset="utf-8">
     <title>Bill ${billStr}</title>
@@ -4652,7 +4669,7 @@ async function exportDailyPDF(){
       </tr></thead>
       <tbody>
         ${dayInvs.map(inv=>`<tr style="border-bottom:1px solid #e5e7eb">
-          <td style="padding:6px"><strong>#${String(inv.bill_number).padStart(4,'0')}</strong></td>
+          <td style="padding:6px"><strong>#${billLbl(inv)}</strong></td>
           <td style="padding:6px">${inv.customer_name}</td>
           <td style="padding:6px">${payLabel(inv)}</td>
           <td style="padding:6px;text-align:center">${(inv.items||[]).length}</td>
@@ -4701,7 +4718,7 @@ function exportBillsExcel(){
   const pm = {cash:'Cash',upi:'UPI',card:'Card',credit:'Credit'};
   // Bills sheet
   const billsData = S.invoices.map(inv=>({
-    'Bill No': '#'+String(inv.bill_number).padStart(4,'0'),
+    'Bill No': '#'+billLbl(inv),
     'Date': inv.bill_date,
     'Customer': inv.customer_name,
     'Payment': payLabel(inv),
@@ -4718,7 +4735,7 @@ function exportBillsExcel(){
   S.invoices.forEach(inv=>{
     (inv.items||[]).forEach(item=>{
       itemsData.push({
-        'Bill No': '#'+String(inv.bill_number).padStart(4,'0'),
+        'Bill No': '#'+billLbl(inv),
         'Date': inv.bill_date,
         'Customer': inv.customer_name,
         'Item Name': item.name,
@@ -4920,7 +4937,7 @@ function filterItemBillRows(){
   const rows = (window._itemBillRows||[]).filter(r=>{
     if(!q) return true;
     const inv = r.inv;
-    const billNo = String(inv.bill_number).padStart(4,'0');
+    const billNo = (billLbl(inv)+' '+inv.bill_number).toLowerCase();
     const name = (inv.customer_name||'').toLowerCase();
     const phone = (inv.customer_phone||'').toLowerCase();
     return billNo.includes(q) || name.includes(q) || phone.includes(q);
@@ -4932,7 +4949,7 @@ function filterItemBillRows(){
   body.innerHTML = `<table><thead><tr><th>Bill#</th><th>Date</th><th>Customer</th><th>Qty</th><th>Amount</th></tr></thead><tbody>
     ${rows.map(r=>`
       <tr style="cursor:pointer" onclick="openItemBillEdit(${r.inv.id})">
-        <td><strong style="font-family:'DM Mono',monospace;color:var(--accent)">#${String(r.inv.bill_number).padStart(4,'0')}</strong></td>
+        <td><strong style="font-family:'DM Mono',monospace;color:var(--accent)">#${billLbl(r.inv)}</strong></td>
         <td>${r.inv.bill_date||'—'}</td>
         <td>${r.inv.customer_name||'Walk-in'}</td>
         <td>${r.qty}</td>
@@ -5354,7 +5371,7 @@ function filterCustBillRows(){
   const q = (document.getElementById('custBillsSearch')?.value||'').toLowerCase().trim();
   const rows = (window._custBillRows||[]).filter(inv=>{
     if(!q) return true;
-    const billNo = String(inv.bill_number).padStart(4,'0');
+    const billNo = (billLbl(inv)+' '+inv.bill_number).toLowerCase();
     const itemMatch = (inv.items||[]).some(it=>(it.name||'').toLowerCase().includes(q));
     return billNo.includes(q) || itemMatch;
   });
@@ -5366,7 +5383,7 @@ function filterCustBillRows(){
   body.innerHTML = rows.map(inv=>`
     <div onclick="openCustBillEdit(${inv.id})" style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer">
       <div>
-        <div style="font-size:13px;font-weight:700;color:var(--accent);font-family:'DM Mono',monospace">#${String(inv.bill_number).padStart(4,'0')}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--accent);font-family:'DM Mono',monospace">#${billLbl(inv)}</div>
         <div style="font-size:11px;color:var(--muted);margin-top:2px">${inv.bill_date||'—'} · ${payLabel(inv)} ${(inv.items||[]).length} item</div>
       </div>
       <div style="font-size:14px;font-weight:700">₹${parseFloat(inv.total||0).toFixed(0)}</div>
@@ -5536,7 +5553,7 @@ function renderInvs(){
   // Search filter — Bill#, Customer name, Mobile, Item name
   if(q){
     filtered = filtered.filter(inv=>{
-      const billNo = String(inv.bill_number).padStart(4,'0');
+      const billNo = (billLbl(inv)+' '+inv.bill_number).toLowerCase();
       const name   = (inv.customer_name||'').toLowerCase();
       const cust   = inv.customer_id ? S.customers.find(c=>c.id===inv.customer_id) : null;
       const phone  = (inv.customer_phone || cust?.phone || '').toLowerCase();
@@ -5562,7 +5579,7 @@ function renderInvs(){
   const pm={cash:'💵 Cash',upi:'📱 UPI',card:'💳 Card',credit:'📝 Credit'};
   tbody.innerHTML=filtered.map(inv=>`
     <tr style="${inv.exclude_from_register?'opacity:0.6;background:rgba(239,68,68,0.04)':''}">
-      <td style="cursor:pointer" onclick="openBillDetail(${inv.id})" title="Click to view/edit this bill"><strong style="font-family:'DM Mono',monospace">#${String(inv.bill_number).padStart(4,'0')}</strong>${inv.exclude_from_register?'<span title="Daily Register thi exclude chhe" style="margin-left:4px;font-size:10px">🚫</span>':''}</td>
+      <td style="cursor:pointer" onclick="openBillDetail(${inv.id})" title="Click to view/edit this bill"><strong style="font-family:'DM Mono',monospace">#${billLbl(inv)}</strong>${inv.exclude_from_register?'<span title="Daily Register thi exclude chhe" style="margin-left:4px;font-size:10px">🚫</span>':''}</td>
       <td style="cursor:pointer" onclick="openBillDetail(${inv.id})">${inv.bill_date||'—'}</td>
       <td style="cursor:pointer" onclick="openBillDetail(${inv.id})">${inv.customer_name}</td>
       <td style="cursor:pointer" onclick="openBillDetail(${inv.id})"><span class="badge badge-yellow">${payLabel(inv)}</span></td>
@@ -5622,7 +5639,7 @@ function openBillDetail(id){
   const s = S.settings;
   const pm = {cash:'💵 Cash',upi:'📱 UPI',card:'💳 Card',credit:'📝 Credit'};
   const items = inv.items||[];
-  const billStr = '#'+String(inv.bill_number).padStart(4,'0');
+  const billStr = '#'+billLbl(inv);
 
   let html = `
   <div style="background:var(--s2);padding:14px 16px;border-radius:10px;margin-bottom:14px">
@@ -5693,7 +5710,7 @@ function resendWA(id){
   const msg = buildVyaparMsg(
     inv.items||[], t,
     inv.customer_name, cust?cust.phone:'',
-    inv.bill_number, inv.bill_date, inv.payment_mode, inv.note||'',
+    inv.bill_code || inv.bill_number, inv.bill_date, inv.payment_mode, inv.note||'',
     inv.public_token||''
   );
   sendToWA(cust?cust.phone:'', msg);
@@ -5839,7 +5856,7 @@ function updateDash(){
       const pm={cash:'\ud83d\udcb5',upi:'\ud83d\udcf1',card:'\ud83d\udcb3',credit:'\ud83d\udcdd'};
       rd.innerHTML='<div style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:8px;letter-spacing:0.5px">'+label+'</div>'+
         '<table><thead><tr><th>Bill#</th><th>Customer</th><th>Pay</th><th>Amount</th></tr></thead><tbody>'+
-        recentList.slice(0,8).map(i=>'<tr style="cursor:pointer" onclick="openBillDetail('+i.id+')"><td><strong style="font-family:\'DM Mono\',monospace;color:var(--accent)">#'+String(i.bill_number).padStart(4,'0')+'</strong></td><td>'+i.customer_name+'</td><td>'+((i.payment_mode==='split'||i.payment_mode==='exchange')?'💠':(pm[i.payment_mode]||''))+'</td><td><strong>\u20b9'+parseFloat(i.total).toFixed(0)+'</strong></td></tr>').join('')+
+        recentList.slice(0,8).map(i=>'<tr style="cursor:pointer" onclick="openBillDetail('+i.id+')"><td><strong style="font-family:\'DM Mono\',monospace;color:var(--accent)">#'+billLbl(i)+'</strong></td><td>'+i.customer_name+'</td><td>'+((i.payment_mode==='split'||i.payment_mode==='exchange')?'💠':(pm[i.payment_mode]||''))+'</td><td><strong>\u20b9'+parseFloat(i.total).toFixed(0)+'</strong></td></tr>').join('')+
         '</tbody></table>';
     }
   }
@@ -5939,7 +5956,7 @@ async function renderSilverReport(){
         pcs += w.bad[nm]; badQty += w.bad[nm];
         const o = bad[nm] || (bad[nm] = {qty:0, bills:[]});
         o.qty += w.bad[nm];
-        const bn = '#'+r.inv.bill_number;
+        const bn = '#'+(r.inv.bill_code || r.inv.bill_number);
         if(!o.bills.includes(bn)) o.bills.push(bn);
       });
     });
@@ -6146,7 +6163,7 @@ function renderDailyReport(){
   } else {
     billsTbl.innerHTML = dayInvs.map(inv=>`
       <tr>
-        <td><strong style="font-family:'DM Mono',monospace">#${String(inv.bill_number).padStart(4,'0')}</strong></td>
+        <td><strong style="font-family:'DM Mono',monospace">#${billLbl(inv)}</strong></td>
         <td>${inv.customer_name}</td>
         <td><span class="badge badge-yellow">${payLabel(inv)}</span></td>
         <td style="font-size:11px;color:var(--muted)">${(inv.items||[]).length} items</td>
@@ -6650,7 +6667,7 @@ function printDailyReport(){
   <div class="tp-dash"></div>`;
 
   dayInvs.forEach(inv=>{
-    html+=`<div class="tp-row"><span>#${String(inv.bill_number).padStart(4,'0')} ${inv.customer_name}</span><span>₹${parseFloat(inv.total).toFixed(2)}</span></div>`;
+    html+=`<div class="tp-row"><span>#${billLbl(inv)} ${inv.customer_name}</span><span>₹${parseFloat(inv.total).toFixed(2)}</span></div>`;
   });
 
   html+=`<div class="tp-dash"></div>
@@ -6830,7 +6847,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v60';
+const APP_VERSION = 'v61';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el){
@@ -7864,8 +7881,8 @@ async function vbSave(){
       S.editingInvoiceId=null; S.editingInvoiceBillNo=null; window._vbEditOrigInv=null;
       const banner=document.getElementById('vbEditBanner'); if(banner) banner.style.display='none';
       vbClear(); vbUpdateInvInfo();
-      toast('✅ Bill #'+String(invForDB.bill_number).padStart(4,'0')+' updated!','success');
-      showAfterSaveOptions({...invForDB,id:editId,_localPhone:custPhoneForInv}, invForDB.bill_number);
+      toast('✅ Bill #'+billLbl({bill_code:origInv.bill_code,bill_number:invForDB.bill_number})+' updated!','success');
+      showAfterSaveOptions({...invForDB,id:editId,bill_code:origInv.bill_code,_localPhone:custPhoneForInv}, origInv.bill_code || invForDB.bill_number);
     }catch(e){
       setSyncStatus('offline');
       toast('Update error: '+e.message,'error');
@@ -7882,6 +7899,7 @@ async function vbSave(){
     const { _localPhone: _lp, ...invForDB } = inv;
     const saved = await api('invoices','POST',invForDB);
     if(saved&&saved[0]){
+      await ensureBillCode(saved[0]);
       S.invoices.unshift(saved[0]);
       if(S.reportInvoices) S.reportInvoices.unshift(saved[0]);
       // Worker thi actual saved bill_number use karo (Worker authoritative chhe)
@@ -7907,8 +7925,9 @@ async function vbSave(){
     saveOffline(); updateDash(); renderInvs();
     vbClear();
     const actualBillNum = (saved&&saved[0]&&saved[0].bill_number) ? saved[0].bill_number : billNum;
-    toast('✅ Bill #'+String(actualBillNum).padStart(4,'0')+' saved!','success');
-    showAfterSaveOptions(saved&&saved[0]?saved[0]:inv, actualBillNum);
+    const shownBillNo = (saved&&saved[0]&&saved[0].bill_code) ? saved[0].bill_code : actualBillNum;
+    toast('✅ Bill #'+String(shownBillNo).padStart(4,'0')+' saved!','success');
+    showAfterSaveOptions(saved&&saved[0]?saved[0]:inv, shownBillNo);
     // Agla bill no number taiyar karvo - AA MODAL SATHE KOI SAMBANDH NATHI,
     // etle await na karo. Internet dhimu hoy to pan modal TARAT khule -
     // pehla aa call j modal ne roki rakhti hati (network dhimu hoy tyare).
@@ -8704,6 +8723,7 @@ async function confirmReceivePay(invId){
     // 2. Regular bill save karo
     const saved=await api('invoices','POST',regularInv);
     const savedReg=saved&&saved[0]?saved[0]:{...regularInv,id:Date.now()};
+    if(saved&&saved[0]) await ensureBillCode(savedReg);
     S.invoices.unshift(savedReg);
     if(S.reportInvoices) S.reportInvoices.unshift(savedReg);
 
@@ -8717,7 +8737,7 @@ async function confirmReceivePay(invId){
 
     closeReceivePay();
     updateDash(); renderInvs(); renderAdvanceBills();
-    toast('✅ Payment received! Regular Bill #'+String(savedReg.bill_number||billNum).padStart(4,'0')+' created!','success');
+    toast('✅ Payment received! Regular Bill #'+String(savedReg.bill_code||savedReg.bill_number||billNum).padStart(4,'0')+' created!','success');
 
     // 5. WhatsApp
     setTimeout(()=>{
@@ -8729,7 +8749,7 @@ async function confirmReceivePay(invId){
       let msg=`*${shopName}*\n${bar}\n`;
       msg+=`*Payment Received — Full Bill Closed!*\n`;
       msg+=`Customer: *${inv.customer_name}*\n`;
-      msg+=`Bill #: *${String(savedReg.bill_number||billNum).padStart(4,'0')}*\n`;
+      msg+=`Bill #: *${String(savedReg.bill_code||savedReg.bill_number||billNum).padStart(4,'0')}*\n`;
       msg+=`Date: *${now.toLocaleDateString('en-IN')}*\n`;
       msg+=bar+'\n';
       msg+=`Total Bill:  *₹${parseFloat(inv.total||0).toFixed(0)}*\n`;
@@ -8834,7 +8854,7 @@ function drWeightOf(invs){
       const nm = String(it.name||'').trim() || '(naam nathi)';
       if(w===null){ out.bad[nm] = (out.bad[nm]||0) + qty; return; }
       out.total += w*qty;
-      out.rows.push({bill:inv.bill_number, name:nm, qty, w, wt:w*qty});
+      out.rows.push({bill:(inv.bill_code || inv.bill_number), name:nm, qty, w, wt:w*qty});
     });
   });
   return out;
@@ -9084,8 +9104,8 @@ async function drBillSumLoad(){
     const b1Id = parseInt(document.getElementById('drBranch1Id')?.value||1);
     const b2Id = drB2IdFor(mv+'-01');
     const [r1, r2] = await Promise.all([
-      api(`invoices?branch_id=eq.${b1Id}&order=created_at.desc&limit=2000`),
-      api(`invoices?branch_id=eq.${b2Id}&order=created_at.desc&limit=2000`)
+      api(`invoices?branch_id=eq.${b1Id}&order=created_at.desc&limit=2000&incl_excl=1`),
+      api(`invoices?branch_id=eq.${b2Id}&order=created_at.desc&limit=2000&incl_excl=1`)
     ]);
     const blank = () => ({cash:0, online:0, ex:0, cr:0});
     const days = {};
@@ -9397,8 +9417,8 @@ async function loadMonthlySummary(){
 
     // Fetch all invoices for both branches for this month
     const [r1, r2] = await Promise.all([
-      api(`invoices?branch_id=eq.${b1Id}&order=created_at.desc&limit=2000`),
-      api(`invoices?branch_id=eq.${b2Id}&order=created_at.desc&limit=2000`)
+      api(`invoices?branch_id=eq.${b1Id}&order=created_at.desc&limit=2000&incl_excl=1`),
+      api(`invoices?branch_id=eq.${b2Id}&order=created_at.desc&limit=2000&incl_excl=1`)
     ]);
 
     const filterMonth = (invs) => (invs.invoices||invs||[]).filter(inv => {
