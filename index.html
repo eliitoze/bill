@@ -6847,7 +6847,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v61';
+const APP_VERSION = 'v62';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el){
@@ -7374,13 +7374,27 @@ function vbPickerSelectProduct(pid){
   vbCloseItemPicker();
   setTimeout(()=>{ const el=document.getElementById('vbm-qty-'+rowId); if(el){ el.focus(); el.select(); } }, 150);
 }
+// North Star (branch 4) silver cost: R / (2 ank x10) x (4 ank / 10)  — jem ke A602850R2520 = 2520/600*285
+function vbSilverCost(name){
+  if((S.activeBranchId||1)!==4) return 0;
+  if(typeof drIsSilverName==='function' && !drIsSilverName(name)) return 0;
+  const toks = String(name||'').replace(/[()]/g,' ').trim().split(/\s+/);
+  for(const code of toks){
+    const m = code.match(/^[A-Za-z](\d{2})(\d{4})R(\d+(?:\.\d+)?)$/i);
+    if(m){
+      const div = parseInt(m[1],10)*10, k = parseInt(m[2],10)/10, rate = parseFloat(m[3]);
+      if(div>0 && rate>0) return Math.round(rate/div*k*100)/100;
+    }
+  }
+  return 0;
+}
 async function vbAddCustomItemMobile(name){
   if(!name || !name.trim()) return;
   let rowId = vbPickerRowId;
   if(!rowId){ vbAddRow(); rowId = VB.rows[VB.rows.length-1].id; }
   const r = VB.rows.find(r=>r.id===rowId);
   // Auto-save as new product (stock=1, cost=0)
-  const newProd = { name:name.trim(), sku:'', price:0, cost:0, stock:1, min_stock:5, category:'General', branch_id:S.activeBranchId||1 };
+  const newProd = { name:name.trim(), sku:'', price:0, cost:vbSilverCost(name), stock:1, min_stock:5, category:'General', branch_id:S.activeBranchId||1 };
   let savedId = null;
   try{
     const saved = await api('products','POST', newProd);
@@ -7388,7 +7402,7 @@ async function vbAddCustomItemMobile(name){
     S.products.push(sp); savedId=sp.id;
     if(typeof populateSels==='function') populateSels();
   } catch(e){ const sp={id:Date.now(),...newProd}; S.products.push(sp); savedId=sp.id; }
-  if(r){ r.itemName=name.trim(); r.pid=savedId; r.cost=0; }
+  if(r){ r.itemName=name.trim(); r.pid=savedId; r.cost=newProd.cost; }
   saveOffline();
   vbRender();
   vbCloseItemPicker();
@@ -7522,7 +7536,7 @@ async function vbConfirmNewProduct(){
     name,
     sku: document.getElementById('npSku').value.trim(),
     price,
-    cost: 0,
+    cost: vbSilverCost(name),
     stock: parseInt(document.getElementById('npStock').value)||0,
     min_stock: parseInt(document.getElementById('npMinStock').value)||5,
     category: document.getElementById('npCategory').value.trim() || 'General',
@@ -7544,7 +7558,7 @@ async function vbConfirmNewProduct(){
   vbCloseNewProd();
   if(btn){ btn.disabled=false; btn.textContent='💾 Save & Add'; }
 
-  vbSelectItem(rowId, savedId, name, price, 0);
+  vbSelectItem(rowId, savedId, name, price, newProd.cost);
   // MRP alag nakhyu hoy to te row ma rakho (vbSelectItem mrp=price set kare chhe)
   const r = VB.rows.find(x=>x.id===rowId);
   if(r && mrp){ r.mrp = mrp; vbRender(); vbCalc(); }
