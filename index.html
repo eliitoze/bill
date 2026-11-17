@@ -1076,7 +1076,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
     <div class="nav-item nav-reports" onclick="askPIN('reports')"><span class="nav-icon">📊</span> Reports</div>
     <div class="nav-item nav-advance" onclick="showPage('advance',this);renderAdvanceBills()"><span class="nav-icon">💰</span> Advance Bills</div>
     <div class="nav-item nav-birthdays" onclick="showPage('birthdays',this);renderBirthdays()"><span class="nav-icon">🎂</span> Birthdays</div>
-    <div class="nav-item nav-daily" onclick="askPIN('daily')"><span class="nav-icon">📒</span> Daily Register</div>
+
     <div class="nav-item nav-import" onclick="showPage('import',this)"><span class="nav-icon">📥</span> Excel Import</div>
     <div class="nav-item nav-settings" onclick="showPage('settings',this)"><span class="nav-icon">⚙️</span> Settings</div>
   </nav>
@@ -3032,6 +3032,7 @@ function mobNavReport(el){
 }
 
 function showPage(page, el){
+  if(page !== 'daily') window._drOpen = false;
   // PIN modal khulu hoy to bija menu par jatan j band karo
   const _pinM = document.getElementById('pinModal');
   if(_pinM && _pinM.classList.contains('open')){ _pinM.classList.remove('open'); pinEntry=''; }
@@ -3113,7 +3114,8 @@ window.addEventListener('popstate', function(e){
     _mobOverlayOpen = false;
     return;
   }
-  const page = e.state?.page || 'dashboard';
+  let page = e.state?.page || 'dashboard';
+  if(page === 'daily' && !window._drOpen) page = 'dashboard';
   const navEl = document.querySelector('.nav-item.nav-'+page);
   showPage(page, navEl);
   // Mobile nav sync
@@ -3164,7 +3166,8 @@ function pinKey(k){
           showPage('products', document.querySelector('.nav-products'));
           renderProds();
         } else if(S.pinTarget==='daily'){
-          showPage('daily', document.querySelector('.nav-daily'));
+          window._drOpen = true;
+          showPage('daily', null);
           loadDailyRegister();
         }
       } else {
@@ -6809,10 +6812,24 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v58';
+const APP_VERSION = 'v59';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
-  if(el) el.textContent = 'ShopBill Pro · '+APP_VERSION;
+  if(el){
+    el.textContent = 'ShopBill Pro · '+APP_VERSION;
+    // Hidden entry: version lakhan par 5 vaar jhadpi tap -> PIN box -> Daily Register
+    el.style.padding = '14px 0';
+    el.style.userSelect = 'none';
+    el.style.webkitUserSelect = 'none';
+    el.style.touchAction = 'manipulation';
+    let _tapN = 0, _tapT = null;
+    el.addEventListener('click', ()=>{
+      _tapN++;
+      clearTimeout(_tapT);
+      _tapT = setTimeout(()=>{ _tapN = 0; }, 1500);
+      if(_tapN >= 5){ _tapN = 0; clearTimeout(_tapT); askPIN('daily'); }
+    });
+  }
 });
 document.addEventListener('DOMContentLoaded', ()=>{
   const pm = document.getElementById('sPrintMode');
