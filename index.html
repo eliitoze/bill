@@ -1017,6 +1017,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
           onkeydown="if(event.key==='Enter')doLogin()">
       </div>
       <button onclick="doLogin()" class="btn btn-primary" style="width:100%;padding:12px;font-size:15px">🔑 Sign In</button>
+      <button id="pkLoginBtn" onclick="doPasskeyLogin()" class="btn" style="display:none;width:100%;padding:12px;font-size:15px;margin-top:10px">👆 Fingerprint / Face thi Login</button>
       <div id="loginError" style="color:#ef4444;font-size:12px;text-align:center;margin-top:10px;display:none"></div>
     </div>
   </div>
@@ -1817,6 +1818,14 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
           <div class="form-group" style="margin-bottom:10px"><label>New Password</label><input type="password" id="cpNew" placeholder="Min 4 chars"></div>
           <div class="form-group" style="margin-bottom:12px"><label>Confirm New Password</label><input type="password" id="cpConfirm" placeholder="Repeat new password"></div>
           <button class="btn btn-primary" onclick="changeMyPassword()">🔑 Password Update Karo</button>
+        </div>
+
+        <!-- FINGERPRINT / FACE LOGIN — All users -->
+        <div class="card" style="margin-top:14px">
+          <div class="card-title">👆 Fingerprint / Face Login</div>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Aa phone par fingerprint ke face thi login karva mate chalu karo. Password login chalu j raheshe.</p>
+          <button class="btn btn-primary" onclick="pkRegister()">👆 Aa Device Mate Chalu Karo</button>
+          <div id="pkList" style="margin-top:12px"></div>
         </div>
 
         <!-- BRANCH TOGGLE — All users, shown when branches > 1 -->
@@ -2646,6 +2655,147 @@ async function doLogin(){
   }
 }
 
+// ── PASSKEY (Fingerprint / Face login) ──
+function pkSupported(){ return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create && navigator.credentials.get); }
+function pkB64uToBuf(s){ s=String(s).replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='='; const b=atob(s); const u=new Uint8Array(b.length); for(let i=0;i<b.length;i++) u[i]=b.charCodeAt(i); return u.buffer; }
+function pkBufToB64u(buf){ const u=new Uint8Array(buf); let s=''; for(let i=0;i<u.length;i++) s+=String.fromCharCode(u[i]); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function pkErrMsg(e){
+  const n = e && e.name;
+  if(n==='NotAllowedError') return 'Fingerprint/Face cancel thayu ya time pooru thai gayo';
+  if(n==='InvalidStateError') return 'Aa device ma passkey pehla thi chalu chhe';
+  if(n==='SecurityError') return 'Aa address par passkey nathi chalti - bill.eliitoze.in thi kholo';
+  let m = (e && e.message) || 'Error';
+  try{ m = JSON.parse(m).error || m; }catch(_){}
+  return m;
+}
+function pkDeviceName(){
+  const ua = navigator.userAgent || '';
+  const d = /Android/i.test(ua) ? 'Android' : (/iPhone|iPad/i.test(ua) ? 'iPhone/iPad' : 'Computer');
+  return d + ' · ' + new Date().toLocaleDateString('en-GB');
+}
+function pkRefreshLoginBtn(){
+  const b = document.getElementById('pkLoginBtn'); if(!b) return;
+  let on = false;
+  try{ on = pkSupported() && localStorage.getItem('sb_pk')==='1'; }catch(e){}
+  b.style.display = on ? 'block' : 'none';
+}
+document.addEventListener('DOMContentLoaded', pkRefreshLoginBtn);
+
+async function doPasskeyLogin(){
+  const errEl = document.getElementById('loginError');
+  const btn = document.getElementById('pkLoginBtn');
+  errEl.style.display='none';
+  if(!pkSupported()){ errEl.textContent='Aa device/browser ma fingerprint login support nathi'; errEl.style.display='block'; return; }
+  if(btn){ btn.disabled=true; btn.textContent='Verifying...'; }
+  try{
+    const base = WORKER_URL.replace(/\/$/, '');
+    const r1 = await fetch(base + '/passkey/login-options', { method:'POST' });
+    const o = await r1.json();
+    if(!r1.ok) throw new Error(o.error || 'Passkey error');
+    const cred = await navigator.credentials.get({ publicKey: {
+      challenge: pkB64uToBuf(o.options.challenge),
+      rpId: o.options.rpId,
+      timeout: o.options.timeout,
+      userVerification: 'required',
+      allowCredentials: []
+    }});
+    if(!cred) throw new Error('Cancel thayu');
+    const r = cred.response;
+    const r2 = await fetch(base + '/passkey/login-verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        challengeToken: o.challengeToken,
+        id: cred.id,
+        clientDataJSON: pkBufToB64u(r.clientDataJSON),
+        authenticatorData: pkBufToB64u(r.authenticatorData),
+        signature: pkBufToB64u(r.signature),
+        userHandle: r.userHandle ? pkBufToB64u(r.userHandle) : null
+      })
+    });
+    const data = await r2.json();
+    if(!r2.ok) throw new Error(data.error || 'Login failed');
+    _workerToken = data.token;
+    sessionStorage.setItem('sb_token', data.token);
+    const branchSel = document.getElementById('loginBranch');
+    const branchId   = branchSel ? parseInt(branchSel.value) : 1;
+    const branchName = branchSel ? (branchSel.options[branchSel.selectedIndex]?.text || 'Main') : 'Main';
+    setActiveBranch(branchId, branchName);
+    currentUser = { username: data.username, role: data.role };
+    sessionStorage.setItem('sb_session', JSON.stringify(currentUser));
+    sessionStorage.setItem('sb_branch', JSON.stringify({id:branchId, name:branchName}));
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('mainApp').style.display='block';
+    if(btn){ btn.disabled=false; btn.textContent='👆 Fingerprint / Face thi Login'; }
+    applyRoleRestrictions();
+    await init();
+    setupPushNotifications();
+  } catch(e){
+    errEl.textContent = pkErrMsg(e);
+    errEl.style.display='block';
+    if(btn){ btn.disabled=false; btn.textContent='👆 Fingerprint / Face thi Login'; }
+  }
+}
+
+async function pkRegister(){
+  if(!pkSupported()){ toast('Aa device/browser ma fingerprint login support nathi','error'); return; }
+  try{
+    const o = await api('passkey/register-options','POST',{});
+    const opt = o.options;
+    const cred = await navigator.credentials.create({ publicKey: {
+      challenge: pkB64uToBuf(opt.challenge),
+      rp: opt.rp,
+      user: { id: pkB64uToBuf(opt.user.id), name: opt.user.name, displayName: opt.user.displayName },
+      pubKeyCredParams: opt.pubKeyCredParams,
+      authenticatorSelection: opt.authenticatorSelection,
+      excludeCredentials: (opt.excludeCredentials||[]).map(c=>({ type:'public-key', id: pkB64uToBuf(c.id) })),
+      timeout: opt.timeout,
+      attestation: 'none'
+    }});
+    const r = cred.response;
+    if(!r.getPublicKey || !r.getAuthenticatorData){ toast('Aa browser update karo (passkey support nathi)','error'); return; }
+    await api('passkey/register-verify','POST',{
+      challengeToken: o.challengeToken,
+      id: cred.id,
+      clientDataJSON: pkBufToB64u(r.clientDataJSON),
+      authenticatorData: pkBufToB64u(r.getAuthenticatorData()),
+      publicKey: pkBufToB64u(r.getPublicKey()),
+      publicKeyAlgorithm: r.getPublicKeyAlgorithm(),
+      deviceName: pkDeviceName()
+    });
+    try{ localStorage.setItem('sb_pk','1'); }catch(e){}
+    pkRefreshLoginBtn();
+    toast('✅ Fingerprint/Face login chalu thai gayu!','success');
+    pkRenderList();
+  } catch(e){
+    toast(pkErrMsg(e),'error');
+  }
+}
+
+async function pkRenderList(){
+  const box = document.getElementById('pkList'); if(!box) return;
+  const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  try{
+    const rows = await api('passkey/list');
+    const arr = Array.isArray(rows) ? rows : [];
+    if(!pkSupported()){ box.innerHTML = '<div style="font-size:12px;color:var(--muted)">Aa device/browser ma fingerprint login support nathi.</div>'; return; }
+    box.innerHTML = arr.length ? arr.map(r =>
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-top:1px solid var(--border)">' +
+        '<div style="font-size:13px">📱 ' + esc(r.device_name || 'Device') + '</div>' +
+        '<button class="btn" style="padding:4px 10px;font-size:12px" onclick="pkRemove(' + Number(r.id) + ')">🗑️</button>' +
+      '</div>').join('') : '<div style="font-size:12px;color:var(--muted)">Haji koi device add nathi.</div>';
+  } catch(e){ box.innerHTML = ''; }
+}
+
+async function pkRemove(id){
+  if(!confirm('Aa device no fingerprint/face login kadhi nakhvo?')) return;
+  try{
+    await api('passkey/' + Number(id), 'DELETE');
+    toast('Device kadhi nakhyu','success');
+    pkRenderList();
+  } catch(e){ toast(pkErrMsg(e),'error'); }
+}
+
 // ── CHANGE PASSWORD ──
 async function changeMyPassword(){
   const cur  = document.getElementById('cpCurrent').value;
@@ -3069,7 +3219,7 @@ function showPage(page, el){
   if(page==='products'){ ensureReportData(); if(_prodViewMode==='list') renderItemList(); else renderProds(); }
   if(page==='customers'){ ensureReportData(); }
   if(page==='billing'){ vbSyncOnOpen(); }
-  if(page==='settings'){ renderUserList(); loadBranches().then(()=>{ renderBranchList(); renderBranchToggle(); }); }
+  if(page==='settings'){ renderUserList(); pkRenderList(); loadBranches().then(()=>{ renderBranchList(); renderBranchToggle(); }); }
   document.getElementById('sidebar').classList.remove('open');
   // Billing page: no padding, full height
   const contentEl = document.querySelector('.content');
@@ -6863,7 +7013,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v63';
+const APP_VERSION = 'v65';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el){
