@@ -1,7 +1,7 @@
 // ShopBill Pro — Service Worker (v64)
 // Cache (jem pehla blob ma hatu, e j logic) + Push Notifications
 
-const CACHE = 'shopbill-v65';
+const CACHE = 'shopbill-v66';
 const FILES = ['./', './index.html'];
 
 self.addEventListener('install', e => {
