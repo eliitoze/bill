@@ -2094,13 +2094,15 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
   <!-- Full Report: exclude bills sathe actual numbers -->
   <details class="card" style="margin-bottom:12px;border:1px solid rgba(96,165,250,0.35)" ontoggle="if(this.open) frInit()">
     <summary style="cursor:pointer;font-weight:700;font-size:14px;color:#60a5fa">📑 Full Report (actual)</summary>
-    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <select id="frMode" style="padding:8px 10px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none">
-        <option value="day">Day</option>
-        <option value="month">Month</option>
-      </select>
-      <input type="date" id="frDate" style="flex:1;min-width:130px;padding:8px 10px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none">
-      <button type="button" onclick="drFullReport()" style="padding:8px 14px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">Show</button>
+    <div style="margin-top:10px;display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <div><label style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px">From</label><input type="date" id="frFrom" onchange="drFullReport()" style="padding:8px 10px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none"></div>
+      <div><label style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px">To</label><input type="date" id="frTo" onchange="drFullReport()" style="padding:8px 10px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none"></div>
+    </div>
+    <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+      <button type="button" onclick="frSet('today')" style="padding:7px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-weight:600;cursor:pointer">Today</button>
+      <button type="button" onclick="frSet('yesterday')" style="padding:7px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-weight:600;cursor:pointer">Yesterday</button>
+      <button type="button" onclick="frSet('week')" style="padding:7px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-weight:600;cursor:pointer">This Week</button>
+      <button type="button" onclick="frSet('month')" style="padding:7px 12px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-weight:600;cursor:pointer">This Month</button>
     </div>
     <div id="frBody" style="margin-top:10px;font-size:12px"></div>
   </details>
@@ -7013,7 +7015,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v65';
+const APP_VERSION = 'v66';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el){
@@ -9825,50 +9827,104 @@ async function toggleExcludeRegister(invId){
 }
 
 // ===== DAILY REGISTER > FULL REPORT (exclude bills sathe actual) =====
-function frInit(){
-  const el = document.getElementById('frDate');
-  if(el && !el.value) el.value = document.getElementById('drDate')?.value || drToday();
+function frFmtD(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function frSet(kind){
+  const now = new Date();
+  let a = new Date(now), b = new Date(now);
+  if(kind==='yesterday'){ a.setDate(a.getDate()-1); b = new Date(a); }
+  else if(kind==='week'){ const day = now.getDay(); a.setDate(now.getDate() - (day===0?6:day-1)); }   // Monday thi aaj sudhi
+  else if(kind==='month'){ a = new Date(now.getFullYear(), now.getMonth(), 1); }
+  document.getElementById('frFrom').value = frFmtD(a);
+  document.getElementById('frTo').value = frFmtD(b);
   drFullReport();
+}
+function frInit(){
+  const f = document.getElementById('frFrom');
+  if(f && !f.value) frSet('today'); else drFullReport();
 }
 async function drFullReport(){
   const body = document.getElementById('frBody'); if(!body) return;
-  const dv = document.getElementById('frDate')?.value || document.getElementById('drDate')?.value || drToday();
-  const mode = document.getElementById('frMode')?.value || 'day';
+  let from = document.getElementById('frFrom')?.value || '';
+  let to = document.getElementById('frTo')?.value || '';
+  if(!from && !to){ from = to = frFmtD(new Date()); }
+  if(!from) from = to;
+  if(!to) to = from;
+  if(from > to){ const t = from; from = to; to = t; }
   body.textContent = '⏳ Loading...';
   try{
     const b1Id = parseInt(document.getElementById('drBranch1Id')?.value||1);
-    const b2Id = drB2IdFor(dv);
-    const [r1, r2] = await Promise.all([
-      api(`invoices?branch_id=eq.${b1Id}&order=created_at.desc&limit=2000&incl_excl=1`),
-      api(`invoices?branch_id=eq.${b2Id}&order=created_at.desc&limit=2000&incl_excl=1`)
-    ]);
-    const pick = res => (res.invoices||res||[]).filter(inv=>{
-      const k = drInvKey(inv);
-      return mode==='month' ? k.slice(0,7)===dv.slice(0,7) : k===dv;
-    });
-    const l1 = pick(r1), l2 = pick(r2);
-    const blank = () => ({n:0,t:0,p:0});
-    const agg = list => {
-      const o = {all:blank(), reg:blank(), exc:blank()};
-      list.forEach(i=>{
-        const t = parseFloat(i.total||0), p = parseFloat(i.profit||0);
-        [o.all, i.exclude_from_register ? o.exc : o.reg].forEach(x=>{ x.n++; x.t+=t; x.p+=p; });
+    const b2Old = parseInt(document.getElementById('drBranch2Id')?.value||2);
+    const ids = [b1Id];
+    if(from < DR_B2_CUTOFF && ids.indexOf(b2Old)<0) ids.push(b2Old);
+    if(to >= DR_B2_CUTOFF && ids.indexOf(DR_B2_NEW_ID)<0) ids.push(DR_B2_NEW_ID);
+    const res = await Promise.all(ids.map(id =>
+      api(`invoices?branch_id=eq.${id}&order=created_at.desc&limit=2000&incl_excl=1`)
+        .then(r => ({id, list: Array.isArray(r) ? r : ((r && r.invoices) || [])}))
+    ));
+    let maybeCut = false;
+    const rows = [];
+    const seen = {};
+    res.forEach(({id, list})=>{
+      if(list.length >= 2000){
+        const oldest = list.map(drInvKey).filter(Boolean).sort()[0];
+        if(oldest && oldest > from) maybeCut = true;
+      }
+      list.forEach(inv=>{
+        const k = drInvKey(inv);
+        if(!k || k < from || k > to) return;
+        if(id === DR_B2_NEW_ID && k < DR_B2_CUTOFF) return;
+        if(id === b2Old && id !== b1Id && k >= DR_B2_CUTOFF) return;
+        if(seen[inv.id]) return;
+        seen[inv.id] = 1;
+        const bn = (id === b1Id) ? drB1NameFor(k) : drB2NameFor(k);
+        rows.push({inv, k, bn});
       });
-      return o;
-    };
-    const a1 = agg(l1), a2 = agg(l2);
-    const sum = k => ({n:a1[k].n+a2[k].n, t:a1[k].t+a2[k].t, p:a1[k].p+a2[k].p});
-    const tot = {all:sum('all'), reg:sum('reg'), exc:sum('exc')};
-    const line = (lbl, x, st) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;${st}"><span>${lbl}</span><span>${x.n} bills · ${drFmt(x.t)} · profit ${drFmt(x.p)}</span></div>`;
-    const box = (nm, a) => `<div style="padding:8px 10px;background:var(--s2);border-radius:8px;margin-bottom:8px"><div style="font-weight:700;margin-bottom:4px">${drEsc(nm)}</div>${line('✅ Actual (badha bills)', a.all, 'font-weight:700;color:var(--accent)')}${line('📒 Register', a.reg, 'color:var(--muted)')}${line('🚫 Excluded', a.exc, 'color:#f87171')}</div>`;
-    const ex = l1.concat(l2).filter(i=>i.exclude_from_register).sort((a,b)=>drInvKey(a).localeCompare(drInvKey(b)));
-    const exHtml = ex.length ? ex.map(i=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--border)">
-        <div style="flex:1"><div style="font-weight:600">#${String(i.bill_number||'').padStart(4,'0')}${i.bill_code?' · '+drEsc(i.bill_code):''} · ${drEsc(i.bill_date||'')}</div>
-        <div style="color:var(--muted)">${drEsc(i.customer_name||'')} · ${drFmt(parseFloat(i.total||0))}</div></div>
-        <button type="button" onclick="drIncludeBill(${i.id})" style="padding:6px 10px;background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);color:#34d399;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">↩ Include</button>
-      </div>`).join('') : '<div style="color:var(--muted)">Koi excluded bill nathi</div>';
-    body.innerHTML = box('Total (both branches)', tot) + box(drB1NameFor(dv), a1) + box(drB2NameFor(dv), a2)
-      + '<div style="font-weight:700;margin:10px 0 4px">🚫 Excluded bills</div>' + exHtml;
+    });
+    rows.sort((a,b)=> b.k.localeCompare(a.k) || ((b.inv.id||0) - (a.inv.id||0)));
+
+    let n=0, rev=0, pr=0, en=0, erev=0, epr=0;
+    const byBranch = {};
+    rows.forEach(({inv, bn})=>{
+      const t = parseFloat(inv.total||0), p = parseFloat(inv.profit||0);
+      n++; rev+=t; pr+=p;
+      if(inv.exclude_from_register){ en++; erev+=t; epr+=p; }
+      const g = byBranch[bn] || (byBranch[bn] = {n:0,t:0,p:0});
+      g.n++; g.t+=t; g.p+=p;
+    });
+    const margin = rev>0 ? ((pr/rev)*100).toFixed(1) : '0.0';
+    const multiDay = from !== to;
+    const card = (cls, lbl, val, sub) => `<div class="stat-card ${cls}"><div class="stat-label">${lbl}</div><div class="stat-value">${val}</div>${sub?`<div class="stat-sub">${sub}</div>`:''}</div>`;
+    const stats = `<div class="stats-grid" style="margin-bottom:10px">`
+      + card('blue','Total Sales', n, 'bills')
+      + card('green','Total Revenue', drFmt(rev), '')
+      + card('yellow','Profit', drFmt(pr), margin+'% margin')
+      + card('red','🚫 Excluded', en, drFmt(erev)+' · profit '+drFmt(epr))
+      + `</div>`;
+    const brHtml = Object.keys(byBranch).map(nm=>{
+      const g = byBranch[nm];
+      return `<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0"><span>${drEsc(nm)}</span><span>${g.n} bills · ${drFmt(g.t)} · profit ${drFmt(g.p)}</span></div>`;
+    }).join('');
+    const brBox = Object.keys(byBranch).length > 1
+      ? `<div style="padding:8px 10px;background:var(--s2);border-radius:8px;margin-bottom:10px">${brHtml}</div>` : '';
+    const pm = inv => { try{ return drEsc(payLabel(inv)); }catch(e){ return drEsc(inv.payment_mode||''); } };
+    const trs = rows.length ? rows.map(({inv, k})=>{
+      const ex = !!inv.exclude_from_register;
+      const dShow = multiDay ? `<div style="font-size:10px;color:var(--muted)">${drEsc(inv.bill_date||'')}</div>` : '';
+      return `<tr style="${ex?'opacity:0.75;background:rgba(239,68,68,0.06)':''}">
+        <td><strong style="font-family:'DM Mono',monospace">#${drEsc(billLbl(inv))}</strong>${ex?' 🚫':''}${dShow}</td>
+        <td>${drEsc(inv.customer_name||'')}</td>
+        <td><span class="badge badge-yellow">${pm(inv)}</span></td>
+        <td style="font-family:'DM Mono',monospace"><strong>${drFmt(parseFloat(inv.total||0))}</strong></td>
+        <td style="font-family:'DM Mono',monospace;color:var(--accent)">${drFmt(parseFloat(inv.profit||0))}</td>
+        <td>${ex?`<button type="button" onclick="drIncludeBill(${inv.id})" style="padding:5px 9px;background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);color:#34d399;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">↩ Include</button>`:''}</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="6" class="empty">Aa date ma koi bill nathi</td></tr>';
+    const cutNote = maybeCut ? '<div style="margin-bottom:8px;padding:8px 10px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);border-radius:8px;color:var(--yellow)">⚠️ Range bahu moti chhe - juna bills aavya nathi. Nani range select karo.</div>' : '';
+    body.innerHTML = cutNote + stats + brBox
+      + `<div style="font-weight:700;margin:6px 0">🧾 Bills (${n}) — badha bills, exclude pan sathe</div>`
+      + `<div class="tbl-wrap"><table><thead><tr><th>Bill#</th><th>Customer</th><th>Payment</th><th>Amount</th><th>Profit</th><th></th></tr></thead><tbody>${trs}</tbody></table></div>`;
   }catch(e){
     body.textContent = '❌ Error: '+e.message;
   }
