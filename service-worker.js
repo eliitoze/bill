@@ -1,12 +1,14 @@
-// ShopBill Pro — Service Worker (v69)
+// ShopBill Pro — Service Worker (v70)
 // Cache (jem pehla blob ma hatu, e j logic) + Push Notifications
 
-const CACHE = 'shopbill-v69';
+const CACHE = 'shopbill-v70';
 const FILES = ['./', './index.html'];
 
 self.addEventListener('install', e => {
   self.skipWaiting();
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)));
+  e.waitUntil(caches.open(CACHE).then(c => Promise.all(FILES.map(f =>
+    fetch(f, { cache: 'reload' }).then(r => { if(!r.ok) throw new Error('SW fetch failed: ' + f); return c.put(f, r); })
+  ))));
 });
 
 self.addEventListener('activate', e => {
