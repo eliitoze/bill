@@ -6330,7 +6330,7 @@ function renderDailyReport(){
     const _forf=_adv.filter(a=>a.status==='advance_forfeited'&&inRange(a.advance_settled_date));
     const _el=document.getElementById('rptAdvInfo');
     if(_el) _el.innerHTML=(_recv.length||_ref.length||_forf.length)
-      ? \`💰 Advance Received: <b style="color:#6ee7b7">₹\${_sum(_recv).toFixed(0)}</b> (\${_recv.length})\`+(_ref.length?\` · 💸 Refunded: <b>₹\${_sum(_ref).toFixed(0)}</b>\`:'')+(_forf.length?\` · 🔒 Forfeited: <b>₹\${_sum(_forf).toFixed(0)}</b>\`:'')+\` <span style="opacity:.7">(sale/profit ma nathi)</span>\`
+      ? `💰 Advance Received: <b style="color:#6ee7b7">₹${_sum(_recv).toFixed(0)}</b> (${_recv.length})`+(_ref.length?` · 💸 Refunded: <b>₹${_sum(_ref).toFixed(0)}</b>`:'')+(_forf.length?` · 🔒 Forfeited: <b>₹${_sum(_forf).toFixed(0)}</b>`:'')+` <span style="opacity:.7">(sale/profit ma nathi)</span>`
       : '';
   }catch(e){}
 
@@ -7040,7 +7040,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v68';
+const APP_VERSION = 'v69';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el){
@@ -8885,14 +8885,14 @@ function openCancelAdvance(invId){
   const inv=(S.advanceBills||[]).find(a=>String(a.id)===String(invId));
   if(!inv) return;
   const adv=parseFloat(inv.advance_amount||0).toFixed(0);
-  document.getElementById('receivePayBody').innerHTML=\`
+  document.getElementById('receivePayBody').innerHTML=`
     <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:#f87171;margin-bottom:4px">❌ Advance Cancel</div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:14px">AD\${String(inv.advance_bill_number||'').padStart(3,'0')} · \${inv.customer_name} · Advance ₹\${adv}</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px">AD${String(inv.advance_bill_number||'').padStart(3,'0')} · ${inv.customer_name} · Advance ₹${adv}</div>
     <div style="display:flex;flex-direction:column;gap:10px">
-      <button onclick="confirmCancelAdvance('\${inv.id}','advance_refunded')" class="btn" style="padding:12px;font-weight:700;background:var(--s2);color:var(--text)">💸 Refund — ₹\${adv} customer ne pachha</button>
-      <button onclick="confirmCancelAdvance('\${inv.id}','advance_forfeited')" class="btn" style="padding:12px;font-weight:700;background:var(--s2);color:var(--text)">🔒 Forfeit — ₹\${adv} dukan rakhe</button>
+      <button onclick="confirmCancelAdvance('${inv.id}','advance_refunded')" class="btn" style="padding:12px;font-weight:700;background:var(--s2);color:var(--text)">💸 Refund — ₹${adv} customer ne pachha</button>
+      <button onclick="confirmCancelAdvance('${inv.id}','advance_forfeited')" class="btn" style="padding:12px;font-weight:700;background:var(--s2);color:var(--text)">🔒 Forfeit — ₹${adv} dukan rakhe</button>
       <button onclick="closeReceivePay()" class="btn" style="padding:10px;background:var(--s2);color:var(--muted)">Back</button>
-    </div>\`;
+    </div>`;
   document.getElementById('receivePayModal').classList.add('open');
 }
 async function confirmCancelAdvance(invId,newStatus){
