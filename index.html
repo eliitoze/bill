@@ -374,6 +374,16 @@ html, body {
 
 /* TABLE */
 .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/* Full Report - mobile fit */
+#frBody .stats-grid { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+#frBody .stat-card { min-width: 0; padding: 12px; }
+#frBody .stat-value { font-size: 18px; overflow-wrap: anywhere; }
+#frBody .stat-sub { overflow-wrap: anywhere; }
+#frBody td, #frBody th { padding: 8px 6px; }
+#frBody td { vertical-align: top; }
+#frBody .fr-cust { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; word-break: break-word; }
+#frBody .fr-amt { font-family: 'DM Mono', monospace; font-weight: 700; white-space: nowrap; }
+#frBody .fr-prof { font-family: 'DM Mono', monospace; color: var(--accent); font-size: 11px; white-space: nowrap; }
 table { width: 100%; border-collapse: collapse; }
 th { padding: 9px 12px; text-align: left; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; border-bottom: 1px solid var(--border); white-space: nowrap; }
 td { padding: 9px 12px; border-bottom: 1px solid rgba(42,42,56,0.6); font-size: 13px; }
@@ -7030,7 +7040,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v67';
+const APP_VERSION = 'v68';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el){
@@ -9960,7 +9970,7 @@ async function drFullReport(){
       + `</div>`;
     const brHtml = Object.keys(byBranch).map(nm=>{
       const g = byBranch[nm];
-      return `<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0"><span>${drEsc(nm)}</span><span>${g.n} bills · ${drFmt(g.t)} · profit ${drFmt(g.p)}</span></div>`;
+      return `<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:2px 8px;padding:3px 0"><span>${drEsc(nm)}</span><span>${g.n} bills · ${drFmt(g.t)} · profit ${drFmt(g.p)}</span></div>`;
     }).join('');
     const brBox = Object.keys(byBranch).length > 1
       ? `<div style="padding:8px 10px;background:var(--s2);border-radius:8px;margin-bottom:10px">${brHtml}</div>` : '';
@@ -9969,18 +9979,15 @@ async function drFullReport(){
       const ex = !!inv.exclude_from_register;
       const dShow = multiDay ? `<div style="font-size:10px;color:var(--muted)">${drEsc(inv.bill_date||'')}</div>` : '';
       return `<tr style="${ex?'opacity:0.75;background:rgba(239,68,68,0.06)':''}">
-        <td><strong style="font-family:'DM Mono',monospace">#${drEsc(billLbl(inv))}</strong>${ex?' 🚫':''}${dShow}</td>
-        <td>${drEsc(inv.customer_name||'')}</td>
+        <td><strong style="font-family:'DM Mono',monospace">#${drEsc(billLbl(inv))}</strong>${ex?' 🚫':''}${dShow}<div class="fr-cust">${drEsc(inv.customer_name||'')}</div>${ex?`<button type="button" onclick="drIncludeBill(${inv.id})" style="margin-top:5px;padding:5px 9px;background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);color:#34d399;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">↩ Include</button>`:''}</td>
         <td><span class="badge badge-yellow">${pm(inv)}</span></td>
-        <td style="font-family:'DM Mono',monospace"><strong>${drFmt(parseFloat(inv.total||0))}</strong></td>
-        <td style="font-family:'DM Mono',monospace;color:var(--accent)">${drFmt(parseFloat(inv.profit||0))}</td>
-        <td>${ex?`<button type="button" onclick="drIncludeBill(${inv.id})" style="padding:5px 9px;background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);color:#34d399;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">↩ Include</button>`:''}</td>
+        <td style="text-align:right"><div class="fr-amt">${drFmt(parseFloat(inv.total||0))}</div><div class="fr-prof">${drFmt(parseFloat(inv.profit||0))}</div></td>
       </tr>`;
-    }).join('') : '<tr><td colspan="6" class="empty">Aa date ma koi bill nathi</td></tr>';
+    }).join('') : '<tr><td colspan="3" class="empty">Aa date ma koi bill nathi</td></tr>';
     const cutNote = maybeCut ? '<div style="margin-bottom:8px;padding:8px 10px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);border-radius:8px;color:var(--yellow)">⚠️ Range bahu moti chhe - juna bills aavya nathi. Nani range select karo.</div>' : '';
     body.innerHTML = cutNote + stats + brBox
       + `<div style="font-weight:700;margin:6px 0">🧾 Bills (${n}) — badha bills, exclude pan sathe</div>`
-      + `<div class="tbl-wrap"><table><thead><tr><th>Bill#</th><th>Customer</th><th>Payment</th><th>Amount</th><th>Profit</th><th></th></tr></thead><tbody>${trs}</tbody></table></div>`;
+      + `<div class="tbl-wrap"><table><thead><tr><th>Bill# / Customer</th><th>Payment</th><th style="text-align:right">Amount / Profit</th></tr></thead><tbody>${trs}</tbody></table></div>`;
   }catch(e){
     body.textContent = '❌ Error: '+e.message;
   }
