@@ -1496,6 +1496,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
             <div class="stat-card blue"><div class="stat-label">Bills</div><div class="stat-value" id="day-bills">0</div></div>
             <div class="stat-card red"><div class="stat-label">GST</div><div class="stat-value" id="day-gst">₹0</div></div>
           </div>
+          <div id="rptAdvInfo" style="margin:-4px 0 14px;font-size:12px;color:var(--muted)"></div>
           <div style="display:flex;gap:14px;flex-wrap:wrap">
             <div class="card" style="flex:2;min-width:280px">
               <div class="card-title">📈 Last 7 Days Trend</div>
@@ -2358,6 +2359,8 @@ const api = async (endpoint, method='GET', body=null, extraHeaders={}, signal=nu
   // Exclude-from-register bills: bydefault badha GET invoices ma thi bahar. Daily Register '&incl_excl=1' mukine pachha mangi shake.
   let _incExcl = false;
   if(endpoint.indexOf('&incl_excl=1') > -1){ _incExcl = true; endpoint = endpoint.replace('&incl_excl=1',''); }
+  let _incAdv = false;
+  if(endpoint.indexOf('&incl_adv=1') > -1){ _incAdv = true; endpoint = endpoint.replace('&incl_adv=1',''); }
   // Worker URL available hoy to Worker through call karo
   if(WORKER_URL && _workerToken){
     const base = WORKER_URL.replace(/\/$/, '');
@@ -2391,7 +2394,7 @@ const api = async (endpoint, method='GET', body=null, extraHeaders={}, signal=nu
       }
       const txt = await res.text();
       const data = txt ? JSON.parse(txt) : [];
-      const _noExcl = a => (method==='GET' && !_incExcl && path==='invoices' && Array.isArray(a)) ? a.filter(i=>!(i && i.exclude_from_register)) : a;
+      const _noExcl = a => (method==='GET' && !_incExcl && path==='invoices' && Array.isArray(a)) ? a.filter(i=>!(i && i.exclude_from_register) && (_incAdv || !(i && /^advance/.test(i.status||'')))) : a;
       // Worker returns {products:[...]}, {invoices:[...]}, {customers:[...]}, {settings:[...]} wrappers
       // Supabase direct returns array — unwrap if needed
       if(data && typeof data === 'object' && !Array.isArray(data)){
@@ -6308,6 +6311,18 @@ function renderDailyReport(){
   document.getElementById('day-margin').textContent = margin+'% margin';
   document.getElementById('day-bills').textContent  = dayInvs.length;
   document.getElementById('day-gst').textContent    = '₹'+gst.toFixed(0);
+  if(!S._advLoaded){ S._advLoaded=true; loadAdvanceBills().then(()=>renderDailyReport()); }
+  try{
+    const _adv=(S.advanceBills||[]).filter(a=>!a.branch_id||parseInt(a.branch_id)===parseInt(S.activeBranchId||1));
+    const _sum=arr=>arr.reduce((s,a)=>s+parseFloat(a.advance_amount||0),0);
+    const _recv=_adv.filter(a=>inRange(a.bill_date));
+    const _ref=_adv.filter(a=>a.status==='advance_refunded'&&inRange(a.advance_settled_date));
+    const _forf=_adv.filter(a=>a.status==='advance_forfeited'&&inRange(a.advance_settled_date));
+    const _el=document.getElementById('rptAdvInfo');
+    if(_el) _el.innerHTML=(_recv.length||_ref.length||_forf.length)
+      ? \`💰 Advance Received: <b style="color:#6ee7b7">₹\${_sum(_recv).toFixed(0)}</b> (\${_recv.length})\`+(_ref.length?\` · 💸 Refunded: <b>₹\${_sum(_ref).toFixed(0)}</b>\`:'')+(_forf.length?\` · 🔒 Forfeited: <b>₹\${_sum(_forf).toFixed(0)}</b>\`:'')+\` <span style="opacity:.7">(sale/profit ma nathi)</span>\`
+      : '';
+  }catch(e){}
 
   // Bills table
   const pm = {cash:'💵 Cash',upi:'📱 UPI',card:'💳 Card',credit:'📝 Credit'};
@@ -7015,7 +7030,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v66';
+const APP_VERSION = 'v67';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el){
@@ -8402,9 +8417,13 @@ function saveAdvanceOffline(){
 
 async function loadAdvanceBills(){
   try{
-    const res = await api('invoices?status=eq.advance&order=created_at.desc','GET');
-    if(res && res.invoices) S.advanceBills = res.invoices;
-    else if(Array.isArray(res)) S.advanceBills = res;
+    const sts=['advance','advance_closed','advance_refunded','advance_forfeited'];
+    const parts=await Promise.all(sts.map(s=>api('invoices?status=eq.'+s+'&order=created_at.desc&limit=500&incl_adv=1','GET').catch(()=>null)));
+    if(parts.every(p=>p===null)) throw new Error('adv load failed');
+    const all=[];
+    parts.forEach(p=>{ const arr=p&&p.invoices?p.invoices:(Array.isArray(p)?p:[]); arr.forEach(x=>all.push(x)); });
+    all.sort((a,b)=>String(b.created_at||'')<String(a.created_at||'')?-1:1);
+    S.advanceBills=all;
     saveAdvanceOffline();
   } catch(e){ initAdvanceBills(); }
   updateDash();
@@ -8433,7 +8452,7 @@ function viewAdvanceDetail(id){
       <div style="font-size:14px;font-weight:700;color:var(--accent)">AD${String(a.advance_bill_number||'').padStart(3,'0')}</div>
       ${isPending
         ? `<span style="font-size:11px;font-weight:700;color:#fbbf24;background:rgba(251,191,36,0.12);padding:3px 10px;border-radius:20px">Pending</span>`
-        : `<span style="font-size:11px;font-weight:700;color:#6ee7b7;background:rgba(110,231,183,0.12);padding:3px 10px;border-radius:20px">✅ Closed</span>`}
+        : `<span style="font-size:11px;font-weight:700;color:#6ee7b7;background:rgba(110,231,183,0.12);padding:3px 10px;border-radius:20px">${a.status==='advance_refunded'?'💸 Refunded':a.status==='advance_forfeited'?'🔒 Forfeited':'✅ Closed'}</span>`}
     </div>
     <div style="font-size:16px;font-weight:700;margin-bottom:2px">${a.customer_name||'Walk-in'}</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px">${custPhone||''} · ${a.bill_date||''} · ${(a.payment_mode||'').toUpperCase()}</div>
@@ -8450,6 +8469,7 @@ function viewAdvanceDetail(id){
     ${a.note ? `<div style="font-size:12px;color:var(--muted);background:var(--s2);border-radius:8px;padding:8px 10px;margin-bottom:14px">📝 ${a.note}</div>` : ''}
     <div style="display:flex;gap:8px">
       ${isPending ? `<button onclick="document.getElementById('advDetailModal').style.display='none';openReceivePay('${a.id}')" style="flex:1;padding:10px;background:var(--accent);border:none;border-radius:8px;color:#000;font-weight:700;font-size:13px;cursor:pointer">💳 Receive Payment</button>` : ''}
+      ${isPending ? `<button onclick="document.getElementById('advDetailModal').style.display='none';openCancelAdvance('${a.id}')" style="padding:10px 12px;background:var(--s3);border:1px solid var(--border);border-radius:8px;color:#f87171;font-size:13px;cursor:pointer">❌</button>` : ''}
       <button onclick="advSendWA('${a.id}')" style="padding:10px 14px;background:#25D366;border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer">💬</button>
       <button onclick="thermalPrint(S.advanceBills.find(x=>String(x.id)===String('${a.id}')))" style="padding:10px 14px;background:var(--s3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;cursor:pointer">🖨</button>
     </div>`;
@@ -8459,7 +8479,7 @@ function viewAdvanceDetail(id){
 function renderAdvanceBills(){
   loadAdvanceBills().then(()=>{
     const pending = (S.advanceBills||[]).filter(a=>a.status==='advance');
-    const closed  = (S.advanceBills||[]).filter(a=>a.status==='advance_closed');
+    const closed  = (S.advanceBills||[]).filter(a=>['advance_closed','advance_refunded','advance_forfeited'].includes(a.status));
     const fmt = n=>'₹'+parseFloat(n||0).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,',');
 
     const renderCard = (a, isPending) => `
@@ -8473,12 +8493,13 @@ function renderAdvanceBills(){
           <div style="text-align:right">
             <div style="font-size:13px;color:var(--muted)">Total: <b>${fmt(a.total)}</b></div>
             <div style="font-size:13px;color:#6ee7b7">Advance: <b>${fmt(a.advance_amount)}</b></div>
-            ${isPending ? `<div style="font-size:14px;font-weight:700;color:#fbbf24;margin-top:4px">Pending: ${fmt(a.balance_amount)}</div>` : '<div style="font-size:12px;color:#6ee7b7;margin-top:4px">✅ Closed</div>'}
+            ${isPending ? `<div style="font-size:14px;font-weight:700;color:#fbbf24;margin-top:4px">Pending: ${fmt(a.balance_amount)}</div>` : `<div style="font-size:12px;color:#6ee7b7;margin-top:4px">${a.status==='advance_refunded'?'💸 Refunded':a.status==='advance_forfeited'?'🔒 Forfeited':'✅ Closed'}</div>`}
           </div>
         </div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:10px">${(a.items||[]).map(i=>i.name).join(', ')}</div>
         <div style="display:flex;gap:8px" onclick="event.stopPropagation()">
           ${isPending ? `<button onclick="openReceivePay('${a.id}')" style="flex:1;padding:9px;background:var(--accent);border:none;border-radius:8px;color:#000;font-weight:700;font-size:13px;cursor:pointer">💳 Receive Payment</button>` : ''}
+          ${isPending ? `<button onclick="openCancelAdvance('${a.id}')" style="padding:9px 12px;background:var(--s3);border:1px solid var(--border);border-radius:8px;color:#f87171;font-size:13px;cursor:pointer">❌</button>` : ''}
           <button onclick="advSendWA('${a.id}')" style="padding:9px 14px;background:#25D366;border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer">💬</button>
           <button onclick="thermalPrint(S.advanceBills.find(x=>String(x.id)===String('${a.id}')))" style="padding:9px 14px;background:var(--s3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;cursor:pointer">🖨</button>
         </div>
@@ -8850,6 +8871,37 @@ function closeReceivePay(){
   document.getElementById('receivePayModal').classList.remove('open');
 }
 
+function openCancelAdvance(invId){
+  const inv=(S.advanceBills||[]).find(a=>String(a.id)===String(invId));
+  if(!inv) return;
+  const adv=parseFloat(inv.advance_amount||0).toFixed(0);
+  document.getElementById('receivePayBody').innerHTML=\`
+    <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:#f87171;margin-bottom:4px">❌ Advance Cancel</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px">AD\${String(inv.advance_bill_number||'').padStart(3,'0')} · \${inv.customer_name} · Advance ₹\${adv}</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button onclick="confirmCancelAdvance('\${inv.id}','advance_refunded')" class="btn" style="padding:12px;font-weight:700;background:var(--s2);color:var(--text)">💸 Refund — ₹\${adv} customer ne pachha</button>
+      <button onclick="confirmCancelAdvance('\${inv.id}','advance_forfeited')" class="btn" style="padding:12px;font-weight:700;background:var(--s2);color:var(--text)">🔒 Forfeit — ₹\${adv} dukan rakhe</button>
+      <button onclick="closeReceivePay()" class="btn" style="padding:10px;background:var(--s2);color:var(--muted)">Back</button>
+    </div>\`;
+  document.getElementById('receivePayModal').classList.add('open');
+}
+async function confirmCancelAdvance(invId,newStatus){
+  if(window._advCancelling) return;
+  const inv=(S.advanceBills||[]).find(a=>String(a.id)===String(invId));
+  if(!inv) return;
+  const label=newStatus==='advance_refunded'?'Refunded':'Forfeited (kept)';
+  if(!confirm('AD'+String(inv.advance_bill_number||'').padStart(3,'0')+' — '+label+'. Barabar?')) return;
+  window._advCancelling=true;
+  const today=new Date().toLocaleDateString('en-IN');
+  try{
+    await api('invoices/'+invId,'PATCH',{status:newStatus,balance_amount:0,advance_settled_date:today,note:(inv.note||'')+'\n'+label+' on '+today});
+    inv.status=newStatus; inv.balance_amount=0; inv.advance_settled_date=today;
+    saveAdvanceOffline(); closeReceivePay(); renderAdvanceBills(); updateDash();
+    toast('✅ Advance '+label,'success');
+  }catch(e){ toast('Error: '+e.message,'error'); }
+  finally{ window._advCancelling=false; }
+}
+
 async function confirmReceivePay(invId){
   if(window._recvSaving){ return; }
   window._recvSaving = true;
@@ -8891,21 +8943,25 @@ async function confirmReceivePay(invId){
     bill_time: now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}),
     status:'paid',
     branch_id: bid,
-    public_token: tok
+    public_token: tok,
+    linked_advance_id: inv.id,
+    advance_paid: parseFloat(inv.advance_amount||0)
   };
 
   try{
-    // 1. Advance bill close karo
-    await api('invoices/'+invId,'PATCH',{
-      status:'advance_closed',
-      balance_amount:0,
-      note:(inv.note||'')+'\nClosed: ₹'+recvAmt+' received on '+now.toLocaleDateString('en-IN')
-    });
-
-    // 2. Regular bill save karo
+    // 1. Regular (final) bill pehla save karo
     const saved=await api('invoices','POST',regularInv);
     const savedReg=saved&&saved[0]?saved[0]:{...regularInv,id:Date.now()};
     if(saved&&saved[0]) await ensureBillCode(savedReg);
+
+    // 2. Advance bill settle + final bill sathe link
+    await api('invoices/'+invId,'PATCH',{
+      status:'advance_closed',
+      balance_amount:0,
+      final_bill_id: savedReg.id,
+      advance_settled_date: now.toLocaleDateString('en-IN'),
+      note:(inv.note||'')+'\nClosed: ₹'+recvAmt+' received on '+now.toLocaleDateString('en-IN')+' · Final Bill #'+String(savedReg.bill_code||savedReg.bill_number||billNum)
+    });
     S.invoices.unshift(savedReg);
     if(S.reportInvoices) S.reportInvoices.unshift(savedReg);
 
