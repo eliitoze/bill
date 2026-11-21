@@ -998,7 +998,6 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
 </style>
 </head>
 <body>
-
 <!-- LOGIN SCREEN -->
 <div id="loginScreen" style="display:none;align-items:center;justify-content:center;min-height:100dvh;background:var(--bg);padding:20px;padding-bottom:calc(20px + env(safe-area-inset-bottom,0px));box-sizing:border-box">
   <div style="width:100%;max-width:360px">
@@ -1997,8 +1996,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
   </div>
 
   <!-- Bank Sale (manual) -->
-  <div class="card" style="margin-bottom:12px">
-    <div class="card-title">🏦 Bank Sale (Manual Enter)</div>
+  <div class="card" style="margin-bottom:12px">    <div class="card-title">🏦 Bank Sale (Manual Enter)</div>
     <div style="display:flex;gap:12px;flex-wrap:wrap">
       <div style="flex:1;min-width:140px">
         <label style="font-size:11px;color:var(--muted)"><span class="drB1Lbl">Branch 1</span> Bank Sale ₹</label>
@@ -2997,8 +2995,7 @@ function checkSession(){
       return true;
     }
   }catch(e){}
-  document.getElementById('loginScreen').style.display='flex';
-  document.getElementById('mainApp').style.display='none';
+  document.getElementById('loginScreen').style.display='flex';  document.getElementById('mainApp').style.display='none';
   return false;
 }
 
@@ -3997,7 +3994,6 @@ function buildBillHTML(d, forImage=false){
   const fwN  = '600';
   const center = 'text-align:center;';
   const dash = `<div style="border-top:1px dashed #000;margin:3px 0"></div>`;
-
   // Terms — same font as whole bill
   const termsHTML = terms ? (() => {
     const parts = terms.split(/(?=\(\d+\))/);
@@ -4997,8 +4993,7 @@ function exportMonthlyExcel(){
 
 // ===== PRODUCTS =====
 // ===== PRODUCTS: LIST VIEW (item list + item-wise bill history) =====
-let _prodViewMode = 'list';
-let _selectedItemId = null;
+let _prodViewMode = 'list';let _selectedItemId = null;
 
 function setProdView(mode){
   _prodViewMode = mode;
@@ -5491,7 +5486,12 @@ async function bulkAddStock(){
 // ===== CUSTOMERS =====
 function custFillBranchSel(){
   const sel = document.getElementById('custBranch'); if(!sel) return;
-  const opts = (S.branches||[]).map(b=>`<option value="${b.id}">🏬 ${String(b.name||('Branch '+b.id)).replace(/</g,'&lt;')}</option>`).join('');
+  // Login vakhte branches adhura/cached hoy to ek var fresh lavo (session ma ek j var)
+  if(!window._custBrFetched){
+    window._custBrFetched = true;
+    loadBranches().then(()=>custFillBranchSel()).catch(()=>{});
+  }
+  const opts = [...(S.branches||[])].sort((x,y)=>(x.sort_order||x.id)-(y.sort_order||y.id)).map(b=>`<option value="${b.id}">🏬 ${String(b.name||('Branch '+b.id)).replace(/</g,'&lt;')}</option>`).join('');
   const key = (S.branches||[]).map(b=>b.id+':'+b.name).join('|');
   if(sel.dataset.key === key) return;
   const cur = sel.value;
@@ -5997,8 +5997,7 @@ async function loadTopItems(){
     });
     T.rows = Object.values(map).sort((a,b)=> b.qty-a.qty || b.amt-a.amt).slice(0,5);
     T.key = key; T.t = Date.now();
-  }catch(e){
-    console.warn('Top items load failed:', e.message);
+  }catch(e){    console.warn('Top items load failed:', e.message);
     T.rows = []; T.key = key; T.failed = true;
     T.t = Date.now() - 4*60*1000; // ~1 minute pachi fari try
   }
@@ -6997,8 +6996,7 @@ function handleImport(e){
       const si   = h.findIndex(x=>(x.includes('qty')||x.includes('stock'))&&!x.includes('min'));
       const mi   = h.findIndex(x=>x.includes('min'));
       const ski  = h.findIndex(x=>x.includes('sku')||x.includes('code'));
-      const cati = h.findIndex(x=>x.includes('cat'));
-      S.importData=[];
+      const cati = h.findIndex(x=>x.includes('cat'));      S.importData=[];
       for(let i=hRow+1;i<rows.length;i++){
         const r=rows[i];
         const name=ni>=0?String(r[ni]||'').trim():'';
@@ -7084,7 +7082,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v71';
+const APP_VERSION = 'v72';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el){
@@ -7997,8 +7995,7 @@ async function vbSave(){
       const phoneChanged = !!(phone && selC.phone && String(selC.phone).trim() !== phone);
       if(nameChanged || phoneChanged){
         custId_raw = null;   // niche phone thi existing shodhshe, nahi male to navo customer banshe
-      } else if(phone && !selC.phone){
-        selC.phone = phone;  // customer ne number nahoto - have save karo
+      } else if(phone && !selC.phone){        selC.phone = phone;  // customer ne number nahoto - have save karo
         api('customers/'+selC.id,'PATCH',{phone}).catch(()=>{});
       }
     }
@@ -8997,8 +8994,7 @@ async function confirmReceivePay(invId){
     bill_time: now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true}),
     status:'paid',
     branch_id: bid,
-    public_token: tok,
-    linked_advance_id: inv.id,
+    public_token: tok,    linked_advance_id: inv.id,
     advance_paid: parseFloat(inv.advance_amount||0)
   };
 
@@ -9997,8 +9993,7 @@ async function drFullReport(){
     });
     rows.sort((a,b)=> b.k.localeCompare(a.k) || ((b.inv.id||0) - (a.inv.id||0)));
 
-    let n=0, rev=0, pr=0, en=0, erev=0, epr=0;
-    const byBranch = {};
+    let n=0, rev=0, pr=0, en=0, erev=0, epr=0;    const byBranch = {};
     rows.forEach(({inv, bn})=>{
       const t = parseFloat(inv.total||0), p = parseFloat(inv.profit||0);
       n++; rev+=t; pr+=p;
