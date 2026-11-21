@@ -1400,6 +1400,9 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <input type="text" id="custSearch" placeholder="🔍 Search..." oninput="renderCusts()"
             style="padding:9px 13px;background:var(--s1);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;outline:none;width:200px">
+          <select id="custBranch" onchange="renderCusts()" style="padding:9px 13px;background:var(--s1);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;outline:none">
+            <option value="">🏬 All Branches</option>
+          </select>
           <select id="custSort" onchange="renderCusts()" style="padding:9px 13px;background:var(--s1);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;outline:none">
             <option value="name">🔤 Name (A-Z)</option>
             <option value="sale_desc">📈 Highest Sale</option>
@@ -1408,7 +1411,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
           </select>
         </div>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('custSearch').value='';renderCusts()">📋 Show All</button>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('custSearch').value='';document.getElementById('custBranch').value='';renderCusts()">📋 Show All</button>
           <button class="btn btn-primary" onclick="openAddCust()">+ New Customer</button>
         </div>
       </div>
@@ -1435,6 +1438,9 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
           <input type="date" id="invTo" onchange="renderInvs()" style="padding:7px 10px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none">
         </div>
         <button class="btn btn-ghost btn-sm" onclick="invSetToday()" style="padding:7px 12px">📅 Today</button>
+        <button class="btn btn-ghost btn-sm" onclick="invSetRange('yesterday')" style="padding:7px 12px">Yesterday</button>
+        <button class="btn btn-ghost btn-sm" onclick="invSetRange('week')" style="padding:7px 12px">This Week</button>
+        <button class="btn btn-ghost btn-sm" onclick="invSetRange('month')" style="padding:7px 12px">This Month</button>
         <button class="btn btn-ghost btn-sm" onclick="invSetAll()" style="padding:7px 12px">📋 All</button>
       </div>
       <!-- Search Bar -->
@@ -1483,6 +1489,7 @@ input:checked + .vb-slider:before { transform: translateX(16px); }
             <input type="date" id="dailyDateTo" style="padding:8px 11px;background:var(--s2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;" onchange="renderDailyReport()">
           </div>
           <button class="btn btn-ghost btn-sm" onclick="setDailyToday()" style="margin-top:18px">Today</button>
+          <button class="btn btn-ghost btn-sm" onclick="setDailyYesterday()" style="margin-top:18px">Yesterday</button>
           <button class="btn btn-ghost btn-sm" onclick="setThisWeek()" style="margin-top:18px">This Week</button>
           <button class="btn btn-ghost btn-sm" onclick="setThisMonth2()" style="margin-top:18px">This Month</button>
           <button class="btn btn-print btn-sm" onclick="printDailyReport()" style="margin-top:18px">🖨 Print</button>
@@ -3373,15 +3380,15 @@ document.addEventListener('keydown', function(e){
   else if(e.key==='Backspace') pinDel();
   else if(e.key==='Escape') closeM('pinModal');
 });
-// ===== BILL CODE (North Star: random alphanumeric bill_code, baki branches: serial) =====
+// ===== BILL CODE (Branch 1 + North Star: random alphanumeric bill_code, baki branches: serial) =====
 function billLbl(inv){
   if(!inv) return '';
   return inv.bill_code ? String(inv.bill_code) : String(inv.bill_number==null ? '' : inv.bill_number).padStart(4,'0');
 }
-// Worker POST response ma bill_code na aave to DB thi fakt id+bill_code mangavi lo (fakt North Star)
+// Worker POST response ma bill_code na aave to DB thi fakt id+bill_code mangavi lo (Branch 1 + North Star)
 async function ensureBillCode(inv){
   try{
-    if(inv && inv.id && !inv.bill_code && parseInt(inv.branch_id||S.activeBranchId||1)===DR_B2_NEW_ID){
+    if(inv && inv.id && !inv.bill_code && [1,DR_B2_NEW_ID].includes(parseInt(inv.branch_id||S.activeBranchId||1))){
       const r = await api('invoices?select=id,bill_code&id=eq.'+inv.id+'&incl_excl=1');
       const row = Array.isArray(r) ? r[0] : null;
       if(row && row.bill_code) inv.bill_code = row.bill_code;
@@ -5482,13 +5489,32 @@ async function bulkAddStock(){
 }
 
 // ===== CUSTOMERS =====
+function custFillBranchSel(){
+  const sel = document.getElementById('custBranch'); if(!sel) return;
+  const opts = (S.branches||[]).map(b=>`<option value="${b.id}">🏬 ${String(b.name||('Branch '+b.id)).replace(/</g,'&lt;')}</option>`).join('');
+  const key = (S.branches||[]).map(b=>b.id+':'+b.name).join('|');
+  if(sel.dataset.key === key) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">🏬 All Branches</option>' + opts;
+  sel.value = cur; sel.dataset.key = key;
+}
 function renderCusts(){
+  custFillBranchSel();
   const q=(document.getElementById('custSearch')?.value||'').toLowerCase();
   const sortBy = document.getElementById('custSort')?.value || 'name';
+  const brSel = document.getElementById('custBranch')?.value || '';
   let list=S.customers.filter(c=>
     (c.name||'').toLowerCase().includes(q) ||
     (c.phone||'').includes(q)
   );
+  // Branch filter: je customer na te branch ma bill thayela hoy (customers.branch_ids)
+  if(brSel){
+    if(S.customers.length && S.customers.every(c=>c.branch_ids===undefined)){
+      toast('Branch filter mate data nathi malyo — All Branches batavu chhu','error');
+    } else {
+      list = list.filter(c=>Array.isArray(c.branch_ids) && c.branch_ids.map(Number).includes(parseInt(brSel)));
+    }
+  }
   if(sortBy==='sale_desc') list = [...list].sort((a,b)=>(parseFloat(b.total_purchase)||0)-(parseFloat(a.total_purchase)||0));
   else if(sortBy==='sale_asc') list = [...list].sort((a,b)=>(parseFloat(a.total_purchase)||0)-(parseFloat(b.total_purchase)||0));
   else if(sortBy==='recent') list = [...list].sort((a,b)=>(b.id||0)-(a.id||0));
@@ -5683,6 +5709,16 @@ function invSetToday(){
   const t = new Date().toISOString().split('T')[0];
   document.getElementById('invFrom').value = t;
   document.getElementById('invTo').value   = t;
+  renderInvs();
+}
+function invSetRange(kind){
+  const f = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const now = new Date(); let a = new Date(now), b = new Date(now);
+  if(kind==='yesterday'){ a.setDate(a.getDate()-1); b = new Date(a); }
+  else if(kind==='week'){ const day = now.getDay(); a.setDate(now.getDate() - (day===0?6:day-1)); }
+  else if(kind==='month'){ a = new Date(now.getFullYear(), now.getMonth(), 1); }
+  document.getElementById('invFrom').value = f(a);
+  document.getElementById('invTo').value   = f(b);
   renderInvs();
 }
 function invSetAll(){
@@ -6240,6 +6276,14 @@ function todayStr(){
 
 function setDailyToday(){
   const t = todayStr();
+  document.getElementById('dailyDateFrom').value = t;
+  document.getElementById('dailyDateTo').value = t;
+  renderDailyReport();
+}
+
+function setDailyYesterday(){
+  const d = new Date(); d.setDate(d.getDate()-1);
+  const t = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   document.getElementById('dailyDateFrom').value = t;
   document.getElementById('dailyDateTo').value = t;
   renderDailyReport();
@@ -7040,7 +7084,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v70';
+const APP_VERSION = 'v71';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el){
@@ -9228,6 +9272,9 @@ async function loadDailyRegister(){
         }
       });
     } else {
+      // Bank Sale manual chhe — saved na hoy to default 0 (gai kal ni value carry na thay)
+      document.getElementById('drBankMain').value = '';
+      document.getElementById('drBankB2').value   = '';
       // Auto-carry: sauthi najik na saved divas thi aaj sudhi roll-forward (vache divas saved na hoy to pan chale)
       const exp = await drExpectedOpening(date, r1, r2);
       if(exp){
