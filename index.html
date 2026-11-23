@@ -3673,6 +3673,19 @@ function calcTotals(){
   const rTotal=document.getElementById('rTotal'); if(rTotal) rTotal.textContent='₹'+grand.toFixed(2);
 }
 
+// Profit helper: cost save nathi (0/blank) e item no profit = 0
+function calcItemsProfit(items, afterDisc, subtotal){
+  const sub = parseFloat(subtotal)||0;
+  const ratio = sub>0 ? (afterDisc/sub) : 1;
+  return (items||[]).reduce((s,i)=>{
+    const c = parseFloat(i.cost)||0;
+    if(c<=0) return s;
+    const q = parseFloat(i.qty)||1;
+    const tot = (i.total!=null) ? (parseFloat(i.total)||0) : (parseFloat(i.price)||0)*q;
+    return s + (tot*ratio - c*q);
+  },0);
+}
+
 function getTotals(){
   const sub=S.billItems.reduce((s,i)=>s+i.total,0);
   const disc=parseFloat(document.getElementById('discPct').value)||0;
@@ -3681,7 +3694,7 @@ function getTotals(){
   const gst=afterDisc*getGR();
   const grand=afterDisc+gst;
   const cost=S.billItems.reduce((s,i)=>s+(i.cost*i.qty),0);
-  const profit=afterDisc-cost;
+  const profit=calcItemsProfit(S.billItems,afterDisc,sub);
   const gstRate=getGR()*100; return{sub,disc,discAmt,afterDisc,gst,grand,cost,profit,gstRate};
 }
 
@@ -5260,7 +5273,7 @@ async function saveProd(){
           if(changed){
             const totalCost = (inv.items||[]).reduce((s,i)=>s+(parseFloat(i.cost||0)*parseFloat(i.qty||1)),0);
             const afterDisc = parseFloat(inv.subtotal||inv.total||0) - parseFloat(inv.discount||0);
-            inv.profit = afterDisc - totalCost;
+            inv.profit = calcItemsProfit(inv.items, afterDisc, parseFloat(inv.subtotal||inv.total||0));
             try{
               await api(`invoices/${inv.id}`,'PATCH',{items:inv.items, profit:inv.profit});
               updCount++;
@@ -6611,7 +6624,7 @@ async function saveMissingCost(pid, name, costVal){
     });
     if(changed){
       const afterDisc = parseFloat(inv.subtotal||inv.total||0) - parseFloat(inv.discount||0);
-      inv.profit = afterDisc - (inv.items||[]).reduce((s,i)=>s+(parseFloat(i.cost||0)*parseInt(i.qty||1)),0);
+      inv.profit = calcItemsProfit(inv.items, afterDisc, parseFloat(inv.subtotal||inv.total||0));
     }
   });
 
@@ -7082,7 +7095,7 @@ function toast(msg,type=''){
 // service-worker.js na CACHE version sathe MATCH rakho (dar deploy e banne badlo).
 // Settings page ma dekhay chhe - koi pan device par navo deploy pahoncho chhe
 // ke nahi, aa number joi ne tarat khatri thai jay.
-const APP_VERSION = 'v72';
+const APP_VERSION = 'v73';
 document.addEventListener('DOMContentLoaded', ()=>{
   const el = document.getElementById('appVersionFooter');
   if(el){
@@ -8054,7 +8067,7 @@ async function vbSave(){
     price: parseFloat(r.price)||0, cost: r.cost||0,
     total: r.amount||0, unit: r.unit
   }));
-  const profit = items.reduce((s,i)=>s+(i.total-(i.cost*(parseFloat(i.qty)||1))),0) - discAmt;
+  const profit = calcItemsProfit(items, afterDisc, subtotal);
 
   const nowVb = new Date();
   // Public token generate
