@@ -1,7 +1,7 @@
-// ShopBill Pro — Service Worker (v73)
+// ShopBill Pro — Service Worker (v74)
 // Cache (jem pehla blob ma hatu, e j logic) + Push Notifications
 
-const CACHE = 'shopbill-v73';
+const CACHE = 'shopbill-v74';
 const FILES = ['./', './index.html'];
 
 self.addEventListener('install', e => {
@@ -20,7 +20,23 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+  const req = e.request;
+  // Only same-origin GET: Worker/Supabase/CDN/POST calls are NOT touched by the SW
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+  // Network-first, cache only as offline fallback
+  e.respondWith(
+    fetch(req).then(res => {
+      if (res && res.ok && (url.pathname.endsWith('/') || url.pathname.endsWith('index.html'))) {
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
+      }
+      return res;
+    }).catch(() =>
+      caches.match(req).then(r => r || (req.mode === 'navigate' ? caches.match('./index.html') : Response.error()))
+    )
+  );
 });
 
 // ===== PUSH NOTIFICATION =====
